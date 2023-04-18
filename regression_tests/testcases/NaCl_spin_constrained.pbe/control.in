@@ -1,0 +1,175 @@
+#  Volker Blum, FHI 2007 : Input file for FHI-aims code project
+#
+  xc             pbe
+  relativistic   atomic_zora scalar
+  spin           collinear
+#
+  KS_method      serial
+    empty_states   10
+    basis_threshold 0.e-6
+#
+  occupation_type gaussian 0.1
+  mixer          pulay
+    ini_linear_mixing 12
+    ini_linear_mix_param 0.3
+    charge_mix_param  0.6
+  sc_accuracy_rho  1E-6
+  sc_accuracy_eev  1E-4
+  sc_accuracy_etot 1E-6
+  sc_iter_limit 100
+#
+  constraint_electrons 1  6 5
+  constraint_electrons 2  8 9
+  mixer_constraint bfgs
+  constraint_it_lim 400
+  constraint_precision 1e-8
+#
+  output mulliken
+  output hirshfeld
+################################################################################
+#
+#  FHI-aims code project
+#  VB, Fritz-Haber Institut, 2007
+#
+#  Suggested "safe" defaults for Na atom (to be pasted into control.in file)
+#  All values have been tested for a non-relativistic, non-spinpolarized Na2
+#  molecule using the PW-LDA functional. Validity for PBE is expected.
+#
+#  Constructed for dimers: 2.0 A, 2.5 A, 3.0 A, 3.75 A, 4.5 A
+#
+################################################################################
+  species        Na
+#     global species definitions
+    nucleus             11
+    l_hartree           6
+    cut_pot             5.0          2.0  1.0
+    cut_free_atom       finite 8.0
+    logarithmic         0.000100 100.00  1.0123
+    radial_base         40 7.0
+    radial_multiplier   2
+    angular_grids       specified
+      division   0.5925  110
+      division   0.7843  194
+      division   1.0201  302
+      division   1.1879  434
+      division   1.3799  590
+#      division   1.4503  770
+#      division   7.0005  974
+#      outer_grid  974
+      outer_grid  590
+################################################################################
+#
+#  Definition of "minimal" basis
+#
+################################################################################
+#     valence basis states
+    valence      3  s   1.
+    valence      2  p   6.
+#     ion occupancy
+    ion_occ      2  s   2.
+    ion_occ      2  p   6.
+################################################################################
+#
+#  Suggested additional basis functions. For production calculations, 
+#  uncomment them one after another (the most important basis functions are
+#  listed first).
+#
+################################################################################
+#  "First tier" - improvements: -60.09 meV to -10.02 meV
+     hydro 2 p 1.2
+     hydro 3 s 1.8
+     hydro 3 d 3.8
+#  "Second tier" - improvements: -2.94 meV to -1.27 meV
+#     hydro 4 p 3.1
+#     hydro 3 s 10
+#     hydro 4 f 6.2
+#     hydro 4 d 1.3
+#  "Third tier" - improvements: -0.83 meV to -0.07 meV
+#     hydro 3 d 7.8
+#     hydro 3 p 2.3
+#     hydro 5 g 9.6
+#     hydro 4 p 0.85
+#     hydro 5 f 1.8
+#     hydro 2 s 0.6
+#  Further basis functions that fell out of the optimization - noise level...
+#     hydro 5 g 0.1
+#     hydro 4 d 3.4
+#     hydro 4 s 0.1
+
+################################################################################
+#
+#  FHI-aims code project
+#  VB, Fritz-Haber Institut, 2007
+#
+#  Suggested "safe" defaults for Cl atom (to be pasted into control.in file)
+#  All values have been tested for a non-relativistic, non-spinpolarized Cl2
+#  molecule using the PW-LDA functional. Validity for PBE is expected.
+#
+#  Constructed for dimers: 1.65 A, 2.0 A, 2.5 A, 3.25 A, 4.0 A
+#
+################################################################################
+  species        Cl
+#     global species definitions
+    nucleus             17
+    l_hartree           6
+    cutoff_type         exp(1_x)_(1-x)2
+    cut_pot             4.0          2.0  1.0
+    cut_free_atom       finite 8.0
+    logarithmic         0.000100 100.00  1.0123
+    radial_base         45 7.0
+    radial_multiplier   2
+    angular_grids       specified
+      division   0.4412  110
+      division   0.5489  194
+      division   0.6734  302
+      division   0.7794  434
+      division   0.9402  590
+#      division   1.0779  770
+#      division   1.1792  974
+#      outer_grid  974
+      outer_grid  590
+################################################################################
+#
+#  Definition of "minimal" basis
+#
+################################################################################
+#     valence basis states
+    valence      3  s   2.
+    valence      3  p   5.
+#     ion occupancy
+    ion_occ      3  s   1.
+    ion_occ      3  p   4.
+################################################################################
+#
+#  Suggested additional basis functions. For production calculations, 
+#  uncomment them one after another (the most important basis functions are
+#  listed first).
+#
+#  Comments:
+#  Tier 2: For consistency, moved down an extra hydro 4 d from between 1 s and 5 g, to
+#          beginning of third tier. 
+#
+################################################################################
+#  "First tier" - improvements: -429.57 meV to -15.03 meV
+     ionic 3 d 9.4486
+     hydro 2 p 1.9
+     hydro 4 f 7.4
+     ionic 3 s 9.4486
+     hydro 5 g 10.4
+#  "Second tier" - improvements: -7.84 meV to -0.48 meV
+#     hydro 3 d 3.3
+#     hydro 5 f 9.8
+#     hydro 1 s 0.75
+#     hydro 5 g 11.2
+#     hydro 4 p 10.4
+#  "Third tier" - improvements: -1.00 meV to -0.12 meV
+#     hydro 4 d 12.8
+#     hydro 4 f 4.6
+#     hydro 4 d 10.8
+#     hydro 2 s 1.8
+#     hydro 3 p 3
+#  Further functions that fell out - improvements: -0.10 meV and below
+#     hydro 5 f 14.4
+#     hydro 4 s 12.8
+#     hydro 3 d 11.6
+#     hydro 4 s 4.1

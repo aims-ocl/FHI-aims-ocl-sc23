@@ -1,0 +1,1038 @@
+\section{Energy derivatives (forces, stress) and geometry optimization}
+
+With self-consistent Kohn-Sham orbitals, densities and total energies
+available, one of the primary tasks of electronic structure theory is
+to obtain energy \emph{derivatives} with respect to the nuclear
+coordinates $\boldR_\text{at}$. First derivatives (``forces'') allow
+to find the optimum structure and molecular dynamics on the
+Born-Oppenheimer surface. Based on the structure optimum, second
+derivatives then enable the calculation of the (Born-Oppenheimer)
+zero-point vibrational energy of the nuclei, and of vibrational
+excitations (phonons).
+
+The present section deals with the options available in FHI-aims for
+the computation of forces in FHI-aims, and with algorithms related to
+geometry optimization. Specifics regarding first-principles molecular
+dynamics are given in Sec. \ref{Sec:MD}, and the computation of second
+energy derivatives (vibrational frequencies, zero-point energies, and
+oscillator strengths) by a finite-difference technique is covered in 
+Sec. \ref{Sec:vib}. 
+
+Before coming to the full set of related keywords, 
+we give some basic comments below. Please also consider using (and 
+adding to) the wiki, especially if you encounter any kind of behavior
+that is obviously not intended. We would like to know about such
+cases. 
+
+\textbf{One ``most important'' rule:}
+
+For efficient local structure optimizations, do not simply use
+``tight'' settings from an arbitrary starting geometry and wait.
+
+It is usually \emph{much} more effective to use a two-step
+approach. First, use ``light'' settings in a pre-relaxation
+step to get the rough geometry right quickly. Then, use
+``intermediate'' or ``tight'' settings for post-relaxation or
+post-processing only, e.g., based on the ``geometry.in.next\_step''
+file that is written out by the code by default (see below).
+
+\textbf{Basic handling:}
+
+For most applications, reliable structure optimizations of
+atomic coordinates into a local minumum of the potential energy
+surface can be obtained by simply setting the keyword \\
+\keyword{relax\_geometry} \texttt{bfgs} \option{threshold} \\
+\option{threshold} denotes the minimum absolute force component in
+eV/{\AA} acting on any atom. Typically, a \option{threshold} value of
+5d-3, i.e., 5$\cdot$10$^{-3}$ eV/{\AA}, corresponds to a very tightly 
+converged structure optimization. Do not use much lower values since
+you might spend substantial amounts of CPU time for no measurable gain.
+
+For unit cell optimizations in periodic systems, the keyword
+\keyword{relax\_unit\_cell} must \underline{additionally} be invoked
+(otherwise, the unit cell shape will remain fixed).
+
+Finally, individual coordinates or degrees of freedom can be fixed by
+using the keyword \keyword{constrain\_relaxation}. 
+
+Another method to run a constrained relaxation is the combined use of the keywords
+\keyword{symmetry\_n\_params}, \keyword{symmetry\_params}, \keyword{symmetry\_lv}
+and \keyword{symmetry\_frac}. When this block is added to a \texttt{geometry.in} and 
+\keyword{relax\_geometry} (and optionally \keyword{relax\_unit\_cell}) are set in \texttt{control.in}, a geometry
+relaxation is started that is constrained to a parameter reduced space defined by the user.
+This can be used to enforce a symmetry-preserving relaxation by providing the exact prototype
+of the given structure in its analytic form. It furthermore allows for the introduction of local
+symmetries or local symmetry breaking like distortions.
+{\bf Important:} The relationship between the full coordinates and the reduced parameters has to be 
+linear, i.e. there is a transformation matrix A and a transformation matrix B that can map the
+flattened 1-dimensional representation of the lattice cell/atomic positions to the parameter-reduced space.
+For the monoclinic and triclinic lattice systems, e.g. do not use $c\cdot \cos(\beta)$ and $c\cdot \sin(\beta)$
+but replace them with independent variables e.g. $d$ and $e$. {\em It is on the to-do-list to make aims 
+recognize these cases internally.}\\
+{\bf Hint:} You can create \texttt{geometry.in}'s already containing the required input block for a symmetry-constrained relaxation using AFLOW as of version 3.1.204. It gives access to hundreds of structure prototypes in the AFLOW Prototype Library \cite{Mehl2017,Hicks2018} throughout all spacegroups. Simply add \texttt{-{}-add\_equations} to the command. 
+Example: \\
+\texttt{aflow -{}-proto=AB\_cF8\_225\_a\_b -{}-params=5.64 -{}-aims -{}-add\_equations}
+
+To obtain gradients for a given structure, but without any subsequent
+structure optimization, molecular dynamics run, etc., employ the keywords
+\keyword{compute\_forces}, \keyword{compute\_analytical\_stress} or 
+\keyword{compute\_numerical\_stress} instead.
+
+\keyword{relax\_geometry} \texttt{bfgs}
+\option{value} calls a trust radius enhanced variant of BFGS, also
+available as \texttt{trm}. This variant covers all use cases.
+
+The \texttt{bfgs} algorithm can be tweaked by specifying an initial
+guess for the Hessian matrix, which can influence the performance. The
+default is the model Hessian matrix by Lindh and
+coworkers,\cite{Lin95} which leads to reliable and fast optimizations in
+the vast majority of scenarios.
+
+If, for any reason, the BFGS algorithm
+does not perform well for a given structure initially, a number of
+options are available. The standard first step should always be to
+simply restart the optimization from the updated geometry and Hessian
+matrix in \texttt{geometry.in.next\_step} (see below). Alternatively,
+one may preset a simple, diagonal Hessian using the keyword
+\keyword{init\_hess} \option{diag} \texttt{value} (see the actual
+keyword description for more details). Finally, the
+\keyword{energy\_tolerance} and \keyword{harmonic\_length\_scale}
+keywords decide when the \texttt{bfgs} algorithm will abort a
+relaxation because a presumed deviation between the predicted and the
+real energy landscape. They can be set to more forgiving values if
+needed. 
+
+For the \keyword{relax\_geometry} \texttt{bfgs} algorithm, the
+handling of \emph{restarting} relaxations is formalized by writing out
+a file \texttt{geometry.in.next\_step} after each relaxation
+step. By default, this file contains 
+both the geometry and the current estimate of the Hessian matrix of
+the system that are used by the BFGS algorithm. For an organized
+restart, simply copy this file to \texttt{geometry.in}, and the stored
+geometry and Hessian will be used to reinitialize the BFGS algorithm
+if the \texttt{control.in} file requests a structure relaxation. If the
+keyword \keyword{distributed\_hessian} is in use, the current estimate of the
+Hessian matrix will be stored in a separate binary file, which should not be
+modified by hand.
+
+Use the 'get\_relaxation\_info.pl' utility script to monitor the
+progress of an ongoing or finished relaxation run. This information
+can be immensely helpful to make sure that you are not, e.g., spending
+your time optimizing the last 10$^{-5}$~eV out of an already converged 
+structure relaxation.
+
+To stop an ongoing structure relaxation in an organized way, create
+the \keyword{abort\_opt} file in the respective directory.
+
+\textbf{Stress tensor:}
+
+For unit cell optimization (keyword \keyword{relax\_unit\_cell}), an
+analytically computed stress tensor will be used where available,
+thanks to work by Viktor Atalla, Christian Carbogno, and Franz 
+Knuth~\cite{Knuth2015}. For some density functionals, the analytical
+stress tensor is not available. In these cases, the unit cell itself
+can still be relaxed, but the stress tensor must be computed
+numerically from finite differences of total energies. 
+
+The numerical finite-difference stress tensor is always available as a
+fallback.
+
+Finally, we note that, in some cases, just optimizing the unit
+cell shape blindly may not be what you want. For example, in
+high-symmetry structures a fit to Murnaghan's Equation of state---see
+the utility provided in the \emph{utilities} directory---will be more
+accurate and give you more information about the system (bulk moduli
+and, in case of more than one phase, also access to transition pressures).
+
+\textbf{Hybrid functionals:}
+
+For hybrid functionals, analytic energy gradients and the analytic stress 
+tensor are only available together with the \keyword{RI\_method} 
+\texttt{LVL\_fast} version of ``resolution of identity'' of the two-electron 
+Coulomb operator.\cite{Ihrig2015}
+
+For perturbative methods (MP2 perturbation theory, RPA and beyond),
+analytical gradients are not yet available. 
+
+%\newpage
+
+\subsection*{Tags for \texttt{geometry.in}:}
+
+\keydefinition{constrain\_relaxation}{geometry.in}
+{
+  \noindent 
+  Usage: \keyword{constrain\_relaxation} \option{constraint} \\[1.0ex]
+  Purpose: In \texttt{geometry.in}, fixes the position of the last
+    specified \keyword{atom}/\keyword{lattice\_vector} in a structure optimization. \\[1.0ex]
+  \option{constraint} is a string, indicating what exactly will be
+    constrained. Default: \texttt{.false.} \\
+}
+Allows to relax only parts of a structure, while keeping the rest at
+fixed positions. Currently, the following simple options for
+  \texttt{constraint} are possible:  
+\begin{itemize}
+  \item \texttt{.true.}: All coordinates for this atom will be constrained. 
+  \item \texttt{.false.}: The relaxation of this atom will not be constrained.
+  \item \texttt{x}: The $x$ coordinate of this atom is not allowed to move.
+  \item \texttt{y}: The $y$ coordinate of this atom is not allowed to move.
+  \item \texttt{z}: The $z$ coordinate of this atom is not allowed to move.
+\end{itemize}
+\emph{Attention}: If you wish to constrain more than one coordinate, the required
+constraints must be specified as separate lines, like this:
+\begin{verbatim}
+  atom 0. 0. 0. Fe
+    constrain_relaxation x
+    constrain_relaxation y
+\end{verbatim}
+In contrast, specifying two constraints in one line will \emph{not} work. The
+second constraint would simply be ignored!
+
+\keydefinition{hessian\_block}{geometry.in}
+{
+  \noindent 
+  Usage: \keyword{hessian\_block} \option{i\_atom} \option{j\_atom} \option{block}\\[1.0ex]
+  Purpose: In \texttt{geometry.in}, allows to specify a Hessian matrix
+  explicitly, with one line for each 3$\times3$ block.  The option
+  \option{block} consists of 9 numbers in column-first (Fortran) order.  The
+  3$\times$3 block corresponding to \option{j\_atom}, \option{i\_atom} is
+  initialized by the transposed of \option{block}. The Hessian matrix is input
+  in units of eV/\AA$^2$.\\
+} 
+
+If at least one \keyword{hessian\_block} line is found in the file, the
+Hessian is constructed using this mechanism.  So far there is no safe-guard
+from overriding Hessian blocks with subsequent lines with equal
+\option{i\_atom}, \option{j\_atom}.
+
+There are two scripts in the \texttt{utilities} directory to automatically
+construct such Hessian matrix approximations.  First,
+\texttt{conversions/thess2aims.py} converts a Tinker generated Hessian matrix.
+Second, \texttt{Lindh.py} constructs a general purpose model matrix
+\cite{Lin95}.  Please note that the Lindh model matrix is now also directly
+available with \keyword{init\_hess} \texttt{Lindh}.
+
+\keydefinition{hessian\_block\_lv}{geometry.in}
+{
+  \noindent 
+  Usage / purpose: Like \keyword{hessian\_block}, but for Hessian
+  matrix elements between lattice vector degrees of freedom.\\
+} 
+
+\keydefinition{hessian\_block\_lv\_atom}{geometry.in}
+{
+  \noindent 
+  Usage / purpose: Like \keyword{hessian\_block}, but for Hessian
+  matrix elements between lattice vector degrees of freedom.\\
+} 
+
+\keydefinition{hessian\_file}{geometry.in}
+{
+  \noindent
+  Usage: \keyword{hessian\_file}\\[1.0ex]
+  Purpose: In \texttt{geometry.in}, this keyword indicates that there exists
+  a \texttt{hessian.aims} file to be used to construct the Hessian.\\
+}
+
+If \keyword{hessian\_file} is found in \texttt{geometry.in}, the Hessian is
+constructed using the data in \texttt{hessian.aims}, which is a binary file
+generated by geometry optimization calculations with FHI-aims (please see
+\keyword{distributed\_hessian}).  The user should not try to create such a
+file by hand.
+
+\keydefinition{trust\_radius}{geometry.in}
+{
+  \noindent 
+  Usage: \keyword{trust\_radius} \option{value} \\[1.0ex]
+  Purpose: In \texttt{geometry.in}, allows to specify the initial
+  trust radius value for the \texttt{trm} relaxation algorithm. \\ 
+} 
+
+This keyword is a significant exception -- it is the only
+algorithmic keyword found in the \texttt{geometry.in}
+file. Conceptually, it would belong into \texttt{control.in}, but
+since it is written out as part of the \texttt{geometry.in.next\_step}
+file which can be used to restart a structure relaxation, we keep it
+here.
+
+The keyword specifies the initial value of the ``trust radius'' used
+to limit structure relaxation steps determined by the \texttt{bfgs}
+(synonymous with \texttt{trm}) relaxation algorithm.
+
+The default is set to 0.2~{\AA}. It will be overridden by the default
+value of \keyword{max\_atomic\_move}, which can be set in
+\texttt{control.in}. 
+
+\keydefinition{symmetry\_n\_params}{geometry.in}
+{
+  \noindent
+  Usage:\keyword{symmetry\_n\_params} \option{n\_total} \option{n\_lv} \option{n\_coords} \\[1.0ex]
+  Purpose: In \texttt{geometry.in}, specifies the number of parameters to be optimized in a 
+  symmetry-constrained relaxation. n\_total  is the total number of parameters, n\_lv is the 
+  number of parameters that define the lattice cell,  n\_coords is the number of parameters defining the
+  fractional atomic positions. \\
+   n\_lv + n\_coords = n\_total \\
+  Example for an orthorhombic cell and no parameters for the atomic positions:\\
+  \texttt{symmetry\_n\_params  3  3  0}
+}
+
+This keyword also serves as a flag, setting \texttt{use\_symm\_const\_geo\_relaxation} internally to \texttt{True}.
+If \texttt{n\_lv} is 0, then no unit cell relaxation is done. For unit cell relaxations make sure to set 
+\keyword{relax\_unit\_cell} to \texttt{full}.
+
+\keydefinition{symmetry\_params}{geometry.in}
+{
+  \noindent
+  Usage:\keyword{symmetry\_params} \option{[list of variables for parameters]} \\[1.0ex]
+  Purpose: In \texttt{geometry.in}, list all variables that are used as parameters separated by blanks.
+  Always list the lattice parameters first. The number of variables used for parameters has to be equal
+  to n\_total specifies in \keyword{symmetry\_n\_params}.\\
+  Example for an orthorhombic cell and no parameters for the atomic positions:\\
+  \texttt{symmetry\_params  a  b  c} 
+}
+
+\keydefinition{symmetry\_lv}{geometry.in}
+{
+  \noindent
+  Usage:\keyword{symmetry\_lv} \option{x} , \option{y} , \option{z}\\[1.0ex]
+  Purpose: Specifies the analytic form of the lattice vectors. Use exactly the same cell as given in
+   \keyword{lattice\_vector} (same order of lattice vectors, same orientation), and simply replace entries
+   that are free to relax by their analytic expression in terms of parameters specified by \keyword{symmetry\_params}.
+   Example for an orthorhombic cell:\\
+   \texttt{symmetry\_lv  a , 0 , 0}\\
+   \texttt{symmetry\_lv  0 , b , 0}\\
+   \texttt{symmetry\_lv  0 , 0 , c}
+}
+
+Note the comma between the components of the lattice vectors.
+
+\keydefinition{symmetry\_frac}{geometry.in}
+{
+  \noindent
+  Usage:\keyword{symmetry\_frac} \option{$n_1$} , \option{$n_2$} , \option{$n_3$}\\[1.0ex]
+  Purpose: Specifies the analytic form of the {\em fractional} atomic positions. Use exactly the same form as given in
+   \keyword{atom\_frac} (same order atoms), and simply replace entries  that are free to relax 
+   by their analytic expression in terms of parameters specified by \keyword{symmetry\_params}.\\
+   Example:\\
+   \texttt{symmetry\_frac   0.0    ,   0.0   ,  x1}\\
+   \texttt{symmetry\_frac  1./2 , 1./2 , x1 + 1./2}
+}
+
+Note the comma between the fractional coordinates of the atoms and that no species entry is needed.
+
+\newpage
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{aggregated\_energy\_tolerance}{control.in}
+{
+  \noindent
+  Usage: \keyword{aggregated\_energy\_tolerance} \option{tolerance} \\[1.0ex]
+  Purpose: Sets the energy amount by which the energy across an entire
+  relaxation trajectory may ever go uphill, based on the lowest known energy so far. \\[1.0ex]
+  \option{tolerance} is a positive real number, in eV. Default:
+    5$\cdot$10$^{-3}$~eV. \\
+}
+Small uphill steps of a relaxation trajectory are allowed up to the keyword
+\keyword{energy\_tolerance}, but a relaxation trajectory should never go uphill
+for an extended number of steps in small uphill increments. The keyword
+\keyword{aggregated\_energy\_tolerance} sets an overall cap for any accepted 
+uphill steps across an entire relaxation trajectory. The default is much larger
+than the allowed \keyword{energy\_tolerance} in a single step and should, in
+principle, never be breached. If the
+\keyword{aggregated\_energy\_tolerance} criterion triggers, please
+contact us.  
+
+\keydefinition{bfgs\_extrapolation\_cap}{control.in}
+{
+  \noindent
+  Usage: \keyword{bfgs\_extrapolation\_cap} \option{value} \\[1.0ex]
+  Purpose: If the \texttt{bfgs\_textbook} algorithm of \keyword{relax\_geometry}
+    deviated from a line step of 1.0, sets a maximum for the line step
+    during relaxation. \\[1.0ex] 
+  \option{value} is a real number $\ge$1.0 (dimensionless), the
+    maximum allowed step when a variable line step used with
+    BFGS. Default: 4.0 \\
+}
+\option{value} is dimensionless, given in units specified by the BFGS
+Hessian matrix. \option{value}=1.0 corresponds to the default
+extrapolation of BFGS, assuming a perfectly quadratic energy surface.
+
+
+\keydefinition{bfgs\_step}{control.in}
+{  
+
+  \noindent
+  Usage: \keyword{bfgs\_step} \option{type} [\option{factor} \option{cap}] \\[1.0ex]
+  Purpose: Can specify a BFGS extrapolation with an adaptive line
+    step instead of the default linestep for purely quadratic
+    extrapolation. \\[1.0ex]
+  \option{type} is a string, either \texttt{quadratic} or
+  \texttt{mix}. Default: \texttt{quadratic}. \\
+  \option{factor} : If \option{type} is not \texttt{quadratic},
+    specifies a mixing factor to interpolate between the line step
+    actually used in the last relaxation step, and the \emph{a
+    posteriori} estimated optimum line step. Default: 0.1 \\
+  \option{cap} : If \option{type} is not \texttt{quadratic},
+    specifies an upper limit for the allowed line step. \\
+}
+
+\keydefinition{calc\_analytical\_stress\_symmetrized}{control.in}
+{
+  \noindent
+  Usage: \keyword{calc\_analytical\_stress\_symmetrized} \option{flag} \\[1.0ex]
+  Purpose: If \texttt{.false.}, calculates all 9 components of the analytical
+  stress tensor. If \texttt{.true.} calculates only the upper triangle (6
+  components) of the tensor and copies the result to the lower triangle. \\[1.0ex] 
+  \option{flag} is a logical string, either \texttt{.true.} or
+    \texttt{.false.} Default: \texttt{.true.}\\
+}
+Generally, it is sufficient to calculate the upper triangle of the
+tensor. This flag is mainly for debugging purposes.
+
+\keydefinition{clean\_forces}{control.in}
+{
+  \noindent
+  Usage: \keyword{clean\_forces} \option{type} \\[1.0ex]
+  Purpose: Can remove small unitary force components (rotation and
+    translation of the whole structure due to residual numerical
+    noise) in relaxations. \\[1.0ex] 
+  \option{type} is a string, specifying whether and how any overall
+    rotations / translations are removed. \\
+}
+The default for \option{type} depends on the exact circumstances (see
+below). The following choices exist: 
+\begin{itemize}
+  \item \texttt{none} : No removal of residual rotations and
+    translations. This is the default if any external embedding fields
+    or charges are specified in \texttt{geometry.in}.
+  \item \texttt{sayvetz} : Non-periodic structures: Removal of
+    rotations and translations by a formal projection
+    \cite{Eckart35,Sayvetz39}. In \emph{periodic} systems,
+    only translations are removed.
+  \item \texttt{fixed\_plane} : \emph{experimental} Simple alternative
+    algorithm by constraining three atoms into a plane (implicitly
+    constraining all others). 
+\end{itemize}
+
+\keydefinition{compute\_analytical\_stress}{control.in}
+{
+  \noindent
+  Usage: \keyword{compute\_analytical\_stress} \option{flag} \\[1.0ex]
+  Purpose: If \texttt{.true.}, switches on the computation of
+  the analytical stress tensor. \\[1.0ex] 
+  \option{flag} is a logical string, either \texttt{.true.} or
+    \texttt{.false.} \\
+}
+Default: \texttt{.true.} if a unit cell relaxation was requested and computation
+is possible. Otherwise, \texttt{.false.}
+
+This flag allows to request an explicit analytical stress tensor computation
+for an otherwise explicit single-point calculation.
+
+The calculation of the analytical stress is limited to LDA, GGA, Meta-GGA and 
+hybrid functionals and is not possible with \keyword{load\_balancing}. The vdW
+correction based on Hirshfeld partitioning (\keyword{vdw\_correction\_hirshfeld})
+is included into the analytical stress tensor.
+
+\keydefinition{compute\_forces}{control.in}
+{
+  \noindent
+  Usage: \keyword{compute\_forces} \option{flag} \\[1.0ex]
+  Purpose: If \texttt{.true.}, switches on the computation of
+    forces. \\[1.0ex] 
+  \option{flag} is a logical string, either \texttt{.true.} or
+    \texttt{.false.} \\
+} 
+Default: \texttt{.true.} if a geometry optimization or
+molecular dynamics run was requested, or if the 
+\keyword{sc\_accuracy\_forces} convergence criterion was
+set. Otherwise, \texttt{.false.} 
+
+This flag allows to request an explicit force computation for an
+otherwise explicit single-point calculation. This is necessary for use
+with external tools that require forces, such as a finite-difference
+calculation of vibrational frequencies (see
+Sec. \ref{Sec:vib}) or a transition state search (see
+Sec. \ref{appendix_NEB}). In these cases, keyword
+\keyword{final\_forces\_cleaned} should also be set.
+
+\keydefinition{compute\_numerical\_stress}{control.in}
+{
+  \noindent
+  Usage: \keyword{compute\_numerical\_stress} \option{flag} \\[1.0ex]
+  Purpose: If \texttt{.true.}, switches on the computation of
+  the numerical stress tensor based on central finite differences. \\[1.0ex] 
+  \option{flag} is a logical string, either \texttt{.true.} or
+    \texttt{.false.} \\
+}
+Default: \texttt{.true.} if a unit cell relaxation was requested and the
+computation of the analytical stress is not possible. Otherwise,
+\texttt{.false.}
+
+If not further specified (by  \keyword{delta\_numerical\_stress}) the default
+value for the scaling factor delta is set to $10^{-4}$.
+
+\keydefinition{delta\_numerical\_stress}{control.in}
+{
+  \noindent
+  Usage: \keyword{delta\_numerical\_stress} \option{value}                        \\[1.0ex]
+  Purpose: Specifies the scaling factor delta in the computation
+           of the numerical stress tensor (\keyword{compute\_numerical\_stress}). \\[1.0ex] 
+  \option{value} is a dimensionless real number $> 0$. Default: $10^{-4}$.
+}
+
+\keydefinition{distributed\_hessian}{control.in}
+{
+  \noindent
+  Usage: \keyword{distributed\_hessian} \option{flag}\\[1.0ex]
+  Purpose:  If \texttt{.false.}, each MPI task holds a complete copy of the
+  Hessian matrix.  If \texttt{.true.}, the Hessian matrix is distributed
+  across tasks. \\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.true.} or
+  \texttt{.false.}.  Default: \texttt{.true.} if both MPI and ScaLAPACK are
+  available, \texttt{.false.} otherwise.\\
+}
+This keyword is particularly useful when relaxing a large structure.  Please
+note that it only works if FHI-aims is built with both MPI and ScaLAPACK.  If
+\keyword{relax\_geometry} \option{bfgs\_textbook} or \keyword{init\_hess}
+\option{reciprocal\_lattice} is found in \texttt{control.in}, distributed
+storage of the Hessian will be automatically turned off.
+
+\keydefinition{energy\_tolerance}{control.in}
+{
+  \noindent
+  Usage: \keyword{energy\_tolerance} \option{tolerance} \\[1.0ex]
+  Purpose: Sets the energy amount by which a relaxation step can move
+    upwards and is still accepted. \\[1.0ex]
+  \option{tolerance} is a small positive real number, in eV. Default:
+    5$\cdot$10$^{-4}$~eV. \\
+}
+Small upward steps during relaxation may occur as a result of a
+slightly mis-guessed \texttt{bfgs} Hessian matrix somewhere
+along the path, or
+as a result of some residual numerical noise that leads to a
+discrepancy between energies and forces. In the present code version,
+such noise is always safely below the default \option{energy\_tolerance} for
+reasonable settings. However, be sure to check that
+the total energy does not go up across several successive steps in
+a relaxation run. For the \texttt{trm} optimizer, also see
+\keyword{harmonic\_length\_scale}.
+
+\keydefinition{external\_force}{geometry.in}
+{
+  \noindent
+  Usage: \keyword{external\_force} \option{x} \option{y} \option{z} \\[1.0ex]
+  Purpose: \emph{Experimental} -- Applies an external force to the atom previous to this keyword.\\[1.0ex]
+  \option{x},\option{y},\option{z} are the force components in eV/\AA\ applied to the atom in $x$, $y$, $z$ direction.\\
+}
+When an external force is applied it is necessary to contstrain the relaxation of at least on other atom to avoid a constant shift of the geometry. Also the value has to be reasonably chosen. Tear apart geometries can result in very flat energy landscapes, which take a large amount of time to optimize. Typically this feature should be used in cases where a small external force, e.g. a STM-tip is applied on an atomic layer and the geomtry response of this external force is of interest.
+
+\emph{This feature is experimental since no extensive testing was done for it.}
+
+
+\keydefinition{external\_pressure}{control.in}
+{
+  \noindent
+  Usage: \keyword{external\_pressure} \option{value} \\[1.0ex]
+  Purpose: \emph{Experimental} -- Applies external pressure to the unit cell.\\[1.0ex]
+  \option{value} is the pressure in eV/\AA$^3$ applied to the unit cell.\\
+}
+In the periodic case, it is possible to apply hydrostatic pressure to the unit cell.
+To actually see the effect of the external pressure, a unit cell relaxation is required
+(see \keyword{relax\_geometry} and \keyword{relax\_unit\_cell}). The crystal is then
+relaxed with the external pressure added to the stress tensor.
+
+\emph{This feature is experimental since no extensive testing was done for it.}
+
+\keydefinition{final\_forces\_cleaned}{control.in}
+{
+  \noindent
+  Usage: \keyword{final\_forces\_cleaned} \option{flag} \\[1.0ex]
+  Purpose: Decides whether spurious unitary transformations of the
+    complete system (translations and rotations) are removed before
+    the final output. \\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.true.} or
+    \texttt{.false.} Default: \texttt{.true.} \\
+}
+This option affects directly the long-format (15 decimal) output of
+total energies and forces at the end of the s.c.f. cycle in the standard
+output file. If \option{flag} is \texttt{.true.}, the final output
+forces are ``cleaned'' using the \texttt{sayvetz}
+  \cite{Eckart35,Sayvetz39} mechanism of keyword  
+\keyword{clean\_forces} (removal of translations and rotations for
+cluster geometries; only translations removed for periodic systems). 
+
+\keyword{final\_forces\_cleaned} \texttt{.true.} should be set for use
+with external tools that require forces, such as a finite-difference
+calculation of vibrational frequencies (see
+Sec. \ref{Sec:vib}) or a transition state search (see 
+Sec. \ref{appendix_NEB}). 
+
+\keydefinition{harmonic\_length\_scale}{control.in}
+{
+  \noindent
+  Usage: \keyword{harmonic\_length\_scale} \option{length} \\
+  Purpose: The \texttt{trm}/\texttt{bfgs} algorithm of
+  \keyword{relax\_geometry} judges a step by its energy gain.  Usually, one
+  simply uses the energy difference.  For very short steps and rather light
+  grids, however, it turns out that the qualitiy of the energy is inferior to
+  the quality of the forces.  For steps shorter than \option{length}, do not
+  look at the energy but use the harmonic approximation $- \Delta
+  \tilde E = (\bm X_2-\bm X_1)\cdot(\bm F_2+\bm F_1)/2$ as an estimate for the
+  energy gain.  If this procedure willfully accepts
+  a step which increases the energy by more than \keyword{energy\_tolerance},
+  the code stops to warn the user about the inconsistency between energy
+  functional and forces.
+  \\
+  \option{length} is a length scale in \AA. Default: \texttt{0.025} \\
+}
+Effectively, this flag switches from a real energy minimizer to a search for a
+stable zero of the force field for short step lengths.
+
+
+\keydefinition{hessian\_to\_restart\_geometry}{control.in}
+{
+  \noindent
+  Usage: \keyword{hessian\_to\_restart\_geometry} \option{flag} \\
+  Purpose: Exports the current approximation to
+  the Hessian matrix to \option{geometry.in.next\_step} during a 
+  relaxation restart using \keyword{hessian\_block} or
+  \keyword{hessian\_file}. \\ 
+  \option{flag} is a logical string, either \texttt{.true.} or
+    \texttt{.false.} Default: \texttt{.true.} \\
+}
+
+Note: The \texttt{geometry.in.next\_step} file is written out by
+default when the \keyword{relax\_geometry} \texttt{bfgs} algorithm
+is used. For the older \texttt{bfgs\_textbook} algorithm, this file is
+only written when combined with the \keyword{restart\_relaxations}
+keyword. 
+
+\keydefinition{init\_hess\_lv\_diag}{control.in}
+{
+  \noindent
+  Usage: \keyword{init\_hess\_lv\_diag} \option{value} \\[1.0ex]
+  Purpose: In a geometry relaxation with a unit cell optimization,
+    allows to specify the initial Hessian matrix elements used to
+    estimate relaxation steps that are associated with the lattice
+    vector degrees of freedom.
+  \\[1.0ex]
+  \option{length} is a length scale in eV/{\AA$^2$}. Default: 25
+  ev/{\AA$^2$} \\ 
+}
+See the \keyword{init\_hess} keyword for more information on the
+initial Hessian matrix used during a structure optimization.
+
+\keydefinition{init\_hess}{control.in}
+{
+  \noindent
+  Usage: \keyword{init\_hess} \option{type} [\option{value}]
+  \\[1.0ex]
+  Purpose: Defines the initial Hessian matrix that is used by the
+  structure relaxation algorithms \texttt{bfgs\_textbook} and
+  \texttt{bfgs} (the latter is synonymous with \texttt{trm}) of the
+  \keyword{relax\_geometry} keyword.
+  \\[1.0ex]
+  \option{type}: Presently supported options are \texttt{diag [value]}, \texttt{Lindh 
+  [value]}.
+  \\[1.0ex]
+  Default: \texttt{init\_hess Lindh 2.} unless a specific Hessian is
+  given in the \texttt{geometry.in} file. \\ 
+}
+
+If no explicit initial Hessian matrix is given in the geometry.in file
+or specified using the older \keyword{restart\_relaxations}
+infrastructure, the keyword \keyword{init\_hess} can be used to
+specify the initial Hessian matrix used in a structure optimization. 
+
+With the option \option{diag}, a diagonal initial Hessian matrix is
+assumed. Then, the number given by the \option{value} option sets the
+diagonal elements between all atomic coordinates directly. The default
+is 25\,eV/\AA$^2$. Larger values lead to a more conservative
+start, smaller values lead to more aggressive initial relaxation steps.
+
+With \option{Lindh} the Lindh model matrix \cite{Lin95} is used to
+initialize the Hessian between all \emph{atomic} coordinates (usually
+a very efficient guess). For  stability reasons, \option{add-value}
+(in eV/\AA$^2$, defaults to 2.0\,eV/\AA$^2$) is added to all matrix 
+elements on the diagonal. The parameter \option{thres} (default: 
+15.0) can be used to specify the accuracy of the Lindh matrix; only
+terms estimated to be larger than $e^{-\text{\option{thres}}}$ are
+taken into account.   
+If you are planning a large number of complex unit cell optimizations of
+a similar type, we do recommend to check whether this default value is
+any good. 
+
+If a unit cell relaxation is additionally requested, 
+the Hessian for the lattice degrees of 
+freedom is set to be the square of the reciprocal lattice matrix and normalized to 
+25\,eV/\AA$^2$. This mimics a diagonal initial Hessian if strain coordinates for the 
+representation of the lattice would be used.~\cite{Pfrommer1997}
+\newline
+
+If the initial Hessian is specified explicitly by \keyword{hessian\_block} or
+\keyword{hessian\_file} in \texttt{geometry.in}, this explicit hessian overrides
+any information requested by the \keyword{init\_hess} keyword.
+
+
+\keydefinition{line\_search\_tol}{control.in}
+{
+  \noindent
+  Usage: \keyword{line\_search\_tol} \option{tolerance} \\[1.0ex]
+  Purpose: During a \keyword{relax\_geometry} \texttt{bfgs\_textbook} geometry
+    relaxation, rejects a
+    relaxation step if the \emph{a posteriori} estimate for the optimal
+    relaxation step deviates by more than a given tolerance from the
+    actually performed line step. \\[1.0ex]
+  \option{tolerance} is a real positive relative tolerance
+    (dimensionless in units of the BFGS Hessian). Default:
+    3.0 \\ 
+}
+If keyword \keyword{relax\_geometry} \texttt{bfgs\_textbook} is used,
+\keyword{line\_search\_tol} will reject a relaxation step based on an
+\emph{a posteriori} estimate of the true optimum step length (see 
+Ref. \cite{Blum08} for details). In short, a step of length $l$ in
+dimensionless units (units relative to the BFGS Hessian matrix) is
+rejected if 
+\begin{equation}
+  |l_\text{\emph{a posteriori}} - l_\text{actual}|/l_\text{actual} \ge
+   \mathtt{tolerance} \, .
+\end{equation}
+
+\keydefinition{line\_step\_reduce}{control.in}
+{
+  \noindent
+  Usage: \keyword{line\_step\_reduce} \option{value} \\[1.0ex]
+  Purpose: Determines the behaviour of FHI-aims if a
+    \keyword{relax\_geometry} \texttt{bfgs\_textbook} relaxation step was
+    rejected. \\[1.0ex]
+  \option{value} is either a string descriptor, or a numerical
+    value. Default: \texttt{automatic} . \\
+}
+During a structure optimization using the \keyword{relax\_geometry}
+\texttt{bfgs\_textbook} algorithm, FHI-aims checks if a performed relaxation
+step actually reduced the total energy compared to the
+previous step. The allowed upward tolerance is set by keyword
+\keyword{energy\_tolerance}. If an upward step is encountered,
+FHI-aims first attempts to repeat the step with a smaller step
+length. If this smaller step also leads upwards, FHI-aims assumes
+that the BFGS Hessian has exceeded its validity limits, and
+reinitializes the Hessian before continuing. 
+
+If \texttt{value} is set to \texttt{automatic}, the BFGS step is
+repeated with an \emph{a posteriori} estimated length $l$ given by the
+previous (failed) step (see Ref. \cite{Blum08}).
+
+Alternatively, \texttt{value} can be set to a real positive number $<$1,
+corresponding to the default factor by which the previous step length
+is reduced. 
+
+\keydefinition{max\_atomic\_move}{control.in}
+{
+  \noindent
+  Usage: \keyword{max\_atomic\_move} \option{value} \\[1.0ex]
+  Purpose: Maximum allowed step length taken during relaxation. \\[1.0ex]
+  \option{value} is a real positive upper bound for the maximum allowed
+    change in single atomic coordinate, in {\AA}. Default: 0.2 {\AA}. \\
+}
+If the \texttt{bfgs\_textbook}-predicted change in an atomic coordinate exceeds
+\keyword{max\_atomic\_move}, the length of the entire step (all
+coordinates) will be scaled down to not exceed the maximum allowed
+displacement.
+
+\keydefinition{max\_relaxation\_steps}{control.in}
+{
+  \noindent
+  Usage: \keyword{max\_relaxation\_steps} \option{number} \\[1.0ex]
+  Purpose: A structure optimization will be aborted after exceeding a
+    prescribed maximum number of steps. \\[1.0ex]
+    \option{number} is the prescribed maximum step number. Default:
+    1000 . \\
+}
+
+\keydefinition{min\_line\_step}{control.in}
+{
+  \noindent
+  Usage: \keyword{min\_line\_step} \option{value} \\[1.0ex]
+  Purpose: Sets the minimum possible (dimensionless) BFGS linestep
+    before the BFGS Hessian is reinitialized \\[1.0ex]
+  \option{value}: A real positive number (between 0 and 1). Default:
+    0.1 \\
+}
+See keyword \keyword{line\_step\_reduce}. If, after a rejected
+\texttt{bfgs\_textbook} relaxation step, the reduced, dimensionless BFGS line
+step decreases below \keyword{min\_line\_step}, the BFGS Hessian
+matrix estimate is considered inappropriate for the present point in
+space, and the Hessian is reinitialized.
+
+\keydefinition{numerical\_stress\_save\_scf}{control.in}
+{
+  \noindent
+  Usage: \keyword{numerical\_stress\_save\_scf} \option{flag} \\[1.0ex]
+  Purpose: Controls if \keyword{constrain\_relaxation}
+  directives are used to determine implicitly if a component of the numerical
+  stress has to be calculated. This greatly accelerates unit cells
+  with high symmetries (e.g. orthorhombic).  \\[1.0ex]
+ \option{flag} is a logical string, either \texttt{.true.} or
+    \texttt{.false.} Default: \texttt{.true.} \\
+}
+
+\keydefinition{orthonormalize\_eigenvectors}{control.in}
+{
+  \noindent
+  Usage: \keyword{orthonormalize\_eigenvectors} \option{flag} \\[1.0ex]
+  Purpose: Specifies whether or not the wave function coefficients
+    from the previous geometry will be re-orthonormalized before
+    initializing a new relaxation step. \\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.true.} or
+    \texttt{.false.} Default: \texttt{.true.} \\
+}
+The \keyword{orthonormalize\_eigenvectors} keyword allows to
+reorthnormalize the converged self-consistent Kohn-Sham orbitals
+$c_{jl}$ after a relaxation step. These are then used to
+reinitialize the electron density for the next relaxation step.
+
+Due to the change in atomic positions, the wave function coefficients
+$c_{jl}$ for the earlier geometry are no longer orthonormal after the
+relaxation step. The consequence is an initial electron density which
+no longer satisfies the correct electron count (i.e., the system may
+appear to be charged immediately after a relaxation step, although a
+neutral system was requested). In principle, this does not matter for
+the outcome of a calculation, since the self-consistent solution will
+be independent of the starting point. In many cases, there is no clear
+benefit in terms of the s.c.f. convergence duration from
+orthonormalizing the $c_{jl}$ prior to the reinitialization; however, some
+cases with unstable s.c.f. convergence may benefit significantly.
+
+\keydefinition{relax\_geometry}{control.in}
+{
+  \noindent
+  Usage: relax\_geometry \option{type} \option{tolerance} \\[1.0ex]
+  %
+  Purpose: Specifies if a structure optimization (geometry relaxation)
+    is requested, and which. \\[1.0ex]
+  %
+  \option{type} specifies the type of requested structure
+    optimization. Default: \texttt{none}. \\
+  \option{tolerance}: Specifies the maximum residual
+    force component per atom (in eV/{\AA}) below which the geometry
+    relaxation is considered converged. \\
+}
+Finds the nearest minimum of the Born-Oppenheimer potential energy
+surface for the nuclei.
+
+For periodic calculations: If you are looking to relax not just atomic
+coordinates but also the unit cell shape (lattice vectors), you do
+need to specify an additional keyword: \keyword{relax\_unit\_cell}.
+
+The presently supported options for \option{type} are \texttt{none} and
+\texttt{trm} (synonymous with \texttt{bfgs}), as well as \texttt{trm\_2012} and 
+\texttt{bfgs\_textbook} for reference with older FHIaims versions.
+\begin{itemize}
+  \item \texttt{bfgs} or \texttt{trm} is the recommended default. It
+    uses a trust radius method enhanced 
+    version of the Broyden-Fletcher-Goldfarb-Shanno (BFGS) optimization
+    algorithm (see Ref. \cite{Nocedal06-numopt}, which was the basis for
+    J\"urgen Wieferink's code effort in this area). In our tests, this version
+    appears to give the fastest convergence reliably.
+    
+    As of December 2018, it additionally implements preconditioning of the 
+    lattice-lattice Hessian as 
+	  explained in \keyword{init\_hess} and 
+	  preserves fractional coordinates of the atomic positions when predicting 
+	  a new lattice. This mimics the optimization in strain coordinates. 
+	  \cite{Pfrommer1997}
+	  \newline
+	\item \texttt{trm\_2012} Implements the former \texttt{trm} method \emph{without} 
+	effective strain coordinates.
+		\newline
+  \item \texttt{bfgs\_textbook} is only available as a fallback
+    option. It is \textbf{not} 
+    intended or recommended for routine use and it will, in general,
+    perform worse than \texttt{bfgs} -- sometimes much worse. It invokes
+    a Cartesian BFGS optimization algorithm that adheres strictly to
+    the textbook \cite{NumericalRecipes}; we note that our coded
+    version is based on the concise description found at Wikipedia.  
+    See Ref. \cite{Blum08} for some additional details of our version.
+\end{itemize}
+
+A reliable force convergence criterion \option{tolerance} for most
+structures is 10$^{-2}$ eV/{\AA} or 5$\cdot$10$^{-3}$ eV/{\AA}. 
+\textbf{Do not use significantly smaller values unless you have a specific 
+reason. Smaller values may cost much computer time for essentially no
+further measurable total energy minimization.}
+
+Going to a much smaller \texttt{tolerance} value may only be useful for
+some very specific purposes, for example, high-accuracy finite difference
+calculations for vibrational properties. In other scenarios, if
+\texttt{tolerance} is set to a too small value by default, 80\% or
+more of your CPU time may be spent groping around in the last meV of
+the structure optimization.
+
+If tighter settings of the \texttt{tolerance} parameter are used,
+do not forget that tighter s.c.f. convergence accuracy settings
+may also be required to get accurate gradients in the first
+place. Ideally, use the \keyword{sc\_accuracy\_rho} keyword for this
+purpose, not \keyword{sc\_accuracy\_forces} or
+\keyword{sc\_accuracy\_stress} (see below).
+
+In other words, use the \texttt{tolerance} criterion for a structure
+relaxation run wisely -- decide what is the physical quantity you are
+actually interested in, and then check which value of the
+\texttt{tolerance} criterion is safe but still efficient.
+
+The relaxation algorithm can be greatly sped up by using a somewhat
+intelligent guess for the Hessian matrix used in the initial step. 
+By default, FHI-aims now sets the general purpose model matrix due to Lindh
+and coworkers \cite{Lin95} with a slight modification. If, for some
+reason, a particular initial geometry does not appear to play well
+with the \texttt{Lindh} Hessian, a simpler, slower, but more resilient
+diagonal approximation to the initial Hessian matrix can also be used.
+For more information
+see the \keyword{init\_hess} keyword above.
+
+The \keyword{energy\_tolerance} and
+\keyword{harmonic\_length\_scale} keywords can be set to more
+forgiving values if the \texttt{bfgs} algorithm decides to 
+abort relaxations because of a presumed deviation between the
+predicted and the real energy landscape.
+
+\textbf{Another important warning:} Evaluating the forces and
+the stress tensor is \textbf{much} more expensive than a normal
+iteration during s.c.f. convergence. The current default behavior of
+FHI-aims avoids any double computations of forces and stress tensors,
+relying instead on a sufficiently tight convergence criterion
+\keyword{sc\_accuracy\_rho} to determine s.c.f. convergence and only
+then calculating forces and stresses \emph{once} per geometry step. 
+
+While one can in principle check the s.c.f convergence of forces /
+stresses explicitly, the cost of multiple evaluations
+of forces / stresses for a single geometry can be \textbf{very} high.
+Therefore, we recommend to \emph{never} use the keywords
+\keyword{sc\_accuracy\_forces} or \keyword{sc\_accuracy\_stress} 
+in a \texttt{control.in} file unless there is a specific need. Do not
+set these keywords routinely. 
+
+
+\keydefinition{relax\_unit\_cell}{control.in}
+{
+  \noindent
+  Usage: \keyword{relax\_unit\_cell} \option{type}  \\[1.0ex] 
+  Purpose: Relaxes unit cell (lattice vectors) using the structure 
+           optimization as specified in \keyword{relax\_geometry}. \\[1.0ex]
+  \option{type} specifies the type of requested unit cell 
+    optimization. Presently supported options: \texttt{none},
+    \texttt{full}, \texttt{fixed\_angles}. Default: \texttt{none}\\
+}
+Allows to optimize the lattice vectors of a periodic calculation, in
+addition to the normal atomic coordinates inside the unit cell. This
+keyword is not on by default, as automatically optimizing the unit
+cell of (say) a surface calculation could do a lot of unintended
+harm. Possible settings:
+\begin{itemize}
+  \item \texttt{none} : Unit cell will be kept fixed, no
+    optimization. 
+  \item \texttt{full} : All \keyword{lattice\_vector} degrees of
+    freedom will be relaxed, except those affectd by explicit
+    constraints.
+  \item \texttt{fixed\_angles} : All angles between lattice vectors
+    will be constrained (kept fixed), only the lengths of each lattice
+    vector are varied. (This option used to be called \texttt{shape}, but
+    that is a misunderstandable term. The \texttt{shape} term will be
+    removed in the future to avoid confusion.)
+\end{itemize}
+This keyword should be used only together with \keyword{relax\_geometry}.
+Individual lattice vectors or its components can be constrained by using 
+\keyword{constrain\_relaxation}.
+
+If the computation of the analytical stress is possible regarding the chosen
+computational settings, the analytical stress is used for the unit cell
+relaxation. Otherwise, the numerical stress is used. With
+\keyword{stress\_for\_relaxation}, one can explicitly choose either numerical or
+analytical stress for the unit cell relaxation.
+
+If a unit cell relaxation produces strange results with the analytical
+stress, here are some potential remedies:
+\begin{enumerate}
+  \item A very possible reason may be because the integration grids
+    are not dense enough. This could especially well be the case for
+    ``light'' settings. One remedy is to just use the integration
+    grids from ``tight'' and the basis functions from ``light''. 
+  \item Another possible remedy is to switch the way the integration
+    weights are calculated to a slightly slower, non-default
+    version. E.g., change the \keyword{partition\_type} to a spherical
+    one like \texttt{rho\_r2}. 
+  \item Finally, you may wish to set the convergence of the analytical
+    stress with \keyword{sc\_accuracy\_stress} to an explicit, final
+    value. \textbf{Only ever set this keyword for test purposes,
+    though, not routinely. The cost for too many analytical stress
+    evaluations can be disproportionately large.}
+\end{enumerate}
+
+\keydefinition{stress\_for\_relaxation}{control.in}
+{
+  \noindent
+  Usage: \keyword{stress\_for\_relaxation} \option{type} \\[1.0ex]
+  Purpose: Use either numerical or analytical stress for unit cell
+  relaxations.\\[1.0ex] 
+  \option{type} can be either \texttt{numerical} or
+    \texttt{analytical}. Default: Chosen automatically based on computational
+    settings. \\
+}
+To perform an actual unit cell relaxation, one has to set
+\keyword{relax\_unit\_cell}. If one chooses \texttt{analytical} but the 
+computation of the analytical stress is not possible, FHI-aims will abort.
+
+\keydefinition{restart\_relaxations}{control.in}
+{
+  \noindent
+  Usage: \keyword{restart\_relaxations} \option{flag}
+    \\[1.0ex]
+  Purpose: To save all necessary data to restart a \texttt{bfgs\_textbook}
+    relaxation without needing to recompute the relaxation path in
+    DFT. \\[1.0ex] 
+ \option{flag} is a logical string, either \texttt{.true.} of
+ \texttt{.false.} Default: \texttt{.false.} \\
+}
+
+Note: The \keyword{restart\_relaxations} keyword will work with both
+the \texttt{bfgs} (\texttt{trm}) or the \texttt{bfgs\_textbook}
+versions of the \keyword{relax\_geometry} keyword. However, it is only
+needed for the \texttt{bfgs\_textbook} version, if a restart is
+desired. For the normal (and faster) \texttt{bfgs} (\texttt{trm})
+version, all that is needed is the information contained in
+\texttt{geometry.in.next\_step}. 
+
+In order to restart
+from an already known estimated Hessian, rather from unity (the
+default in the absence of any previous knowledge), the Hessian can be
+rebuilt from a series of stored atomic cordinates and forces.  
+
+This information is exported to a separate file
+\texttt{relaxation\_restart\_file.FHIaims}, which will be read and
+evaluated by a newly beginning FHI-aims calculation if the
+\keyword{restart\_relaxations} keyword is set to true.
+
+The flag also needs a \texttt{geometry.in} file that is an exact copy
+of the \texttt{geometry.in.next\_step} file, which is updated during
+the structure optimization.
+
+See also \keyword{restart} for keeping the wave functions as well. 
+
+\keydefinition{write\_restart\_geometry}{control.in}
+{
+  \noindent
+  Usage: \keyword{write\_restart\_geometry} \option{flag} \\
+  Purpose: During a structure optimization, exports the current
+  geometrys and approximation to the Hessian matrix to a file 
+  \option{geometry.in.next\_step}. \\ 
+  \option{flag} is a logical string, either \texttt{.true.} or
+    \texttt{.false.} Default: \texttt{.true.} \\
+}
+
+Note: The \texttt{geometry.in.next\_step} file is written out by
+default when the \keyword{relax\_geometry} \texttt{bfgs} algorithm
+is used. For the older \texttt{bfgs\_textbook} algorithm, this file is
+only written when combined with the \keyword{restart\_relaxations}
+keyword. 
+

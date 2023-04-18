@@ -1,0 +1,404 @@
+\chapter{Trouble-shooting}
+\label{appendix_trouble_shooting}
+
+We sincerely hope that FHI-aims will largely ``do the job'' for you as
+it comes; in fact, a large amount of work has gone into ensuring sane
+responses and understandable output from code when something was
+requested that was not safe or reasonable to do. Nonetheless, as with
+every piece of software, non-trivial issues can happen that are not
+immediately obvious to the user. In this appendix, we provide a list
+of known conditions that have taken unwary users by surprise, how to
+detect and how to fix them.
+
+If you know of an issue that is not discussed below, but that should
+be included because it presents an easy stumbling block especially for
+new/inexperienced users, please let us know, and we will address the
+issue here.
+
+\section{Format flags required by some compilers}
+
+FHI-aims contains source code files in different formats (.f or .f90),
+and sometimes containing rather long lines in the .f90 versions.
+
+The Makefile therefore contains two different versions of the compiler
+flags, \texttt{FFLAGS} and \texttt{F90FLAGS}, which can be the same
+for some compilers, but do not have to be the same.
+
+For specific compilers, flags that must be added to account for the
+diffent file formats properly are:
+\begin{itemize}
+  \item xlf90 compiler (IBM): \texttt{FFLAGS} must contain the option
+    ``-qfixed'' in addition to all other options specified with the
+    \texttt{F90FLAGS}.
+  \item g95 compiler: \texttt{F90FLAGS} should contain the option
+    -ffree-line-length-none in addition to all other options found in
+    \texttt{FFLAGS}.
+\end{itemize}
+
+\section{FHI-aims aborts with a segfault at the beginning of the
+  first test run.}
+
+We here repeat the information given already in Chapter \ref{Ch:quickstart}:
+
+If you are not familiar with Unix or Unix-like operating systems, the
+following will perhaps clarify what is going on. In Unix, the
+operating system \emph{kernel} will allow a program to allocate /
+deallocate the variables it requires on the so-called \emph{heap}. For
+small quick variables needed at runtime, this is not always the most
+efficient procedure (you do not want to allocate / deallocate every
+single loop counter in your code, for example). Such small variables
+can instead be requested from a \emph{stack}, available per process,
+and also controlled by the kernel.
+
+In principle, using the stack is not a great problem on current
+computers available for scientific computing, because you will rarely
+ever find more than a few processes at the same time that make
+excessive use of the stack. So, technically it should not matter
+whether you get your memory from the heap, or from the stack.
+
+Unfortunately, for reasons unbeknownst to us, some opertaing system
+vendors limit the  default user stack size to $\approx$5~MB in a time
+when typical available RAM per processor is 2 GB or more.
+For some purposes, FHI-aims \emph{requires} that the execution stack
+size available to you be large enough for some initial internal
+operations. If too little stack is available, your FHI-aims run will
+\emph{segfault} shortly after the command was launched. In that case,
+type:
+    \begin{verbatim}
+       > ulimit -s unlimited
+    \end{verbatim}
+    (when using the bash shell or similar), or
+    \begin{verbatim}
+       > limit stacksize unlimited
+    \end{verbatim}
+    (when using the tcsh or similar).
+    \begin{verbatim}
+       > echo $SHELL
+    \end{verbatim}
+will tell you which shell you are using. Ideally, this same setting should
+be specified in your .profile, .bashrc, or .cshrc login profiles. If
+``unlimited'' does not work, try setting a large value instead, e.g.,
+\texttt{ulimit -s 500000}.
+
+If any of these steps are not allowed, you will have to contact the
+system manager of your computer in order to modify the stack size
+limits set by the kernel of your operating system.
+
+FHI-aims prints at startup the settings of the stacksize as they are
+found on your system. As mentioned, here ``unlimited'' or a large
+value should be reported.
+
+\section{Use of FHI-aims with multithreaded BLAS (e.g., Intel's MKL)}
+
+The performance of FHI-aims depends critically on the basic linear
+algebra subroutine (BLAS) library used to perform matrix
+operations. Such libraries are highly CPU-specific, and should be
+provided and optimized by yourself or your computer vendor for your
+particular computer.
+
+Unfortunately, with the advent of multi-core CPUs for PCs, some
+computer vendors (Intel, IBM) have decided that their proprietary BLAS
+implementations will, by default, use \emph{all} available CPU's by
+way of \emph{threads}, since they do not expect a user to know how to
+create parallel code.
+
+In contrast, FHI-aims makes great efforts to distribute its workload
+evenly itself (much more efficient than leaving the task up to the
+BLAS, which are used for some, but by no means all operations in the
+code). Thus, FHI-aims invokes the correct number of sub-processes via
+the message-passing interface (MPI), then distributing any further
+basic numeric operations (matrix multiplications) using BLAS routines
+correctly itself.
+
+If the default settings provided by a vendor are to use \emph{all}
+CPUs for \emph{every single} call or the BLAS operations, on a system
+with $n$ CPUs this will lead to $n\times n$ tasks running in parallel
+-- not good at all for efficiency.
+
+The problem is easily fixed by setting the system variable
+\texttt{OMP\_NUM\_THREADS} (number of threads invoked by OpenMP-parallelized
+libraries, e.g., BLAS) to 1:
+    \begin{verbatim}
+      export OMP_NUM_THREADS=1
+    \end{verbatim}
+(This syntax is correct for the bash shell). When using Intel's MKL, you
+may likewise wish to set \texttt{MKL\_NUM\_THREADS} to 1. On top of
+this, Intel will still ignore your choice unless you set the less well
+documented variable \texttt{MKL\_DYNAMIC} to \texttt{FALSE}.
+
+Another, much simpler and equally well performing option is to use the
+freely available Goto BLAS subroutines that can be downloaded and
+compiled on standard architectures.
+
+Some versions of Intel's MKL are known to have an error in a function
+called  ``pdtran''. Thus at startup FHI-aims tests the version of
+pdtran it is currently using for correctness. Should FHI-aims abort
+with an error message ``pdtran test failed! Aborting...'' you will
+have to use a different version of Intel' MKL or replacements like
+Goto BLAS.
+
+\section{Parallel runs across different file systems}
+
+In parallel runs on distributed computers (clusters), FHI-aims expects
+its input files in the directory from which it is invoked. Its
+standard output can be redirected by hand to any given location, and
+other (optional, see keyword \keyword{output}) output files are
+again written in the same directory from which FHI-aims is invoked.
+
+This procedure works well on most standard cluster and/or
+high-performance computing architecture available today, but you must
+make sure that the directories for input and output are visible and
+readable / writable on all the nodes across which FHI-aims is
+parallelized for a given run.
+
+\section{I'm running a calculation for a large system, and it exits abrutply.
+What's going on?}
+
+It is possible that you are indeed running out of memory. See the next section,
+``What do I do if I run out of memory?''
+
+However, do check if you really did set ``ulimit -s unlimited'' before
+running the calculation. If FHI-aims is compiled with an additional C compiler
+(this is as simple as defining the ``CC'' environment variable in
+\texttt{make.sys} or in the \texttt{Makefile}), then FHI-aims' standard output
+also writes the stack size that is set for each MPI task. Sometimes the result
+can be surprising -- for example, some MPI libraries' \texttt{mpirun} command
+does not propagate the stack size limit to all compute nodes.
+
+\section{What do I do if I run out of memory?}
+
+Like all other electronic structure codes, the current bottleneck for
+FHI-aims when performing calculations for large systems is memory usage.
+A number of flags exist to alleviate memory usage, but as many of them
+have an associated trade-off of performance overhead, poor scaling for
+small system sizes, or breaking post-processing techniques, they have not
+been enabled by default. For large systems where memory usage becomes
+an issue, however, enabling them will be worth it. This list of flags
+may be found at in Section \ref{Sec:Large-scale}, ``Large-scale, massively
+parallel: Memory use, sparsity, communication, etc.''
+
+For hybrid functionals please make sure that you really need the basis set
+that you are requesting. For example, the tier 2 basis sets specified by
+tight and really\_tight settings for light elements can be far too large.
+You may be able to get away with ``intermediate'' settings instead. Especially
+for hybrid functionals, large numbers of basis functions per atom really
+increase the time and memory consumption much more drastically than for
+semilocal DFT.
+
+Please ask regarding intermediate settings in our forum -- especially for
+hybrid functionals or for many-body perturbation theory. It's worth it.
+
+\section{Nearly singular basis sets: Strange results from small-unit-cell
+periodic calculation with many k-points}
+
+We have observed numerous times that periodic bulk calculations with
+small unit cells and many $k$-points are apparently much more prone to
+ill-conditioning of the basis set than any other type of
+calculation. The symptom is that, with the usual accuracy and grid
+settings, large but still affordable basis sets (e.g., tier 3) will
+show reasonable convergence behavior at the outset, but then suddenly
+show a large jump and unphysical total energies at some point in the
+s.c.f. cycle.
+
+The underlying reason is that the basis sets used by FHI-aims are
+overlapping and non-orthogonal. As the basis functions located at each
+atom of the structure approach completeness, the basis set as a whole
+becomes overcomplete. The result may be that certain linear
+combinations of basis functions are approximately expressable as
+linear combinations of some others. The eigenvalue problem
+Eq. (\ref{Eq:EVP}) becomes \emph{ill-conditioned}, and small amounts of
+numerical noise in the Hamiltonian / overlap matrix elements can
+group together to produce large unphysical effects in the eigenvakue
+spectrum.
+
+If this happens, a number of strategies are available to deal with
+this situation. These are summarized in the following. Note, however,
+that ill-conditioning does indicate that your chosen basis set is
+already closer to completeness than even your computer can handle, and
+a smaller basis set for production calculations should be equally
+sufficient (and much faster) for high-quality results.
+\begin{itemize}
+  \item Employ the \keyword{basis\_threshold} keyword. This allows to
+    identify the near-linear dependent components of the overlap matrix
+    and eliminate them from the calculation. The successful threshold
+    value depends on your chosen basis set and system, so test
+    different choices (typically, 10$^{-4}$ or 10$^{-5}$). Note,
+    however, that a large \keyword{basis\_threshold} value may also
+    impact the the total energy found at a level of a few meV/atom.
+  \item In addition, the keyword \keyword{override\_illconditioning}
+    must be set in order to run with a basis set that is reduced by
+    \keyword{basis\_threshold}. This should serve as an indicator that
+    extra care is required in this situation---in particular, a
+    detailed convergence analysis of the behaviour of the problem with
+    increasing basis set size, and (separately!) with increasing
+    cutoff radius, up to the value you are using. In most cases, it
+    should turn out that either the basis set, or the cutoff radius,
+    or both, were chosen to be far overconverged.
+  \item Increase the accuracy of the integration grids via
+    \subkeyword{species}{radial\_base} and
+    \subkeyword{species}{angular\_grids}. This is an
+    expensive strategy (use for proof-of-principle only!), but it will
+    serve to reduce the numerical noise in your calculations and thus
+    increase the validity range of the eigenvalue solution,
+    Eq. (\ref{Eq:EVP}).
+\end{itemize}
+Again, note that we do not usually observe any ill-conditioning
+related problems for large periodic structures (e.g., surface slabs)
+or even very large molecules, even when employing very large basis
+sets.
+
+\section{No convergence of the s.c.f. cycle even after many iterations}
+\label{sec:trouble-scf}
+
+One first thing first: If you encountered unexpected
+s.c.f. convergence issues, did look at your exact \texttt{geometry.in}
+file in a viewing program, such as jmol? One of the most common
+reasons to find unexpectedly bad s.c.f. convergence for apparently
+harmless structures are issues such as the wrong lattice parameter for
+the structure in question, an atom in the wrong location, or the wrong
+structure altogether. Structures that are chemically unstable are
+often not happy at all when it comes to the stability of their
+electronic structure, and slow or no s.c.f. convergence can be an
+indicator of a simple geometry mistake.
+
+Successful strategies for s.c.f. convergence in standard electronic
+structure problems have been developed in the field for a long time.
+Still, there remain some particular pathological classes of
+calculations, and even some of particular physical interest: large
+metallic slabs, where charge oscillations can occur; spin-polarized
+systems with closely competing spin states; systems near the crossing
+of two Kohn-Sham eigenvalues at the Fermi level; etc.
+
+Visualizing the actual s.c.f. convergence behavior of your run can be a first
+step to success. See Sec. \ref{sub:vis-scf} for a brief description of how to
+do this.
+
+The \keyword{adjust\_scf} keyword now automatically controls
+s.c.f. convergence. It may be best to first remove \emph{all}
+scf-convergence related keywords from \texttt{control.in} and see if
+this works. Sometimes, problems arise from mis-setting such
+keywords. As a result, for example we no longer recommend setting
+\emph{any} of the \texttt{sc\_accuracy\_*} keywords explicitly.
+
+If a \texttt{control.in} file without any scf-convergence related
+keywords does not solve the problem, the next steps are to adjust the
+available keywords carefully and step by step.
+
+The standard s.c.f. convergence strategy within FHI-aims is to use
+\keyword{mixer} \texttt{pulay}, with a configurable
+\keyword{charge\_mix\_param} and number of mixed iterations
+\keyword{n\_max\_pulay}. These, possibly together with a
+\keyword{preconditioner}, should be modified first in order to see
+whether the problem can be contained.
+
+A first line of defense against bad s.c.f. convergence is
+the \keyword{sc\_init\_iter} keyword. This keyword resets the Pulay
+mixer completely after a specified number of s.c.f. iterations. This
+is done only for the first s.c.f. cycle and can dramatically improve
+the covergence behaviour of problematic cases. The current default
+(as of this writing) is for the mixer to reset itself after 1001 iterations.
+
+Typical settings that work for wide varieties of systems are as follows:
+
+\begin{itemize}
+  \item Semiconducting or insulating solids or molecules (i.e.,
+    insulating systems with an appreciable band gap):
+\end{itemize}
+
+\keyword{mixer} \texttt{pulay} \\
+\keyword{charge\_mix\_param} 0.2 \\
+\keyword{occupation\_type gaussian 0.01}
+
+are usually enough to work for such systems.
+
+\begin{itemize}
+  \item Metallic systems with no appreciable band gap, slabs to model
+    surface phenomena, etc.:
+\end{itemize}
+
+\keyword{mixer} \texttt{pulay} \\
+\keyword{charge\_mix\_param} 0.02 \\
+\keyword{occupation\_type gaussian 0.1}
+
+or similar should usually work. Note that \keyword{charge\_mix\_param}
+0.02 is \emph{not} a small value for a mixing parameter, since this is
+employed with a Pulay mixer. After several iterations, the Pulay mixer
+has usually figured out what the right mixing parameters should be and
+thereby tends to undo the slowing effect of a small mixing parameter.
+
+\begin{itemize}
+  \item Periodic slab models that are still problematic:
+\end{itemize}
+
+In periodic systems, FHI-aims uses a Kerker preconditioner by default,
+in addition to the usual Pulay mixer. For very anisotropic metallic
+systems (think graphene sheet with a 10x10 unit cell and a large
+vacuum), the Kerker preconditioner may not be appropriate -- switching
+it off may help:
+
+\keyword{preconditioner} \texttt{kerker} \texttt{off} \\
+
+\begin{itemize}
+  \item Slow convergence for spin polarized systems:
+\end{itemize}
+
+Only ever run a spin polarized calculation if there is a good reason
+to do so. Running a clearly non-spin-polarized system with
+\keyword{spin} \texttt{none} just for aesthetic reasons is a bad
+idea: It will double your computer time usage in the best of cases,
+\emph{and} it will require you to begin the calculation from some
+finite spin initialization that may not be close to the
+self-consistent electronic structure you are seeking. Thus, spin
+polarization may add additional s.c.f. cycles \emph{and} cost extra
+time in any case.
+
+Obviously, please do run spin polarized calculations if there is a
+good physical reason to do so. Just do not underestimate the cost. It
+is also wise ( = essential!) to think about the initial moments chosen
+for the initialization of the calculation. The closer the initial
+moment distribution matches the expected self-consistent result, the
+better (faster) the convergence.
+
+In contrast, beginning every spin-polarized calculation with a high
+spin state for every atom may be a highly bad idea. In particular, do
+not run molecular or condensed phase calculations (i.e., anything
+other than single free atoms) with \keyword{default\_initial\_moment}
+\texttt{hund}. Hund's rules, which can be read up on Wikipedia and a
+host of other sources, apply to free atoms. Condensed systems have
+very different spin moment distributions.
+
+Beyond this, s.c.f. convergence issues can be highly system-specific
+in our experience, and general guidelines are hard to give. Things
+that will always work to some extent are:
+\begin{itemize}
+  \item a \texttt{linear} \keyword{mixer} with a (very!!) small
+    \keyword{charge\_mix\_param}, which in the limit will guarantee
+    convergence, albeit at the expense of excessively many
+    s.c.f. cycles to reach convergence
+  \item A increased broadening specified with
+    \keyword{occupation\_type}. This is essential especially for
+    metalic systems, but for small clusters, the quality of the
+    obtained total energies will deteriorate somewhat as a result,
+    since these suddenly correspond to fractional (very high
+    temperature) occupation numbers around the Fermi level.
+\end{itemize}
+For particularly hard cases, we also recommend to review in detail
+all the options available in Sec. \ref{Sec:scf}; better yet, contact
+us (see Section \ref{Sec:community}).
+
+While trying out all these options, however, we strongly
+suggest to use the \keyword{output\_level} \texttt{full} keyword, in
+order to have the actual eigenvalue spectrum printed across different
+s.c.f. iterations, and then to \emph{visualize} the behaviour of the
+eigenvalue spectrum as a function of s.c.f. iteration. In many cases,
+this step may yield some critical physical insight into the nature of
+the problem. For example, Kohn-Sham density functional theory may
+sometimes be forced to place competing electronic levels ($d$ and $f$
+in rare earth elements are a good example, but there are many others!)
+\emph{at} the Fermi level in order to ensure a given (ground-state)
+fractional occupation. The search for the correct occupation of these
+levels will then oscillate between different iterations, and could be
+the source of the instability. Stabilizing such a problem is still
+not easy, but at least, looking at the electronic structure as it
+develops may give some critical hint as to what is happening,
+instead of leaving the user groping in the dark.

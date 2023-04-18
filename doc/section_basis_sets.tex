@@ -1,0 +1,884 @@
+\section{Specifying the basis (functions, empty sites, k-points, ...)}
+
+Among the technical choices in FHI-aims, the choice of the basis set
+is by far the most important one, both regarding the efficiency and
+the desired accuracy of a calculation. The shape and details of the
+basis sets used are thus kept as obvious as possible to the user. At
+the same time, nobody should be required to type in an entire
+basis set plus additional specifications from scratch just to run a
+production calculation. 
+
+As described in Ref. \cite{Blum08}, the basis functions of FHI-aims
+take the format
+\begin{equation}
+  \phi(\boldr) = u(r)/r \cdot Y_{lm}(\theta,\phi)
+\end{equation}
+in spherical coordinates ($r,\theta,\phi$) with respect to a given
+atomic center. Each radial function $u(r)$ is numerically tabulated on
+a dense logarithmic radial grid, and evaluated as a cubic spline
+function in other parts of the code. Finally, most radial function
+types are subject to a cutoff potential of radial with $w$, ensuring
+that $u(r)$=0 for $r>r_\text{cut}=r_\text{onset}+w$.
+
+In periodic calculations, the full basis specification additionally
+includes the $k$-point grid for Bloch functions in the first Brillouin
+zone. Unlike in many other implementations, this is \emph{not} a
+performance-critical setting in FHI-aims, and should be set to a well
+converged value if possible.
+
+The recommended approach to basis sets in FHI-aims is 
+twofold:
+\begin{itemize}
+  \item \emph{First}, obtain the basic description of each required
+    element by copy-pasting one of the preconstructed
+    \texttt{species\_default} files into your \texttt{control.in}
+    file. The preconstructed \texttt{species\_default} files address
+    all standard specifications associated with a single
+    \keyword{species}, including the integration grids, the Hartree
+    potential, and most importantly the basis set. 
+  \item \emph{Second}, \textbf{edit the copy-pasted species\_defaults
+    file} to match your specific accuracy and efficiency
+    requirements. For the basis set, this is done by adjusting the
+    species-dependent keywords described below. Most importantly,
+    \emph{complete} basis sets are listed at the end of each
+    \texttt{species\_default} file. You can increase/decrease the
+    basis set accuracy by successively uncommenting / commenting
+    \emph{tiers} of the basis set. \texttt{Note} that each higher
+    \emph{tier} must only be used if \emph{all} lower \emph{tiers} are
+    active. For example, it does \emph{not} make sense to use all tier
+    2 basis functions if the first tier is not used.
+\end{itemize}
+
+In addition to our own case studies,\cite{Blum08} the accuracy of the
+``tier'' (sometimes called ``FHI-aims-2009''\cite{Zhang2013}) preconstructed basis 
+sets for semilocal and hybrid DFT calculations was established in
+several benchmark assessments.\cite{Lejaeghereaad3000,Jensen2017}
+
+For beyond-DFT methods like MP2, $GW$, the random-phase approximation,
+etc., basis set convergence is very different and absolute convergence
+is often not possible. In the case of beyond-DFT methods,
+we recommend to ascertain basis set convergence by performing specific convergence
+tests for any important results. For total-energy differences between different
+structures, a counterpoise correction can often be employed (using the
+\keyword{empty} keyword to create sites which have basis functions but
+no atoms). For beyond-DFT calculations for light elements (H-Ar), the
+NAO-VCC-nZ basis sets\cite{Zhang2013} are additionally available among the species 
+defaults and provide reliable convergence for total-energy methods
+(see Ref. \cite{Zhang2013} for details). 
+
+Finally, we can also use different approaches to create the
+free-atom-like core and valence basis functions that are included in
+the so-called ``minimal basis'' of the NAO basis sets provided with 
+FHI-aims (unless explicitly excluded using the
+\keyword{include\_min\_basis} keyword). If semilocal density
+  functionals are used in the overall calculation, these atomic 
+radial functions are created for the same exchange-correlation
+functional as requested by the \keyword{xc} keyword of the
+\texttt{control.in} file. For hybrid density functionals, FHI-aims has 
+historically used LDA- or GGA-derived free-atom-like basis functions
+by default (still current as of August 2017, but slated to be changed
+in the future), but the definition of the ``minimal basis'' can be
+changed in a limited way using the keywords
+\keyword{atomic\_solver\_xc} or \keyword{atomic\_solver}. See, for
+instance, Figure 7 in Ref. \cite{Ren12a} for the effect of changing
+the mimimal basis definition by keyword \keyword{atomic\_solver\_xc}
+on total energy convergence for a simple example.  
+
+\newpage
+
+\subsection*{Tags for general section of \texttt{geometry.in}:}
+
+\keydefinition{empty}{geometry.in}
+{
+  \noindent
+  Usage: \keyword{empty} \option{x} \option{y} \option{z}
+  \option{species\_name} \\[1.0ex]
+  Purpose: Specifies the initial location and type of a \emph{site}
+  where \emph{only} the basis functions (but not the nucleus) of a
+  given species are placed.
+  \\[1.0ex]
+  Restriction: Currently not functional with periodic boundary
+    conditions. The use of this option should be avoided for physical
+    reasons if a structure relaxation is requested.\\[1.0ex]
+  \option{x}, \option{y}, \option{z} are real numbers (in \AA) which
+  specify the atomic position. \\[1.0ex]
+  \option{species\_name} is a string descriptor which names the element on
+    this atomic position; it must match with one of the species descriptions
+    given in \texttt{control.in}. \\
+}
+This allows to place extra basis functions at specified locations
+outside the actual atoms, e.g., allowing for a counterpoise
+correction of basis set superposition errors.
+
+\newpage
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{atomic\_solver}{control.in}
+{\noindent
+  Usage: \keyword{atomic\_solver} \option{string} \\[1.0ex]
+  Purpose: Changes the atomic solver library that generates the
+  free-atom-like radial functions (or free-ion-like radial functions)
+  used, e.g., in the minimal basis part of the NAO basis sets. 
+  \\[1.0ex]
+  \option{string} is the name of the solver to be used, either \texttt{sratom} or
+  \texttt{atom\_sphere}. Default: \texttt{sratom}  \\
+}
+The definition of free atom radial functions used as the ``minimal
+basis'' of FHI-aims affects the absolute convergence of total energies
+calculated by FHI-aims. The radial shape of the
+free-atom core and valence functions towards the nucleus is nearly
+exact also for bonded structures if the same exchange-correlation
+functional is used and thus, e.g., using DFT-PBE generated radial functions
+when using \keyword{xc} \texttt{pbe} will improve the convergence of
+total energies. (Other quantities, such as atomization energies or other
+energy differences, will often exhibit better convergence than the
+total energy, since the effect of the exact shape of the minimal basis
+functions near the nucleus often cancels to a reasonable extent. See,
+e.g., Ref. \cite{Jensen2017} for a study of these effects for
+Gaussian-type and NAO basis sets compared to accurate reference values.)
+
+Options
+for \texttt{string}: 
+
+\texttt{sratom}: FHI-aims' default solver for the electronic structure
+of spherical free atoms on a dense logarithmic grid, called ``sratom'' (for
+``scalar relativistic atom'') is the same solver as used in the
+Fritz Haber Institute 1998 pseudopotential generation code by Martin
+Fuchs and coworkers, reference \cite{FuchsFHI98PP}. It was modified by
+Timo Jacob to incorporate ZORA scalar relativity when needed. This
+solver can handle semilocal density functionals but not exact
+exchange. Thus, for hybrid density functionals in FHI-aims, the
+``minimal basis'' radial functions produced by sratom are semilocal
+DFT, not hybrid functional basis functions. This leads to a slower
+convergence of absolute total energies with hybrid functionals in
+FHI-aims (the error in atomization energies cancels to a good
+extent). See Figure 7 in Ref. \cite{Ren12a} for the magnitude of this
+effect for the example of the convergence of Hartree-Fock calculations
+for Au$_2$ with an LDA-generated minimal basis compared to the same
+calculation, but with a minimal basis derived using the
+Krieger-Li-Iafrate (KLI) approximation
+\cite{Krieger1990,Krieger1992a,Krieger1992b} to the exact-exchange 
+optimized effective potential. ``sratom'' is the current default
+solver for radial functions in FHI-aims.
+
+\texttt{atom\_sphere}: This solver for spherical free atoms was
+developed in Stefan Goedecker's group for many years (beginning with
+Ref. \cite{Goedecker1992}) and includes support for semilocal and
+hybrid density functionals. In FHI-aims, ``atom\_sphere'' is used as a
+library under the Lesser General Public License (LGPL). As of this writing
+(August 2017), only non-relativistic calculations are supported by 
+``atom\_sphere''. In this case, the resulting total energies
+for hybrid density functionals converge precisely as well as their
+semilocal DFT equivalents, as shown, e.g., in
+Ref. \cite{Jensen2017}. ``atom\_sphere'' will only work if support 
+for libxc was compiled into the FHI-aims binary used.
+
+
+\keydefinition{atomic\_solver\_xc}{control.in}
+{\noindent
+  Usage: \keyword{atomic\_solver\_xc} \option{string} \\[1.0ex]
+  Purpose: Changes the exchange-correlation functional used to generate the
+  free-atom-like radial functions in the minimal basis
+  part of the NAO basis sets.
+  \\[1.0ex]
+  Restriction: This keyword only has an effect if
+  \keyword{atomic\_solver} \texttt{sratom} is used. \\[1.0ex]
+  \option{string} is the name of the exchange-correlation functional
+  to be used for the free-atom solution. Default: Internal defaults
+  (no specific option).  \\
+}
+There is currently only one specific option for this keyword:
+
+\texttt{KLI}
+
+for the Krieger-Li-Iafrate (KLI) approximation
+\cite{Krieger1990,Krieger1992a,Krieger1992b} to the exact-exchange
+optimized effective potential. Figure 7 in Ref. \cite{Ren12a} is an
+example of the effect of the choice of different minimal basis
+functions on the convergence of the total energy of a Hartree-Fock
+calculation for a heavy element. In that case, the KLI approximation
+is closer to the converged result since the radial behavior of the
+minimal basis functions towards the nucleus is closer to the
+Hartree-Fock result, and because the radial function behavior of the
+free atom near the nucleus is nearly identical to the near-nuclear
+behavior of the Kohn-Sham orbitals in the bonded structures. In other
+words, for Hartree-Fock, KLI represents the nuclear cusp better than
+the local-density approximation (which is the present default choice
+of minimal basis radial functions for Hartree-Fock). 
+
+In all cases where \keyword{atomic\_solver\_xc} is not specified, the
+choice of the exchange-correlation functional for free atoms varies
+with the chosen setting for the \keyword{xc} keyword, but is not
+necessarily identical. For local and semilocal density functionals,
+the choice of functional for the minimal basis is generally identical
+to keyword \keyword{xc}, but for hybrid functionals, the choice may
+vary and is currently ``best'' documented in the source code (in
+subroutine get\_free\_atoms.f90).
+
+
+\keydefinition{calculate\_atom\_bsse}{control.in}
+{\noindent
+  Usage: \keyword{calculate\_atom\_bsse} \option{flag} \\[1.0ex]
+  Purpose: Allows calculation of the basis set superposition error
+  (BSSE) corrected atomization energy. 
+  \\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.false.} or
+    \texttt{.true.} Default: \texttt{.false.}  \\
+}
+\textit{This keyword automates a specialized version of the
+  counterpoise correction and should only be used with great care. A
+  general counterpoise correction for molecules can be implemented
+  manually and in separate steps using the \keyword{empty}
+  keyword. The atomization BSSE correction implemented above, if used, must be
+  checked very carefully to ensure that all single-atom reference
+  calculations carried out in the process reached the exact same
+  atomic reference state. Many important atoms have more than one
+  self-consistent solution, and mixing different self-consistent
+  solutions may produce completely erratic results. Our recommendation
+  therefore to carry out any counterpoise correction manually instead,
+  by doing separate single-point FHI-aims calculations with different
+  molecular fragments and different basis definitions.} 
+
+The atomization BSSE correction for a molecular structure is defined
+as: 
+\begin{equation}
+  \Delta_{ac}=\sum_x[E^x(x)-E^x(sys)]
+\end{equation}
+where $E^x(x)$ is the energy of the atom \textit{x} calculated using
+only its basis set and $E^x(sys)$ is its energy calculated with the
+basis set of the whole structure. The BSSE corrected total energy is
+then 
+\begin{equation}
+  E^{BSSE}=E^{sys}(sys)+\Delta_{ac}
+\end{equation}
+The atomization BSSE correction is usually small in the case of the
+LDA/GGA functionals, but can become significant for methods with
+explicit correlation like RPA and MP2. 
+
+The BSSE corrected atomization energy implemented here, on the other hand, is 
+\begin{equation}
+  E^{BSSE}_{at}=E^{sys}(sys)-\sum_x E^x(sys)
+\end{equation}
+In the case where relative energies between different conformations of
+the same molecule are needed,
+$(E^{BSSE}_{at})_{rel}\equiv(E^{BSSE})_{rel}$. 
+
+If the calculation of the full system is performed without spin
+polarization, the total energy of each atom will also be calculated
+without spin polarization (and vice versa). In this case, specially
+when performing the \textit{scf} cycle with HF, symmetry breaking of
+the electronic configuration of certain atoms may occur, which might
+lead to wrong conclusions. 
+
+The keyword is currently implemented for use with cluster geometries
+only. Both RPA and MP2 as the \keyword{total\_energy\_method} are
+supported. 
+
+\keydefinition{hydro\_cut}{control.in}
+{
+  \noindent
+  Usage: \keyword{hydro\_cut} \option{flag} \\[1.0ex]
+  Purpose: Determines whether or not hydrogenic functions are subject
+    to a numerical cutoff potential. \\[1.0ex] 
+  \option{flag} is a logical expression, either \texttt{.true.} or
+    \texttt{.false.} Default: \texttt{.true.} \\
+}
+This tag should be kept at the default value unless for testing
+purposes (e.g., comparing to other codes). 
+
+\keydefinition{k\_grid}{control.in}
+{
+  \noindent
+  Usage: \keyword{k\_grid} \option{n1} \option{n2} \option{n3} \\[1.0ex]
+  Purpose: Sets up an evenly split k-points grid along the reciprocal
+    lattice vectors of a periodic calculation \\[1.0ex]
+  \option{n1}, \option{n2}, \option{n3} : integer numbers defining the
+    number of k-point splits along the first, second and third
+    reciprocal axis of the first Brillouin zone, respectively \\
+}
+\emph{Note} that the order of \option{n1}, \option{n2}, \option{n3}
+must \emph{directly} correspond to the order in which the
+\keyword{lattice\_vector}s are listed in \texttt{geometry.in}, through
+the definition and order of the reciprocal lattice. By
+default, the resulting \keyword{k\_grid} is centered around the
+$\Gamma$-point, but can be shifted using the \keyword{k\_offset}
+keyword below.
+
+The keyword \keyword{symmetry\_reduced\_k\_grid} now allows to make use of
+time-reversal symmetry to reduce the number of $k$ points by a factor of
+nearly two. This option is the default.
+
+\keydefinition{k\_offset}{control.in}
+{
+  \noindent
+  Usage: \keyword{k\_offset} \option{f1} \option{f2} \option{f3} \\[1.0ex]
+  Purpose: Defines a possible non-$\Gamma$ offset for the k-point grid
+    in periodic boundary conditions. \\[1.0ex]
+  \option{f1}, \option{f2}, \option{f3} : Fractional coordinates
+    (between zero and one) of a k-point offset , in units of the
+    reciprocal lattice vectors. Default: (0., 0., 0.). \\
+}
+Can be used to shift the grid off-$\Gamma$ for better $k$-space
+sampling. For example, (0.5, 0.5, 0.5) together with even \option{n$i$} for
+\keyword{k\_grid} defines a Monkhorst-Pack
+\cite{Monkhorst76} type grid.  See Sec.~\ref{sec:k-point-sampling} for
+details.
+
+The \keyword{k\_offset} cannot be used with Hartree-Fock or hybrid density functionals
+as the current implementation assumes a $\Gamma$-centered grid.
+
+\keydefinition{k\_points\_external}{control.in}
+{
+  \noindent
+  Usage: \keyword{k\_points\_external} \\[1.0ex]
+  Purpose: Instead of an internally specified k-point grid, allows to
+    specify an externally read $k$-grid from a file
+    \texttt{k\_list.in} .\\
+}
+This option is useful
+to specify an uneven special $k$-point set \cite{Chadi73}, etc.
+
+The \keyword{k\_points\_external} keyword cannot presently be used with 
+Hartree-Fock or hybrid density functionals
+as the current implementation the presence of the
+\keyword{k\_grid} keyword and information in \texttt{control.in}.
+
+If specified, \keyword{k\_points\_external} expects a separate input
+file \texttt{k\_list.in} to be provided in the same working directory
+as all other input files. The format of \texttt{k\_list.in} is as
+follows: \\[1.0ex] 
+\begin{tabular}{ll}
+\emph{line 1:} & \texttt{n1   n2   n3} \\
+\emph{line 2:} & \texttt{Nk} \\
+\emph{lines 3 - Nk+2}: & \texttt{k1   k2   k3   weight} \\
+\end{tabular}
+
+All lines are read as free format. \\
+\texttt{n1, n2, n3} are integers,
+specifying the descriptors of a 3D $k$-point grid. During s.c.f.,
+these values are for reference only. However, they may be used 
+for postprocessing after the s.c.f. cycle is complete, e.g., for keyword \keyword{output}
+\subkeyword{output}{postscf\_eigenvalues}, where the external k-point
+list \texttt{k\_list.in} is not supported. \\
+\texttt{Nk} is the (integer) number of $k$-points
+following in the file. \\
+For each $k$-point, a separate line is
+expected, including via \texttt{k1, k2, k3} the coordinates of this
+point in units of the reciprocal lattice vectors, and via
+\texttt{weight} the integration weight of this $k$-point in all
+Brillouin zone integrals.
+
+\keydefinition{onsite\_accuracy\_threshold}{control.in}
+{
+  \noindent
+  Usage: \keyword{onsite\_accuracy\_threshold} \option{threshold} \\[1.0ex]
+  Purpose: Issues a warning if the onsite integral of a basis function on 
+    the 'radial' integration grid differs from the same onsite integral on
+    the more accurate logarithmic grid by more than \option{threshold}. \\[1.0ex]
+  \option{threshold} is given in eV. Default: 0.03~eV. \\
+}
+See keyword \keyword{output} \subkeyword{output}{onsite\_integrands}
+for the integrals that are actually evaluated.
+
+For ``light'' settings, you can most likely ignore the associated warning. 
+Possibly, treat it as a reminder to check final results with ``tight'' 
+settings or similar, just in case.
+
+FHI-aims writes the respective onsite integral values for all its
+radial functions side by side after the setup of all radial functions
+is complete. Too large deviations between the calculated values on the
+radial and logarithmic grids can indicate accuracy problems, which is
+a particular concern for high-accuracy benchmark calculations. In
+particular, Gaussian-type orbital basis sets of the Dunning type that
+are used for high-level reference calculations need grids that are far
+more accurate than normal NAO basis sets, due to the unphysical
+wiggles that contracted Gaussian functions with high exponents
+introduce near the nucleus.
+
+If the associated warning strikes, the grid accuracy can be improved
+either using the \subkeyword{species}{radial} keyword or (simpler) the
+\subkeyword{species}{radial\_multiplier} keyword.
+
+However, if \keyword{onsite\_accuracy\_threshold}
+triggers a warning for ``light'' settings, most likely you can safely
+ignore the warning. With light settings, the point may be to do a
+reduced-accuracy calculation, which should still be safe for its
+original purposes. Just check the radial grid when in doubt.
+
+If the flag \keyword{override\_integration\_accuracy} is toggled to
+\texttt{.false.}, however, FHI-aims does stop whenever it encounters a
+radial function whose onsite integrals are not deemed accurate enough
+by the \keyword{onsite\_accuracy\_threshold} criterion.
+
+\keydefinition{override\_integration\_accuracy}{control.in}
+{
+  \noindent
+  Usage: \keyword{override\_integration\_accuracy} \option{flag} \\[1.0ex]
+  Purpose: If set to false, FHI-aims stops calculations for which the
+    onsite integral of any radial function is less accurate than
+    prescribed by keyword \keyword{onsite\_accuracy\_threshold}. \\[1.0ex]
+  \option{flag} can be \texttt{.true.} or \texttt{.false.} Default: \texttt{.true.} \\
+}
+
+\keydefinition{symmetry\_reduced\_k\_grid}{control.in}
+{
+  \noindent
+  Usage: \keyword{symmetry\_reduced\_k\_grid} \option{flag} \\[1.0ex]
+  Purpose: Determines whether or not to make use of time-reversal symmetry.
+  \\[1.0ex] 
+  \option{flag} is a logical expression, either \texttt{.true.} or
+    \texttt{.false.} Default: \texttt{.true.} \\
+}
+% JW: There are crucial things needed in order to really make use of symmetry
+% for the k-grid which are not implemented in FHI-aims.  FHI-aims can indeed
+% recognize symmetries, but it is not able to make use of them.  Should
+% someone implement proper symmetries, the following can be uncommented again:
+
+% FHI-aims can now recognize symmetries of the unit cell if they belong to the
+% octahedral group, and reduce the number of necessary k-points
+%   accordingly. Optionally, the criterion for declaring two atoms
+%   symmetry-equivalent can be set by keyword \keyword{symmetry\_thresh} below. 
+
+% \emph{While this is simple functionality and has passed our tests, this option
+%   has not seen widespread testing - simply because very often, the number of
+%   k-points is not the primary efficiency bottleneck in FHI-aims. We would
+%   appreciate any feedback on this option before making it the default
+%   behaviour.}
+
+% \emph{VB: Update for version 051610. Symmetry reduction should not be
+%   used in production. We have reason to believe that there is an inaccuracy
+%   hidden in the implementation. Use non-symmetrized grids instead, the penalty
+%   is not large for FHI-aims, unlike in plane wave codes.}
+
+
+% JW: Not used for any purpose right now:
+
+% \keydefinition{symmetry\_thresh}{control.in}
+% {Usage: \keyword{symmetry\_thresh}
+%   \option{thresh} \\[1.0em]
+% Purpose: To define the maximally allowed coordinate difference (in
+% \AA) for the symmetry checker to decide that two atoms are at
+% equivalent. Default: 10$^{-6}$\\}
+% See keyword \keyword{symmetry\_reduced\_k\_grid} above.
+
+\keydefinition{wave\_threshold}{control.in}
+{
+  \noindent
+  Usage: \keyword{wave\_threshold} \option{threshold} \\[1.0ex]
+  Purpose: Determines the outer radius beyond which a radial function
+  is considered zero. \\[1.0ex]
+  \option{threshold} is a small positive number. Default: 10$^{-6}$.
+  Lowered to 10$^{-8}$ by default if \keyword{output}
+  \subkeyword{cube} is requested. \\ 
+}
+A radial function is considered zero (not evaluated) beyond the radius
+where $u(r)$ and its first and second derivatives become smaller than
+\option{threshold}. The default is chosen such as to not affect any
+results at all.
+
+For electron densities or orbitals plotted for visualization using
+cube files (\keyword{output} \subkeyword{cube} functionality), a too
+high value of \keyword{wave\_threshold} can sometimes lead to small
+but visible discontinuities. Thus, the default threshold is
+lowered to 10$^-8$ if \keyword{output} \subkeyword{cube} is requested.
+
+
+\newpage
+
+\subsection*{Subtags for \emph{species} tag in \texttt{control.in}:}
+
+\subkeydefinition{species}{basis\_acc}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{basis\_acc} \option{threshold} \\[1.0ex]
+  Purpose: Technical cutoff criterion for on-site orthonormalization
+    of radial functions \\[1.0ex]
+  \option{threshold} is a small positive real threshold. Default:
+  10$^{-4}$. \\
+}
+Before any calculation, all radial functions for a single species are
+Gram-Schmidt orthonormalized. If the norm of the function after
+  orthonormalization is smaller than \option{threshold}, that function
+  is omitted.
+
+\subkeydefinition{species}{basis\_dep\_cutoff}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{basis\_dep\_cutoff} \option{threshold} \\[1.0ex]
+  Purpose: Basis function dependent adjustment of the confinement
+  potential for this species \\[1.0ex]
+  \option{threshold} is either a positive real number, or can be
+  explicitly set \texttt{.false.}. Default: 10$^{-4}$. \\
+}
+If not \texttt{.false.}, the onset of the basis confining potential
+(see \subkeyword{species}{cut\_pot} tag below) is adjusted separately
+  for each basis function, such that the norm of this basis function
+  \emph{outside} $r_\text{onset}$ is smaller that
+  \option{threshold}. The \emph{maximum} possible onset radius is
+  still given by the value explicitly specified by the
+  \subkeyword{species}{cut\_pot} tag. 
+
+\subkeydefinition{species}{confined}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{confined} \option{n} \option{l}
+    \option{radius} \\[1.0ex]
+  Purpose: Adds a confined free-atom like radial function to the basis
+    set. \\[1.0ex]
+  \option{n} is the (integer) radial quantum number. \\
+  \option{l} is a character, specifying the angular momentum (
+    \emph{s}, \emph{p}, \emph{d}, \emph{f}, ...). \\
+  \option{radius} is the onset radius of the confining potential
+    (in atomic units, 1~a.u. = 0.529177~\AA). If the word
+    \texttt{auto} is specified \emph{instead} of a numerical value,
+    the default onset radius given in the
+    \subkeyword{species}{cut\_pot} tag is used. \\
+}
+The defining potential for this basis function type consists of the
+non-spinpolarized, self-consistent spherical free-atom potential
+(possibly itself confined, using the
+\subkeyword{species}{cut\_free\_atom} tag), and a confining
+potential. The shape of the confining potential is the same for all
+basis functions of a given species, and set using the
+\subkeyword{species}{cutoff\_type} and \subkeyword{species}{cut\_pot} 
+subtags. 
+
+\subkeydefinition{species}{core}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{core} \option{n} \option{l} \\[1.0ex]
+  Purpose: Defines the top ``core'' shell of the species for this
+    angular momentum. \\[1.0ex]  
+  \option{n} is the (integer) radial quantum number. \\
+  \option{l} is a character, specifying the angular momentum (
+    \emph{s}, \emph{p}, \emph{d}, \emph{f}, ...). \\
+}
+Currently not needed for production calculations, but listed here
+because the ``core'' infrastructure is currently being reworked and
+may see useful additions in the near future. This flag defines 
+which electrons of the species are considered ``core'' electrons, and
+which enter as explicit valence electrons.
+
+\subkeydefinition{species}{core\_states}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{core\_states} \option{number} \\[1.0ex]
+  Purpose: Independent determination of the number of states that are
+    core states in the current species. \\[1.0ex]
+  \option{number} is an integer number (to be multiplied by 2 for the
+    number of core electrons). Default: 0. \\
+}
+\emph{Experimental at present, not needed for any production
+  purposes.} See also the \subkeyword{species}{core} keyword. The
+\subkeyword{species}{core\_states} keyword should interact with the
+\subkeyword{species}{core} keyword, but does not yet, since any
+associated functionality is still under development. Both keywords are
+listed here for future reference only.
+
+
+\subkeydefinition{species}{cut\_atomic\_basis}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{cut\_atomic\_basis} \option{flag} \\[1.0ex]
+  Purpose: \textbf{Only} relevant to decide whether the
+    \subkeyword{species}{basis\_dep\_cutoff} keyword also applies to
+    atomic-type (minimal) radial functions. \\[1.0ex]
+  \option{flag} is a logical expression, either \texttt{.true.} or
+    \texttt{.false.} Default: \texttt{.false.} \\
+}
+\textbf{This keyword applies only to the setting specified by keyword}
+\subkeyword{species}{basis\_dep\_cutoff}. Do \textbf{not} enable it
+routinely without thorough testing.
+
+By default, the minimal basis functions in FHI-aims \emph{are} subject
+to the cutoff potential with the fixed onset specified by the
+\subkeyword{species}{cut\_pot} keyword. However, the more restrictive
+\subkeyword{species}{basis\_dep\_cutoff} keyword does \emph{not} apply
+to the minimal basis by default.
+
+This can be changed by setting
+\subkeyword{species}{cut\_atomic\_basis} to \texttt{.true.}, but the
+associated total energy changes are significantly larger than for
+other basis functions. By default, we therefore do not recommend
+adding a tighter cutoff to the minimal basis functions at this
+time. It is, however, possible that this effect is mainly a systematic
+error between the core states, and after further testing, we may yet
+choose to enable this keyword \emph{if} we can guaranteed that its
+use is safe.
+
+\subkeydefinition{species}{cut\_pot}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{cut\_pot} \option{onset} \option{width}
+    \option{scale} \\[1.0ex]
+  Purpose: Specifies the numerical parameters for the general
+    (default) confinement potential $v_c(r)$ for all basis functions of this
+    species. \\[1.0ex]
+  \option{onset} specifies the default onset radius of the cutoff
+    potential, in {\AA} ($v_c(r)$=0 for $r<r_\text{onset}$). \\
+  \option{width} specifies the radial width $w$ of the cutoff potential,
+    in {\AA} ($v_c(r)$=$\infty$ for $r>r_\text{onset}+w$). \\
+  \option{scale} is a scaling parameter to increase or decrease the
+    numerical value of $v_c$. \\
+}
+This tag is mandatory, since it specifies \option{onset}, a critical
+parameter that allows to tune the efficiency of a calculation for
+a given target 
+accuracy. Unless reduced by the
+\subkeyword{species}{basis\_dep\_cutoff} tag, \option{onset} is the
+default onset radius used to construct all valence (minimal) and
+hydrogen-like basis functions of this species. In addition, any
+confined free-atom or free-ion like radial functions use this onset
+radius if \texttt{auto} is used in their specification.
+
+Notes: The functional form of $v_c(r)$ can be selected using the
+\subkeyword{species}{cutoff\_type} keyword, and \option{width}
+and \option{scale} apply to this shape. Modifying these latter
+parameters is usually not necessary for a production calculation, but
+the \option{onset} value should be verified at least as a quick
+numerical check.
+
+\subkeydefinition{species}{cutoff\_type}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{cutoff\_type} \option{identifier} \\[1.0ex]
+  Purpose: Specifies the functional form of the confinement potential
+    associated with this species. \\[1.0ex]
+  \option{identifier} is a string that selects a given confinement
+    potential shape as specified in the code. Default: \texttt{exp(1\_x)\_(1-x)2}. \\
+}
+All confinement potentials in FHI-aims are characterized by the rigorous
+boundaries $v_c(r)$=0 for $r<r_\text{onset}$ and $v_c(r)$=$\infty$ for
+$r>r_\text{cut} = r_\text{onset}+w$, where $r_\text{onset}$ may depend on the basis
+function, and $w$ is the \option{width} specified by the
+  \subkeyword{species}{cut\_pot} tag. In addition, each shape contains
+  a scaling parameter $s$, also specified via the
+  \subkeyword{species}{cut\_pot} tag. 
+
+Available confinement potential shapes (\option{identifier}) for
+$r_\text{onset}<r< r_\text{cut} = r_\text{onset}+w$ are:
+\begin{itemize}
+  \item \texttt{exp(1\_x)\_(1-x)2} : 
+    \[
+       v_c(r) = \exp(\frac{w}{r-r_\text{onset}}) \cdot \frac{1}{(r-r_\text{cut})^2} 
+    \]
+    (the default in FHI-aims)
+  \item \texttt{junquera} : 
+    \[
+       v_c(r) = \exp(\frac{w}{r-r_\text{onset}}) \cdot \frac{1}{(r-r_\text{cut})} 
+    \]
+    (the form originally suggested by Junquera et al. \cite{Junquera01})
+  \item \texttt{x2\_(1-x2)}
+    \[
+       v_c(r) = (r-r_\text{onset})^2 \cdot \frac{1}{(r-r_\text{cut})^2} 
+    \]
+\end{itemize}
+
+
+\subkeydefinition{species}{gaussian}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{gaussian} \option{L} \option{N}
+    \option{[alpha]} \\
+    \hspace*{0.1\textwidth} [ alpha\_1  coeff\_1 ] \\
+    \hspace*{0.1\textwidth} [ alpha\_2  coeff\_2 ] \\
+    \hspace*{0.1\textwidth} [ ... ] \\
+    \hspace*{0.1\textwidth} [ alpha\_N  coeff\_N ]
+    \\[1.0ex]
+  Purpose: Adds a Gaussian-based radial function to the basis
+    set. \\[1.0ex]
+  Restriction: This basis function type is not subject to a cutoff
+    potential. It may therefore require a wider
+    \subkeyword{species}{radial\_base} integration grid than the standard
+    NAO's in FHI-aims. \\[1.0ex]
+  \option{L} is an integer number, specifying the angular momentum \\ 
+  \option{N} is an integer number, specifying how many primitive Gaussians
+    comprise the present radial function \\
+  \option{alpha} : \emph{If} \option{N}=1, this is the exponent
+    defining a primitive Gaussian function [in bohr$^{-2}$]. \\
+  \option{alpha\_i} \option{coeff\_i} : 
+    \emph{If} \option{N}$>$1, $i=1,\dots,N$ additional lines specify
+    exponents $\alpha_i$ and expansion coefficients $g_i$ for a
+    non-primitive linear combination of Gaussians.\\
+}
+FHI-aims allows to use Gaussian-based radial functions to compare to
+existing popular Gaussian-based implementations of quantum
+chemistry. These functions can either be \emph{primitive} Gaussians, 
+\begin{equation}\label{Eq:primGauss}
+ u(r) = \frac{1}{\mathit{Norm}} r^{L+1} \cdot \exp(-\alpha r^2) ,
+\end{equation}
+or \emph{non-primitive} linear combinations.
+\begin{equation}\label{Eq:nonprimGauss}
+ u(r) = \frac{1}{\mathit{Norm}} r^{L+1} \cdot \sum_{i=1}^{i=N} g_i \exp(-\alpha_i r^2) .
+\end{equation}
+In existing quantum chemistry codes, Gaussian basis functions can be
+defined either as \emph{spherical} Gaussians [Eq. (\ref{Eq:primGauss})
+  above], or as \emph{cartesian} Gaussians,
+\begin{equation}
+ \phi(\boldr) = x^k y^m z^n \exp(-\alpha r^2) , \quad \mathrm{where} \quad
+ k+m+n=L .
+\end{equation}
+This behavior can be mimicked using the
+\subkeyword{species}{pure\_gauss} tag (see below). Finally, note that
+in order to use an \emph{exclusively} Gaussian-based basis set, you
+must prevent the use of the minimal free-atom like NAO basis functions
+using the \subkeyword{species}{include\_min\_basis} tag.
+
+
+\subkeydefinition{species}{hydro}{control.in}{
+{
+  \noindent
+  Usage: \subkeyword{species}{hydro} \option{n} \option{l}
+    \option{z\_eff} \\[1.0ex]
+  Purpose: Adds a hydrogen-like radial function to the basis
+    set. \\[1.0ex]
+  \option{n} is the (integer) radial quantum number. \\
+  \option{l} is a character, specifying the angular momentum (
+    \emph{s}, \emph{p}, \emph{d}, \emph{f}, ...). \\
+  \option{z\_eff} scales the radial function as an effective nuclear
+    charge in the defining Coulomb potential $z_\text{eff}/r$. \\
+}
+By default, hydrogen-like basis functions in FHI-aims are subject to
+the numerical confinement potential given by
+\subkeyword{species}{cutoff\_type} and
+\subkeyword{species}{cut\_pot}. Optionally, analytical hydrogen-like
+functions (no confinement) can be requested using the global
+\keyword{hydro\_cut} tag.
+}
+
+\subkeydefinition{species}{include\_min\_basis}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{include\_min\_basis} \option{flag} \\[1.0ex]
+  Purpose: Allows to exclude the minimal basis of free-atom valence
+    functions from the basis set. \\[1.0ex]
+  \option{flag} is a logical expression, either \texttt{.true.} or
+    \texttt{.false.} Default: \texttt{.true.} \\
+}
+This flag is normally only useful to compare explicitly with basis
+sets from other methods, usually Gaussian basis sets.
+
+\subkeydefinition{species}{ion\_occ}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{ion\_occ} \option{n} \option{l}
+    \option{occupation} \\[1.0ex]
+  Purpose: Specifies the shell occupation of a radially symmetric,
+    non-spinpolarized free ion that defines any ionic basis
+    functions. \\[1.0ex]
+  Restriction: Only one type of ion can be used to define ionic basis
+    functions for a given species. \\[1.0ex]
+  \option{n} is the (integer) radial quantum number. \\
+  \option{l} is a character, specifying the angular momentum (
+    \emph{s}, \emph{p}, \emph{d}, \emph{f}, ...). \\
+  \option{occupation} is the number of electrons in the topmost
+    occupied valence shell of this ion. \\
+}
+This tag defines an ionic configuration, but does not actually add any
+ionic functions to the basis used in the present calculation. Actual
+basis functions are added by the \subkeyword{species}{ionic}
+keyword.
+
+Only the topmost valence shell of each angular momentum channel of the
+ion is specified. All lower-lying shells are assumed to be completely
+filled for the self-consistent spherical free-ion calculation.
+
+\subkeydefinition{species}{ionic}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{ionic} \option{n} \option{l}
+    \option{radius} \\[1.0ex]
+  Purpose: Adds a free-ion like radial function to the basis set. \\[1.0ex]
+  \option{n} is the (integer) radial quantum number. \\
+  \option{l} is a character, specifying the angular momentum (
+    \emph{s}, \emph{p}, \emph{d}, \emph{f}, ...). \\
+  \option{radius} is the onset radius of the confining potential
+    (in atomic units, 1~a.u. = 0.529177~\AA). If the word
+    \texttt{auto} is specified \emph{instead} of a numerical value,
+    the default onset radius given in the
+    \subkeyword{species}{cut\_pot} tag is used. \\
+}
+
+\subkeydefinition{species}{pure\_gauss}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{pure\_gauss} \option{flag} \\[1.0ex]
+  Purpose: If \texttt{.true.}, any \subkeyword{species}{gaussian}
+    basis functions for this species will be purely spherical
+    Gaussians. \\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.false.} or
+    \texttt{.true.} Default: \texttt{.true.} \\
+}
+See keyword \subkeyword{species}{gaussian} for the distinction between
+spherical and cartesian Gaussian functions. In short, cartesian and
+spherical Gaussian functions are equivalent \emph{except} that for a
+given $L$, cartesian Gaussians add a so-called angular momentum
+contamination. If \subkeyword{species}{pure\_gauss} is specified, this
+angular momentum contamination is mimicked by FHI-aims.
+
+Consider the simple (textbook!) three-dimensional harmonic oscillator
+in quantum mechanics. This can be solved either in cartesian
+coordinates, or in spherical coordinates. If solves in cartesian
+coordinates, you will find that there are six degenerate solutions for
+the principal quantum number 2, five of which correspond to $l$=2 ($d$
+channel), but one of which corresponds to $l$=0 ($s$ channel). This
+is the exact angular momentum contamination exhibited by the cartesian
+definition of a Gaussian basis function. 
+
+\subkeydefinition{species}{valence}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{valence} \option{n} \option{l}
+    \option{occupation} \\[1.0ex]
+  Purpose: Specifies the shell occupation of the radially symmetric,
+    non-spinpolarized free atom that defines the minimal basis. \\[1.0ex]
+  \option{n} is the (integer) radial quantum number. \\
+  \option{l} is a character, specifying the angular momentum (
+    \emph{s}, \emph{p}, \emph{d}, \emph{f}, ...). \\
+  \option{occupation} is the number of electrons in the topmost
+    occupied valence shell of this ion. \\
+}
+Only the topmost valence shell of each angular momentum channel of the
+atom is specified. All lower-lying shells are assumed to be completely
+filled for the self-consistent spherical free-atom calculation. The
+valence occupation must be defined explicitly for each \keyword{species}.
+
+The self-consistent free-atom potential generated by this calculation
+is used to generate all minimal and \subkeyword{species}{confined}
+basis functions used for this species, after the confining potential
+is added. 
+
+The self-consistent free-atom calculation can itself be confined by a
+different confining potential, the onset of which is specified by the
+\subkeyword{species}{cut\_free\_atom} keyword.
+
+For DFT-LDA/GGA, the same \keyword{xc} functional that is used
+in the full three-dimensional calculation is also used to define the
+self-consistent free atom. For any methods involving Hartree-Fock
+exchange (e.g., hybrid functionals), the free atom is generated using
+the \option{pw-lda} LDA functional.
+
+The self-consistent free atom density generated here is also used in
+the construction of partition functions for the Hamiltonian integrals
+and the Hartree potential, as well as to build the initial charge
+density (unless otherwise requested!) and the reference charge density
+subtracted before constructing the Hartree potential.
+
+\subkeydefinition{species}{sto}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{sto} \option{n} \option{l} \option{zeta}
+    \\[1.0ex]
+  Purpose: Adds a Slater-type orbital to the basis set. \\[1.0ex]
+  Notes: This basis function type is not subject to a cutoff potential. \\[1.0ex]
+  \option{n} is an integer which plays the role of the principal quantum number for the STO\\
+  \option{l} is an integer specifying the STO angular momentum \\
+  \option{zeta} is a double precision number specifying the STO exponent, which plays the role of the effective nuclear charge\\
+}
+
+% For emacs:
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "FHI-aims"
+%%% End: 

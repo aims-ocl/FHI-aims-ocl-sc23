@@ -1,0 +1,783 @@
+\section{Eigenvalue solver and (fractional) occupation numbers}
+\label{Sec:EV}
+
+With an updated Hamiltonian matrix $h_{ij}$ and overlap matrix $s_{ij}$
+available at the end of an s.c.f. iteration ($i,j$ run over all basis
+functions), or in the post-processing step of the calculation, FHI-aims updates
+the Kohn-Sham orbitals $l$ (wave function coefficients $c_{jl}$) by solving the
+following eigenvalue problem:
+\begin{equation}\label{Eq:EVP}
+  \sum_j h_{ij} c_{jl} = \epsilon_l \sum_j s_{ij} c_{jl} \quad .
+\end{equation}
+In periodic boundary conditions, this eigenvalue problem is solved at every
+$k$-point, and $\boldk$ is implictly included in the eigenstate index $l$ above.
+
+FHI-aims now uses the open-source ELSI infrastructure
+\url{http://elsi-interchange.org} -- and most often the efficient, massively
+parallel ELPA eigensolver (\url{http://elpa.mpcdf.mpg.de}) -- to handle all
+aspects of this problem.
+
+Since the basis size needed even for meV-converged accuracy in FHI-aims is
+rather small, and this size determines the dimension of $h_{ij}$ and $s_{ij}$,
+the recommended eigenvalue solver(s) in FHI-aims are customized conventional
+solvers (publicly available as the ELPA library since 2011), employing the same
+basic algorithms as LAPACK or the parallel ScaLAPACK implementation, but with
+significant scalability enhancements. Although these solvers scale strictly as
+$O(N^3)$ with system size, their application becomes dominant only for systems
+above $\approx$1000 atoms (light elements) or $\approx$500 atoms (heavy
+elements, e.g. Au) in our experience. For large systems, there are alternative
+methods available through the ELSI library, including the orbital minimization
+method (libOMM), the pole expansion and selected inversion method (PEXSI), the
+shift-and-invert parallel spectral transformation eigensolver (SLEPc-SIPs), and
+the density matrix purification algorithms using sparse matrix linear algebra
+from the NTPoly library. Note that PEXSI and SLEPc-SIPs are not installed with
+FHI-aims by default.
+
+The present section describes the available eigensolvers and density matrix
+solvers and relevant options in FHI-aims, including the determination of a Fermi
+level and occupation numbers for all orbitals following the process. Keywords
+starting with a prefix \texttt{elsi\_} are ELSI-specific. The key ideas of using
+ELSI and its supported solvers are briefly introduced here. For more
+information, please refer to the ELSI documentation available at
+\url{http://elsi-interchange.org}.
+
+FHI-aims also offers the possibility to solve a \emph{constrained} eigenvalue
+problem, e.g., in order to restrict the number of spin-up or spin-down electrons
+in the basis functions of a given set of atoms. Since this functionality is
+experimental and for experienced users only, it is documented separately in
+Sec. \ref{Sec:constraint}.
+
+Finally, we emphasize that the basis set in FHI-aims \emph{is} non-orthogonal.
+For all practical production settings, this is not a problem, and in fact taken
+care of through the overlap matrix $s_{ij}$ in Eq. (\ref{Eq:EVP}) above. It is,
+however, still possible to generate an overcomplete, nearly ill-conditioned
+basis set in practical calculations, usually by specific, \emph{deliberate}
+user action. The signature of such ill-conditioning are near-zero eigenvalues of
+$s_{ij}$ (e.g., 10$^{-5}$ and below). Possible reasons include: systematically
+constructed, deliberately overconverged basis sets for non-periodic calculations
+(not easy); excessively large cutoff radii in dense periodic structures together
+with very large basis sets (the density of non-zero basis functions per volume
+element increases as $r_\text{cut}^3$); or, badly integrated, very extended
+basis functions (diffuse Gaussian basis functions without increasing
+\subkeyword{species}{radial\_multiplier} appropriately).
+
+FHI-aims does include a number of safeguards against an ill-conditioned overlap
+matrix, most importantly the \keyword{basis\_threshold} keyword that projects
+out the eigenvectors of the overlap matrix that correspond to its smallest
+eigenvalues, usually enabling a meaningful calculation anyway. However, to alert
+every user to the fact that their chosen basis set may be ill-conditioned, the
+code now stops when it encounters an overlap matrix with too low eigenvalues---
+unless the keyword \keyword{override\_illconditioning} is deliberately set,
+indicating that the user knows what they are doing and wishes to continue
+regardless.
+
+\newpage
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{basis\_threshold}{control.in}
+{
+  \noindent
+  Usage: \keyword{basis\_threshold} \option{threshold} \\[1.0ex]
+  Purpose: Threshold to prevent any accidental ill-conditioning of the basis
+    set. \\[1.0ex]
+  \option{threshold} is a small positive threshold for the eigenvalues of the
+    overlap matrix. Default: 10$^{-5}$. \\
+}
+Since NAO basis functions are situated at different atomic centers in a
+structure, they form a non-orthogonal basis set by construction. Usually, this
+is not a problem, since the non-orthogonality is naturally accounted for by
+inserting the overlap matrix $s_{ij}$ into the Kohn-Sham eigenvalue problem,
+Eq. (\ref{Eq:EVP}). For very large basis sets, this can lead to accidental
+ill-conditioning (some basis functions may be exactly expressable as linear
+combinations of some others).
+
+This behavior is detected by directly inverting the overlap matrix, and
+computing its eigenvalues. If one or more eigenvalues are smaller than
+\option{threshold}, the corresponding eigenvectors are projected out of the
+basis before solving the Kohn-Sham eigenvalue problem, and the latter is solved
+after transforming to the reduced eigenbasis-set of the overlap matrix.
+
+\emph{Important change:} Even when \keyword{basis\_threshold} is set, FHI-aims
+will automatically stop when a near-singular overlap matrix is detected. The
+user can still override this safeguard by setting the
+\keyword{override\_illconditioning} keyword in \texttt{control.in} explicitly,
+but we do now do our best to alert the user to this condition.
+
+\keydefinition{elpa\_settings}{control.in}
+{
+  \noindent
+  Usage: \keyword{elpa\_settings} \option{setting} \\[1.0ex]
+  Purpose: Allows to determine the exact algorithm used in the ELPA eigensolver
+    by hand. \\[1.0ex]
+  \option{setting} is a descriptor (string) that selects certain aspects of
+    ELPA. Default: \texttt{auto} \\
+}
+If the parallel ELPA eigensolver is used (see keyword \keyword{KS\_method}), a
+number of choices are made automatically by default. The
+\keyword{elpa\_settings} keyword allows to set some of these aspects by hand.
+Allowed choices for \texttt{setting} are:
+\begin{itemize}
+  \item \texttt{auto} : The default. ELPA makes all its choices on the fly.
+  \item \texttt{one\_step\_solver} : Only the one-step tridiagonalization (and
+    corresponding back transformation) are used. This is usually the slower
+    choice, but not always ...
+  \item \texttt{two\_step\_solver} : Only the two-step tridiagonalization (and
+    corresponding back transformation) are used. This is usually the faster
+    choice, but not always ...
+\end{itemize}
+The \keyword{elpa\_settings} keyword is particularly useful \\
+(i) if you already know what the faster choice is, and you wish to eliminate the
+extra test of the slower solver from your calculations, or \\
+(ii) if you suspect that one of the two solvers links to a buggy external(!)
+library. LAPACK and BLAS implementations (still used in ELPA) come from many
+vendors, they are often precompiled, and of course they \emph{always} work---the
+computer vendor hopes so, after all. We have seen our share of bugs in external
+libraries (outside the control of FHI-aims), and sometimes, switching the
+algorithm to change the exact subroutines used can be a helpful backup check.
+
+\keydefinition{empty\_states}{control.in}
+{
+  \noindent
+  Usage: \keyword{empty\_states} \option{number} \\[1.0ex]
+  Purpose: Specifies how many Kohn-Sham states \emph{beyond} the occupied levels
+    are computed by the eigensolver. \\[1.0ex]
+  \option{number} is the integer number of empty Kohn-Sham states
+    \emph{per atom} to be computed beyond the occupied levels. \\
+}
+For DFT-LDA/GGA, typically only a small (but non-zero) number of empty states is
+required to allow a complete determination of the Fermi level.
+
+By default, ($l$+1)$^2$+2 states are added \emph{for each} atom in the
+structure, where $l$ is the maximum valence angular momentum in the valence of
+that atom ($l$=0 for hydrogen, but $l$=3 for $f$-electron atoms and beyond).
+
+For correlated methods including excited states (MP2, RPA, $GW$, ...),
+\emph{all} available states should be included. To achieve this, set
+\keyword{empty\_states} to a large number (safely larger than your basis set) or
+use the \keyword{calculate\_all\_eigenstates} keyword.
+
+\keydefinition{calculate\_all\_eigenstates}{control.in}
+{
+  \noindent
+  Usage: \keyword{calculate\_all\_eigenstates} \\[1.0ex]
+  Purpose: Specifies that all possible eigenstates obtainable from the basis set
+    used (after ill-conditioning has been accounted for) should be calculated
+    and stored. \\[1.0ex]
+}
+
+This keyword instructs FHI-aims to calculate and store all possible eigenstates
+obtainable from the solution of the Kohn-Sham eigenvalue problem. It functions
+identically to setting the \keyword{empty\_states} value to a large number, but
+makes the input file prettier.
+
+Only users that know exactly what they're doing should use this option alongside
+an ill-conditioned basis set. Strange output may occur in this case, which may
+either be spurious or a symptom of a deeper problem. (This is true of
+ill-conditioning in general; this keyword only exposes it more openly.)
+
+\keydefinition{fermi\_acc}{control.in}
+{
+  \noindent
+  Usage: \keyword{fermi\_acc} \option{tolerance} \\[1.0ex]
+  Purpose: The precision with which the Fermi level for occupation numbers will
+    be determined. \\[1.0ex]
+  \option{tolerance} : Tolerance parameter for the zero point search of the
+    equation $\sum_i f_\text{occ}[\epsilon_F](\epsilon_i) - n_\text{el} = 0$.
+    Default: 10$^{-20}$. \\
+}
+Usually, this tag need not be modified from the default. Within the (standard)
+Brent's method search for the Fermi level, \option{tolerance} has more than one
+function. Leave untouched unless problems arise.
+
+\keydefinition{initial\_ev\_solutions}{control.in}
+{
+  \noindent
+  Usage: \keyword{initial\_ev\_solutions} \option{number} \\[1.0ex]
+  Purpose: \emph{Experimental!} Number of initial eigenvalue solutions using
+    direct methods before switching on the lopcg-solver. Applies for both
+    LAPACK and ScaLAPACK variants of the solver. \\[1.0ex]
+  \option{number} is a positive integer. Default: 5. \\
+}
+
+\keydefinition{KS\_method}{control.in}
+{
+  \noindent
+  Usage: \keyword{KS\_method} \option{KS\_type} \\[1.0ex]
+  Purpose: Algorithm used to solve the generalized eigenvalue problem
+    Eq. (\ref{Eq:EVP}). \\[1.0ex]
+  \option{KS\_type} is a keyword (string) which specifies the update method used
+    for the Kohn-Sham eigenvectors or density matrix in each s.c.f. iteration.
+    Default: \texttt{serial} or \texttt{parallel}, depending on available number
+    of CPUs. \\
+}
+\emph{Important change} : The naming scheme of the supported options has
+changed. Notably, the \texttt{lapack} and \texttt{scalapack} keywords are
+superseded by \texttt{serial} and \texttt{parallel}, respectively. The reason is
+that \texttt{lapack} and \texttt{scalapack} have indicated other linear algebra
+than custom (Sca)LAPACK in FHI-aims for a long time. For example, the
+\texttt{scalapack} option actually employed the ELPA eigenvalue solver,
+currently called through the ELSI infrastructure. The new naming scheme
+indicates linear algebra default options that may develop further over time, but
+these default options will not necessarily be tied to one and the same library
+going forward.
+
+Available options for the eigensolver, \option{KS\_type}, are:
+\begin{itemize}
+  \item \texttt{serial} : \textbf{Default serial eigensolver implementation}.
+    Currently the serial eigensolver in ELSI, based on LAPACK and ELPA, will be
+    employed.
+  \item \texttt{lapack\_fast} : Synonymous with \texttt{serial}.
+  \item \texttt{lapack\_2010} : LAPACK-based, and similar to the divide\&conquer
+    based standard solver provided by LAPACK itself.
+  \item \texttt{lapack\_old} : Expert solver provided by standard LAPACK. This
+    is stable and not a bottleneck in most standard situations.
+  \item \texttt{lapack} : Disabled now.
+  \item \texttt{parallel} : \textbf{Default parallel eigensolver
+    implementation}. Currently the ELPA eigensolver will be called through the
+    ELSI interface.
+  \item \texttt{elsi} : Synonymous with \texttt{parallel}.
+  \item \texttt{elpa} : Synonymous with \texttt{parallel}.
+  \item \texttt{elpa\_2013} : Same functionality as \texttt{scalapack\_old},
+    however, substantially rewritten for an overall speedup and much improved
+    scalability. See the \keyword{elpa\_settings} keyword for some ELPA
+    internals (usually determined automatically, but who knows). \\
+    Note that you must set the shell variable \texttt{OMP\_NUM\_THREADS}=1
+    prior to running FHI-aims on some platforms. (see Appendix
+    \ref{appendix_trouble_shooting})
+  \item \texttt{scalapack\_fast} : Synonymous with \texttt{parallel}.
+  \item \texttt{scalapack\_old} : Fully memory-parallel implementation of the
+    eigenvalue solver based on ScaLAPACK itself, scales much worse than our own
+    \texttt{scalapack\_fast}.
+  \item \texttt{scalapack} : Disabled now.
+  \item \texttt{svd} : Effectively the same as \texttt{lapack\_old}.
+  \item \texttt{lopcg} : \emph{Experimental -- under development} Iterative,
+    locally optimal preconditioned conjugate gradient eigensolver. Potentially
+    useful for \emph{very} large systems where \texttt{lapack} becomes a
+    bottleneck. However, implementation without any serious testing---contact
+    us if interested.
+  \item \texttt{scalapack+lopcg} : \emph{Experimental -- under development}.
+    Same as \texttt{lopcg}, but parallel with ScaLAPACK-type memory distribution.
+\end{itemize}
+
+The \texttt{parallel} eigensolvers are only available if ScaLAPACK support has
+been compiled into the FHI-aims binary---see the Makefile for more information.
+
+In fact, the default \texttt{parallel} eigensolver in FHI-aims is the ``ELPA''
+solver through the ELSI interface, which uses some ScaLAPACK infrastructure but
+has been rewritten from the ground up for much improved parallel scalability.
+
+Note that a (separate) parallelization over $k$-points will be performed in
+periodic systems in any case.
+
+\keyword{KS\_method} \texttt{parallel} also allows calculations \emph{without}
+explicitly collecting the resulting eigenvectors to each thread after the
+eigensolution is complete. This improves the memory efficiency especially in
+large-scale / massively parallel situations. For details, see keyword
+\keyword{collect\_eigenvectors}.
+
+Prior to the solution of Eq. (\ref{Eq:EVP}) using the \texttt{serial} or
+\texttt{parallel} solvers, the overlap matrix $s_{ij}$ is checked for
+ill-conditioning (see \keyword{basis\_threshold} keyword). For very large basis
+sets or periodic calculations with many $k$-points, this criterion may trigger.
+In that case, the Hamiltonian matrix is transformed to the ``safe'' set of
+eigenvectors of $s_{ij}$, and the transformed eigenvalue problem is solved. If
+you suspect ill-conditioning to be a problem, it may sometimes be helpful to
+increase the density of the 3D integration grids in order to minimize any
+numerical noise in $s_{ij}$ and $h_{ij}$. That said: In our experience,
+ill-conditioning is not a problem with accurate basis sets in standard
+calculations; see Appendix \ref{appendix_trouble_shooting} for some additional
+comments.
+
+\keydefinition{elsi\_method}{control.in}
+{
+  \noindent
+  Usage: \keyword{elsi\_method} \option{method} \\[1.0ex]
+  Purpose: Determines the usage of eigensolvers or density matrix solvers in
+    ELSI. Must be compatible with the \keyword{density\_update\_method} keyword
+    (see Sec. \ref{Sec:density_update}). \\[1.0ex]
+  \option{method} is a keyword (string). Default: \texttt{ev}. \\
+}
+Available options for \option{method} are:
+\begin{itemize}
+  \item \texttt{ev} : Use eigensolvers to solve the wave functions explicitly
+    through ELSI. Supported serial solver is LAPACK. Supported parallel solvers
+    are ELPA and SLEPc-SIPs (if compiled in). Compatible with all options of
+    \keyword{density\_update\_method}.
+  \item \texttt{dm} : Use density matrix solvers to directly compute the density
+    matrix without explicitly solving the eigenproblem in Eq. (\ref{Eq:EVP}).
+    Note that this will not work with any post-processing that requires the wave
+    functions. Supported solvers are ELPA, libOMM, PEXSI, SLEPc-SIPs, and
+    NTPoly. Only compatible with \keyword{density\_update\_method}
+    \texttt{density\_matrix}.
+\end{itemize}
+
+\keydefinition{elsi\_solver}{control.in}
+{
+  \noindent
+  Usage: \keyword{elsi\_solver} \option{solver} \\[1.0ex]
+  Purpose: Specifies the eigensolver or density matrix solver to use. \\[1.0ex]
+  \option{solver} is a keyword (string). Default: \texttt{elpa}. \\
+}
+
+Available options for \option{solver} are:
+\begin{itemize}
+  \item \texttt{elpa} : Direct, dense eigensolver ELPA (EigensoLvers for
+    Petaflop Applications). Scales as $O(N^3)$ with respect to system size.
+    Fast for systems of small and medium sizes (up to hundreds of atoms).
+  \item \texttt{omm} : Density matrix solver libOMM (the Orbital Minimization
+    Method). Scales as $O(N^3)$. No support for metallic systems. Not
+    recommended for now.
+  \item \texttt{pexsi} : Density matrix solver PEXSI (the Pole EXpansion and
+    Selected Inversion method). Scales as $O(N^2)$ for 3D systems, $O(N^{1.5})$
+    for 2D systems, and $O(N)$ for 1D systems. Fast when solving a large system
+    with sufficiently many MPI tasks (a thousand or more). PEXSI is not compiled
+    with FHI-aims by default. To use it, either enable the compilation of PEXSI
+    when building FHI-aims wiht CMake, or link FHI-aims against a precompiled
+    ELSI library with PEXSI support.
+  \item \texttt{eigenexa} : \emph{Experimental} Direct, dense eigensolver
+    EigenExa. The pentadiagonalization eigensolver eigen\_sx in EigenExa can be
+    faster than ELPA when solving the full eigenspectrum. Requires an externally
+    compiled EigenExa library. No support for complex-valued problems.
+    Therefore, in periodic calculations the number of $k$-points in any
+    direction cannot be greater than 2.
+  \item \texttt{sips} : \emph{Experimental} Sparse eigensolver SLEPc-SIPs (the
+    Shift-and-Invert Parallel spectral transformation method). Requires
+    externally compiled SLEPc and PETSc libraries. Not recommended for now. No
+    support for complex-valued problems. Therefore, in periodic calculations the
+    number of $k$-points in any direction cannot be greater than 2.
+  \item \texttt{ntpoly} : Density matrix purification algorithms implemented in
+    the NTPoly library. For sufficiently large systems, scales as $O(N)$. Only
+    competitive for thousands of atoms.
+  \item \texttt{magma} : \emph{Experimental} GPU-accelerated direct, dense
+    eigensolvers in MAGMA. Drop-in enhancement to the eigensolvers in LAPACK.
+    Requires an externally compiled MAGMA library.
+\end{itemize}
+
+\keydefinition{elsi\_output}{control.in}
+{
+  \noindent
+  Usage: \keyword{elsi\_output} \option{verbosity} \\[1.0ex]
+  Purpose: Controls the output level of ELSI. \\[1.0ex]
+  \option{verbosity} is a keyword (string). Default: \texttt{detail}. \\
+}
+Available options for \option{verbosity} are:
+\begin{itemize}
+  \item \texttt{none} : No output from ELSI. This is the default if the overall
+    output level of FHI-aims is \texttt{MD\_light}.
+  \item \texttt{light} : Enables output from the ELSI interface, but no output
+    from the solvers.
+  \item \texttt{detail} : Enables output from the ELSI interface as well as the
+    solvers. When using libOMM or PEXSI, additional output will be written to an
+    separate log file.
+  \item \texttt{debug} : Enables the same output as does the \texttt{detail}
+    option, with additional memory usage information. Creates large output files
+    and thus should not be chosen in production runs.
+  \item \texttt{json} : Enables the output of the runtime parameters used in
+    ELSI in a separate JSON file, powered by the FortJSON library. May be used
+    on top of the above options.
+\end{itemize}
+
+\keydefinition{elsi\_elpa\_solver}{control.in}
+{
+  \noindent
+  Usage: \keyword{elsi\_elpa\_solver} \option{solver} \\[1.0ex]
+  Purpose: Specifies the eigensolver used in ELPA. \\[1.0ex]
+  \option{method} is an integer. Default: 2. \\
+}
+Available options for \option{solver} are:
+\begin{itemize}
+  \item 1 : One-stage tridiagonalization eigensolver.
+  \item 2 : Two-stage tridiagonalization eigensolver.
+\end{itemize}
+
+\keydefinition{elsi\_elpa\_n\_single}{control.in}
+{
+  \noindent
+  Usage: \keyword{elsi\_elpa\_n\_single} \option{n\_single} \\[1.0ex]
+  Purpose: \emph{Experimental} Specifies the number of s.c.f. steps in which the
+    eigenproblems Eq. (\ref{Eq:EVP}) are solved using the single precision
+    version of ELPA. Requires an externally compiled ELSI or ELPA library with
+    single precision enabled in ELPA. \\[1.0ex]
+  \option{n\_single} is an integer. Default: 0. \\
+}
+
+\keydefinition{elsi\_omm\_n\_elpa}{control.in}
+{
+  \noindent
+  Usage: \keyword{elsi\_omm\_n\_elpa} \option{n\_elpa} \\[1.0ex]
+  Purpose: When using libOMM, specifies the number of s.c.f. steps in which the
+    eigenproblems Eq. (\ref{Eq:EVP}) are solved explicitly using ELPA. As an
+    iterative solver, libOMM's performance heavily depends on the quality of the
+    initial guess. By default, random numbers are used as inital guess. The
+    eigensolution computed by ELPA proves to be a better choice. \\[1.0ex]
+  \option{n\_elpa} is an integer. Default: 6. \\
+}
+
+\keydefinition{elsi\_omm\_flavor}{control.in}
+{
+  \noindent
+  Usage: \keyword{elsi\_omm\_flavor} \option{flavor} \\[1.0ex]
+  Purpose: Specifies the flavor of libOMM to be used. \\[1.0ex]
+  \option{flavor} is an integer. Default: 0. \\
+}
+Available options for \option{flavor} are:
+\begin{itemize}
+  \item 0 : Directly minimizes the OMM energy functional without transforming
+    the generalized eigenproblem to the standard form before minimization. This
+    is usually faster than flaver 2 if using several ELPA steps before switching
+    to libOMM.
+  \item 2 : Before OMM minimization, first transforms the generalized
+    eigenproblem to the standard form using the Cholesky decomposition of the
+    overlap matrix.
+\end{itemize}
+
+\keydefinition{elsi\_omm\_tol}{control.in}
+{
+  \noindent
+  Usage: \keyword{elsi\_omm\_tol} \option{tolerance} \\[1.0ex]
+  Purpose: Specifies the convergence criterion of the OMM energy functional
+    minimization. \\[1.0ex]
+  \option{tolerance} is a small positive real number. Default: 10$^{-12}$. \\
+}
+
+\keydefinition{elsi\_pexsi\_np\_symbo}{control.in}
+{
+  \noindent
+  Usage: \keyword{elsi\_pexsi\_np\_symbo} \option{np\_symbo} \\[1.0ex]
+  Purpose: Specifies the number of MPI tasks assigned for the symbolic
+    factorization step in PEXSI. \\[1.0ex]
+  \option{np\_symbo} is a positive integer. Default: 1. \\
+}
+Parallel symbolic factorization with more than 1 MPI task is not always stable,
+hence the default. Increasing \option{np\_symbo} might accelerate the symbolic
+factorization, however might also cause a segfault. Note that the symbolic
+factorization step needs to be performed only once per s.c.f. cycle. Unless
+facing a memory bottleneck, using the default value is recommended.
+
+\keydefinition{elsi\_eigenexa\_method}{control.in}
+{
+  \noindent
+  Usage: \keyword{elsi\_eigenexa\_method} \option{method} \\[1.0ex]
+  Purpose: Specifies the eigensolver used in EigenExa. \\[1.0ex]
+  \option{method} is an integer. Default: 2. \\
+}
+Available options for \option{solver} are:
+\begin{itemize}
+  \item 1 : One-stage tridiagonalization eigensolver.
+  \item 2 : One-stage pentadiagonalization eigensolver.
+\end{itemize}
+
+\keydefinition{elsi\_sips\_slice\_type}{control.in}
+{
+  \noindent
+  Usage: \keyword{elsi\_sips\_slice\_type} \option{type} \\[1.0ex]
+  Purpose: Specifies the slicing method used in SLEPc-SIPs. \\[1.0ex]
+  \option{type} is an integer. Default: 4. \\
+}
+Available options for \option{type} are:
+\begin{itemize}
+  \item 0 : Equally spaced slices.
+  \item 2 : Equally populated slices.
+  \item 4 : Equally populated slices (with energy gaps taken into account).
+\end{itemize}
+
+\keydefinition{elsi\_sips\_n\_slice}{control.in}
+{
+  \noindent
+  Usage: \keyword{elsi\_sips\_n\_slice} \option{n\_slice} \\[1.0ex]
+  Purpose: Specifies the number of slices used in SLEPc-SIPs. Note that the
+    total number of MPI tasks must be a multiple of the number of slices. In
+    practice, setting \option{n\_slice} to be equal to the number of nodes seems
+    to work well. The default value should always work, but by no means leads to
+    the best performance. \\[1.0ex]
+  \option{type} is a positive integer. Default: 1. \\
+}
+
+\keydefinition{elsi\_sips\_n\_elpa}{control.in}
+{
+  \noindent
+  Usage: \keyword{elsi\_sips\_n\_elpa} \option{n\_elpa} \\[1.0ex]
+  Purpose: Specifies the number of s.c.f. steps to be solved with ELPA. The
+    performance of SIPs relies on a decent knowledge on the eigenvalue
+    distribution, which is key to an efficient spectrum slicing. This can be
+    calculated by ELPA in the first \option{n\_elpa} s.c.f. steps. \\[1.0ex]
+  \option{type} is an integer. Default: 0. \\
+}
+
+\keydefinition{elsi\_ntpoly\_method}{control.in}
+{
+  \noindent
+  Usage: \keyword{elsi\_ntpoly\_method} \option{method} \\[1.0ex]
+  Purpose: Specifies the purification algorithm used in NTPoly. \\[1.0ex]
+  \option{method} is an integer. Default: 2. \\
+}
+Available options for \option{method} are:
+\begin{itemize}
+  \item 0 : Canonical purification.
+  \item 1 : Trace-correcting purification.
+  \item 2 : 4th order trace-resetting purification.
+  \item 3 : Generalized canonical purification.
+\end{itemize}
+
+\keydefinition{elsi\_ntpoly\_tol}{control.in}
+{
+  \noindent
+  Usage: \keyword{elsi\_ntpoly\_tol} \option{tolerance} \\[1.0ex]
+  Purpose: Specifies the convergence criterion of the density matrix
+    purification. \\[1.0ex]
+  \option{tolerance} is a small positive real number. Default: 10$^{-4}$. \\
+}
+
+\keydefinition{elsi\_ntpoly\_filter}{control.in}
+{
+  \noindent
+  Usage: \keyword{elsi\_ntpoly\_filter} \option{threshold} \\[1.0ex]
+  Purpose: Specifies the threshold smaller than which the matrix elements will
+    be discarded in the process of density matrix purification. \\[1.0ex]
+  \option{tolerance} is a small positive real number. Default: 10$^{-8}$. \\
+}
+
+\keydefinition{elsi\_magma\_solver}{control.in}
+{
+  \noindent
+  Usage: \keyword{elsi\_magma\_solver} \option{solver} \\[1.0ex]
+  Purpose: Specifies the eigensolver used in MAGMA. \\[1.0ex]
+  \option{method} is an integer. Default: 1. \\
+}
+Available options for \option{solver} are:
+\begin{itemize}
+  \item 1 : One-stage tridiagonalization eigensolver.
+  \item 2 : Two-stage tridiagonalization eigensolver.
+\end{itemize}
+
+\keydefinition{frozen\_core\_scf}{control.in}
+{
+  \noindent
+  Usage: \keyword{frozen\_core\_scf} \option{boolean} \\[1.0ex]
+  Purpose: Enables the frozen core approximation to reduce the dimension of the
+    Kohn-Sham eigenproblem. Atomic basis functions whose eigenvalue is lower
+    than \keyword{frozen\_core\_scf\_cutoff} will be treated as core states.
+    Useful for systems consisting of heavy elements. This keyword applies only
+    to the solution of the Kohn-Sham eigenproblem. It does not imply a frozen
+    core treatment anywhere else. See also \keyword{frozen\_core} and
+    \keyword{frozen\_core\_postscf}, which control the use of frozen core in
+    other parts of the code. \\[1.0ex]
+  \option{boolean} is either \texttt{.true.} or \texttt{.false.}. Default:
+    \texttt{.false.} \\
+}
+
+\keydefinition{frozen\_core\_scf\_cutoff}{control.in}
+{
+  \noindent
+  Usage: \keyword{frozen\_core\_scf\_cutoff} \option{cutoff} \\[1.0ex]
+  Purpose: Determines the number of core states when the frozen core
+    approximation is enabled by \keyword{frozen\_core\_scf}. Atomic basis
+    functions whose eigenvalue is lower than \keyword{cutoff} (eV) will be
+    treated as core states. \\[1.0ex]
+  \option{cutoff} is a negative number. Default: \texttt{-13605.5} (eV, which is
+    about -500 Ha) \\
+}
+
+\keydefinition{lopcg\_adaptive\_tolerance}{control.in}
+{
+  \noindent
+  Usage: \keyword{lopcg\_adaptive\_tolerance} \option{flag} \\[1.0ex]
+  Purpose: \emph{Experimental!} Allows the lopcg-algorithm to dynamically
+    adjusts its convergence tolerance as
+    $\max{\{0.01 \, |\delta n|, \hbox{\keyword{lopcg\_tolerance}} \}}$ where
+    $\delta n$ is the change in the electron density as recorded in the
+    self-consistency cycles. \\[1.0ex]
+  \option{flag} is a logical expression. Default: \texttt{.false.} \\
+}
+
+\keydefinition{lopcg\_block\_size}{control.in}
+{
+  \noindent
+  Usage: \keyword{lopcg\_block\_size} \option{number} \\[1.0ex]
+  Purpose: \emph{Experimental!} The maximal size of a block in lopcg-iteration.
+    \\[1.0ex]
+  \option{number} is a positive integer. Default: 1. \\
+}
+
+\keydefinition{lopcg\_auto\_blocksize}{control.in}
+{
+  \noindent
+  Usage: \keyword{lopcg\_auto\_blocksize} \option{flag} \\[1.0ex]
+  Purpose: \emph{Experimental!} Selects if the lopcg algorithm tries to find
+    automatically a better blocksize than the maximal one by grouping close
+    eigenvalues together. \\[1.0ex]
+  \option{flag} is a logical expression. Default: \texttt{.false.} \\
+}
+
+\keydefinition{lopcg\_preconditioner}{control.in}
+{
+  \noindent
+  Usage: \keyword{lopcg\_preconditioner} \option{type} \\[1.0ex]
+  Purpose: \emph{Experimental!} For \keyword{KS\_method} \texttt{lopcg},
+    specifies the preconditioner used. \\[1.0ex]
+  \option{type} is a string, either \texttt{diagonal} (diagonal preconditioning
+    matrix) or \texttt{ovlp\_inverse} (use inverse of the overlap matrix for
+    preconditioning). \\
+}
+
+\keydefinition{lopcg\_start\_tolerance}{control.in}
+{
+  \noindent
+  Usage: \keyword{lopcg\_start\_tolerance} \option{tolerance} \\[1.0ex]
+  Purpose: \emph{Experimental!} Sets the tolerance for starting the lopcg-solver
+    using the change in the sum of eigenvalues as a criterion. The lopcg-solver
+    is activated as set in \keyword{initial\_ev\_solutions} latest, but
+    \keyword{lopcg\_start\_tolerance} may trigger it earlier. \\[1.0ex]
+  \option{tolerance} is a double precision real. Default: 0.0 \\
+}
+
+\keydefinition{lopcg\_tolerance}{control.in}
+{
+  \noindent
+  Usage: \keyword{lopcg\_tolerance} \option{tolerance} \\[1.0ex]
+  Purpose: \emph{Experimental!} Sets the convergence tolerance for the
+    lopcg-solver.\\[1.0ex]
+  \option{tolerance} is a double precision real. Default: 10$^{-6}$. \\
+}
+
+\keydefinition{max\_lopcg\_iterations}{control.in}
+{
+  \noindent
+  Usage: \keyword{lopcg\_tolerance} \option{number} \\[1.0ex]
+  Purpose: \emph{Experimental!} Sets the maximal number of iterations for one
+    block in the the lopcg-solver.\\[1.0ex]
+  \option{number} is an integer. Default: 100. \\
+}
+
+\keydefinition{mu\_determination\_method}{control.in}
+{
+  \noindent
+  Usage: \keyword{mu\_determination\_method} \option{type} \\[1.0ex]
+  Purpose: Specifies the algorithm used to search for the Fermi level. \\[1.0ex]
+  \option{type} is a descriptor (string) which specifies the desired algorithm
+    to determine the Fermi level.  Default: \texttt{bisection} \\
+}
+Available options are:
+\begin{itemize}
+  \item \texttt{bisection} : Standard bisection algorithm. Usually robust to
+    reach an accuracy of 10$^{-13}$ in terms of electron count. If a desired
+    accuracy cannot be reached by the bisection iteration, e.g., due to the
+    limit of the machine precision, the remaining error (very small) will be
+    arbitrarily cancelled out. Not compatible with the \texttt{integer}
+    \keyword{occupation\_type}.
+  \item \texttt{zeroin} : Standard Brent's method. Not compatible with the
+    \texttt{cubic} or the \texttt{cold} \keyword{occupation\_type}.
+\end{itemize}
+
+\keydefinition{max\_zeroin}{control.in}
+{
+  \noindent
+  Usage: \keyword{max\_zeroin} \option{number} \\[1.0ex]
+  Purpose: Number of iterations allowed in Brent's method to find the Fermi
+    level. \\[1.0ex]
+  \option{number} is an integer number. Default: 200. \\
+}
+Usually, this tag need not be modified from the default. This limits the number
+of allowed iterations for the (standard) Brent's method search for the Femi
+level. Leave untouched unless problems arise. Note that changing the values
+given for \keyword{occupation\_type} or \keyword{empty\_states} may be the true
+fixes if the search for a Fermi level really ever fails.
+
+\keydefinition{occupation\_acc}{control.in}
+{
+  \noindent
+  Usage: \keyword{occupation\_acc} \option{tolerance} \\[1.0ex]
+  Purpose: Accuracy with which the sum of calculated occupation numbers for a
+    given Fermi level reproduces the actual number of electrons in the system.
+    \\[1.0ex]
+  \option{tolerance} is a small positive real number. Default: 10$^{-13}$. \\
+}
+Usually, this tag need not be modified from the default. Determines the target
+accuracy for the Fermi level (calculated vs. actual number of electrons in the
+system). Note that changing the values given for \keyword{occupation\_type} or
+\keyword{empty\_states} may be the true fixes if the search for a Fermi level
+really ever fails.
+
+\keydefinition{occupation\_type}{control.in}
+{
+  \noindent
+  Usage: \keyword{occupation\_type} \option{type} \option{width}
+    [\option{order}] \\[1.0ex]
+  Purpose: Determines the broadening scheme used to find the Fermi level and
+    occupy the Kohn-Sham eigenstates. \\[1.0ex]
+  \option{type} is a string which determines the desired broadening function.
+    Default: \texttt{gaussian} \\
+  \option{width} specifies the width of the broadening function [in eV].
+    Default: 0.01 eV. \\
+  \option{order} is an integer, and only required to specify the order of
+    \option{type} \texttt{methfessel-paxton}. \\
+}
+Based on the eigenvalues $\epsilon_l$ of each s.c.f. iteration, the selected
+\keyword{occupation\_type} determines the Fermi level $\epsilon_F$ and occupies
+all Kohn-Sham states with fractional occupation numbers $f_l(\epsilon_F)$ for
+the following electron density update. Detailed discussions can be found in
+Ref. \cite{Blum08} or other standard literature \cite{Kre96}. We only briefly
+list the available options for the occupation \option{type} here:
+\begin{itemize}
+  \item \texttt{gaussian} : Gaussian broadening function \cite{Fu83}
+    \[
+       f_l = 0.5 \cdot [1 -
+       \erf(\frac{\epsilon_l-\epsilon_F}{\mathtt{width}})]
+    \]
+  \item \texttt{methfessel-paxton} : Generalized Gaussian-type distribution
+    functions of Methfessel and Paxton (see Ref. \cite{Met89} for details). In
+    practice, any \option{order} beyond 1 is not recommended, and is not
+    supported if \texttt{bisection} is chosen for the keyword
+    \keyword{mu\_determination\_method}.
+  \item \texttt{fermi} : Formally correct finite-temperature broadening
+    scheme \cite{Mermin65}
+    \[
+       f_l = \frac{1}{1+\exp[(\epsilon_l-\epsilon_F)/\mathtt{width}]}
+    \]
+    However, to be useful in practice, \option{width} must take on values
+    significantly greater than $kT$ at room temperature, and therefore mostly
+    loses its physical meaning. In practice, \texttt{fermi} broadening seems to
+    lead to faster-increasing total energy inaccuracies than \texttt{gaussian}
+    broadening, which is why the latter is preferred in FHI-aims.
+  \item \texttt{integer} : Forces the occupation numbers to be integers.
+  \item \texttt{cubic} : \emph{Experimental} Cubic polynomial broadening.
+  \item \texttt{cold} : Cold smearing technique proposed by Marzari and
+    Vanderbilt.
+\end{itemize}
+\emph{For metallic systems / systems with small HOMO-LUMO gap}, the availability
+of an occupation scheme with finite width (e.g., 0.1~eV) is critical to
+guarantee the stable convergence of the s.c.f. cycle. Especially for metallic
+systems, FHI-aims outputs an extrapolated total energy, which estimates the
+total energy for zero broadening based on the entropy of the electron gas
+\cite{Kre96,Gillan89,Wagner98}. This extrapolated total energy must only be used
+for metallic systems, not, e.g., for atoms with a decidedly discrete density of
+states.
+
+\emph{For non-metallic systems / systems with appreciable HOMO-LUMO gap}, the
+broadening width must be finite in order to guarantee the existence of a formal
+Fermi level, but not so large as to lead to any actual fractional occupation
+numbers. In our experience, the default width of 0.01~eV performs well for this
+purpose.
+
+\keydefinition{override\_illconditioning}{control.in}
+{
+  \noindent
+  Usage: \keyword{override\_illconditioning} \option{flag} \\[1.0ex]
+  Purpose: Allows to override a built-in stop and run with a nearly singular
+    overlap matrix. \\[1.0ex]
+  \option{flag} is a logical flag, either \texttt{.true.} or \texttt{.false.}
+    Default: \texttt{.true.} \\
+}
+If the overlap matrix $s_{ij}$ has an eigenvalue below
+\keyword{basis\_threshold} or below 10$^{-5}$ (whichever is larger), FHI-aims
+will stop and warn the user of a potentially ill-conditioned basis set. Usually
+this situation can still be resolved by setting an appropriate value of
+\texttt{basis\_threshold}, but anyone relying on this functionality should first
+check whether their ``ill-conditioning'' condition is not also due to another,
+inadvertent choice, such as an insufficient integration grid for very extended
+functions, or an excessively large cutoff radius in dense periodic systems (is
+it really necessary?).
+
+In other words: By all means, override if you wish, but check first whether all
+computational settings are actually intentional and appropriate.

@@ -1,0 +1,1269 @@
+\section{SCF Cycle: Initialization, density mixing, preconditioning, convergence}
+\label{Sec:scf}
+
+The preceding tasks (charge density update, Hartree potential,
+Hamiltonian and eigenvalue solver) are all methodologically simple,
+with well-defined standard choices, since they all relate to the
+densities and potentials within a single s.c.f. iteration of the
+Kohn-Sham equations only.
+
+However, in order to run a complete, self-consistent Kohn-Sham or
+generalized ground state calculation, many such cycles must be
+performed. Beginning with well-defined initial criteria,
+self-consistency of the charge density and orbitals must be reached,
+and must be reached within a rather finite number of iterations. This
+is a non-linear optimization problem and not always trivial.
+
+The most important keywords related to this problem in FHI-aims are
+\keyword{adjust\_scf}, which is set by default and automates the
+process with a choice of s.c.f. settings that is often safe. The key
+parameters that can be manually adjusted are
+\keyword{charge\_mix\_param} and \keyword{occupation\_type}. Many more
+keywords are described below, but usually, these are the relevant
+choices.
+
+For many standard problems in electronic structure theory--especially
+systems with a large, well-defined HOMO-LUMO or band gap---reaching
+self-consistency today presents essentially no problem, and is
+achieved to great accuracy already within $\approx$10 or so
+iterations.
+
+However, in cases where the band structure is metallic, different
+charge or spin states are close to one another or in competition,
+there may be several self-consistent solutions, depending on the
+exact chosen initialization. Even worse, in such cases reaching even a
+\emph{single} one of potentially several different self-consistent
+solutions can be problematic.
+
+It is very important to remember that different stationary densities
+for the exact same atomic geometry and for the exact same density
+functional are a real and not always unrealistic possibility in DFT.
+A simple example are
+antiferromagnetic vs. ferromagnetic spin states in some systems. In
+such cases, the true ground state in a DFT sense is the stationary density
+that yields the lowest energy. It can be found by way of a global search for
+different stationary densities, usually by varying the initial density guess.
+
+The present section summarizes all available options in FHI-aims to
+facilitate the self-consistent solution of any given problem in
+FHI-aims in as few iterations as possible, including:
+\begin{itemize}
+ \item Initialization of the s.c.f. cycle
+ \item Criteria for the convergence of the self-consistency solution
+ \item Electron density mixing
+ \item Electron density \emph{preconditioning}
+\end{itemize}
+Please refer to Ref. \cite{Blum08} for a more exhaustive discussion of
+the physics / mathematics behind the individual choices laid out
+below.
+
+\emph{Important note:} The following settings are made or required by
+default.
+\begin{itemize}
+  \item \emph{The initial spin density must be specified in a spin-polarized
+    calculation.} In spin-polarized systems, the choice of a good initial
+    spin density can be critical for good convergence. For example, for a free
+    atom, you might wish for a high-spin initial density according to Hund's
+    rules. In a ferromagnetic Fe crystal, you might want to use a
+    \keyword{default\_initial\_moment} of 2 (far lower than the Hund's rule
+    value) to obtain fast convergence. In an antiferromagnetic Cr crystal, a
+    ferromagnetic default initialization might do no good at all. And in a
+    molecule with a single magnetic atom enclosed, you might want a
+    spin-polarized initial moment only for that atom, but not for the
+    surrounding molecule. In short, FHI-aims can not and should not guess the
+    spin initialization for you. The program will stop if no initial
+    moments of any kind are provided by the user. Setting either an overall
+    \keyword{default\_initial\_moment} (in \texttt{control.in}), or (better!)
+    at least one individual \keyword{initial\_moment} tag in \texttt{geometry.in}, or
+    both will allow you to run.
+  \item \emph{Use of the Kerker preconditioner for periodic systems.} This
+    option can greatly improve the s.c.f. convergence especially of large
+    periodic systems (see \keyword{preconditioner} for more details). At the
+    very least, it does not appear to do much harm, and is therefore now used
+    by default in any periodic calculation. {\it
+    However, for very large systems the Kerker preconditioner can cost significant
+    amounts of time -- see the detailed timing output that is written by the
+    code at the end of each s.c.f. iteration. You may try to switch it off.}
+    Should you encounter any
+    difficulties, either turn the \keyword{preconditioner} off by hand, or
+    play with associated screening momentum, $q_0$ (default: $q_0$=2.0
+    bohr$^{-1}$).
+  \item The keyword \keyword{sc\_init\_iter} sets the number of s.c.f. iterations
+    after which the Pulay mixer resets itself from scratch. This can significantly
+    help in cases of bad convergence. If you have real mixer trouble, please
+    consider this keyword.
+\end{itemize}
+
+Regarding options to converge the self-consistency cycle, note that
+one further important parameter is not covered here but instead in
+Sec. \ref{Sec:EV}: The ``broadening'' of (fractional) occupation numbers
+around the Fermi level. Especially in metallic systems, this
+broadening must be large enough to prevent oscillations around the
+Fermi level, independent of the methods laid out below.
+
+For further suggestions to improve s.c.f. convergence, see Sec. \ref{sec:trouble-scf}.
+
+\subsection{Visualizing the convergence of the s.c.f. cycle}
+\label{sub:vis-scf}
+
+There is a simple tool that can be used to visualize the s.c.f. convergence
+behavior of FHI-aims graphically for a given run. Preferably do this
+analysis on your desktop computer (i.e., copy over the necessary
+files). This is what you need to do:
+\begin{itemize}
+  \item Install the Grace 2D visualization program
+    (http://plasma-gate.weizmann.ac.il/Grace/) on your computer.
+  \item Go to the directory with the FHI-aims output file you wish to analyze.
+  \item From the FHI-aims \emph{utilities} directory, copy over the
+    file \texttt{scf\_convergence\_template.agr} .
+  \item At the commandline, call the FHI-aims utility \\
+    \texttt{plot\_scf\_convergence.pl} [FHI-aims output file] \\
+    to visualize the s.c.f. convergence behavior of the FHI-aims
+    output file. \texttt{plot\_scf\_convergence.pl} can be found in
+    the FHI-aims \emph{utilities} directory and must (of course) be
+    called with the correct directory path preceding the file name.
+\end{itemize}
+If successful, this procedure will assemble and open a graphical
+representation of the s.c.f convergence of FHI-aims.
+
+\newpage
+
+\subsection*{Tags for \texttt{geometry.in}:}
+
+\keydefinition{initial\_charge}{geometry.in}
+{
+  \noindent
+  Usage: \keyword{initial\_charge} \option{charge} \\[1.0ex]
+  Purpose: Allows to place an initial charge on an \keyword{atom} in
+    file \texttt{geometry.in}. \\[1.0ex]
+  \option{charge} is a real number. Default: 0. \\
+}
+The \keyword{initial\_charge} keyword always applies to the last
+\keyword{atom} previously specified in input file
+\texttt{geometry.in}. The charge is introduced by using an ionic
+instead of neutral spherical free-atom density on that site in the
+initial superposition-of-free-atoms density. Note that initial charge
+densities are generated by the functional specified with \keyword{xc}
+for DFT-LDA/GGA, but refer to \texttt{pw-lda} densities for all other
+functionals (hybrid functionals, Hartree-Fock, ...).
+
+\keydefinition{initial\_moment}{geometry.in}
+{
+  \noindent
+  Usage: \keyword{initial\_moment} \option{moment} \\[1.0ex]
+  Purpose: Allows to place an initial spin moment on an \keyword{atom} in
+    file \texttt{geometry.in}. \\[1.0ex]
+  \option{moment} is a real number, referring to the electron
+  difference $N^\uparrow - N^\downarrow$ on that site. Default: Zero,
+  unless \keyword{default\_initial\_moment} is set explicitly. \\
+}
+The \keyword{initial\_moment} keyword always applies to the last
+\keyword{atom} previously specified in input file
+\texttt{geometry.in}. The moment is introduced by using a
+spin-polarized instead of an unpolarized spherical free-atom density
+on that site in the initial superposition-of-free-atoms density. Note
+that initial charge densities are generated by the functional
+  specified with \keyword{xc}
+for DFT-LDA/GGA, but refer to \texttt{pw-lda} densities for all other
+functionals (hybrid functionals, Hartree-Fock, ...).
+
+\newpage
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{adjust\_scf}{control.in}
+{
+  \noindent
+  Usage: \keyword{adjust\_scf} \option{frequency} \option{number} \\[1.0ex]
+  Purpose: Adjusts key parameters that govern the s.c.f. cycle based on
+    a rough estimate of the system's band gap. \\[1.0ex]
+  \option{frequency} is a keyword, \texttt{once}, \texttt{never}, or \texttt{always}.
+      Default: \texttt{once}. \\[1.0ex]
+  \option{number} is an integer number (zero or greater). Default: 2. \\
+}
+This keyword decides whether key s.c.f. convergence parameters will be adjusted
+automatically during the s.c.f. cycle, based on a simple estimate of the system
+character according to its approximate HOMO-LUMO gap or band gap.
+
+The \option{number} keyword determines in which iteration of the s.c.f. cycle the
+adjustment will be attempted. A zero value corresponds to the initial s.c.f. cycle;
+values of 1, 2, etc. correspond to an update after the first, second, etc. s.c.f.
+iterations are almost complete and their eigenvalue spectra known.
+
+The \option{frequency} keyword determines for which full s.c.f. cycle
+(i.e., for which geometry step) an adjustment will be made:
+\begin{itemize}
+\item \texttt{once} means that an adjustment of the s.c.f. parameters
+  will only be made in the first geometry in a geometry relaxation or
+  MD run.
+\item \texttt{always}  indicates that an adjustment will be made for
+  every new s.c.f. cycle, i.e., for every new geometry in a run.
+\item \texttt{never} indicates that no adjustment will be attempted.
+\end{itemize}
+
+Parameters will only be adjusted if
+they are not explicitly set by a keyword in \texttt{control.in}. Any
+parameter that is included in \texttt{control.in} will not be modified
+by the \keyword{adjust\_scf} keyword. For \option{frequency}
+\texttt{once} or \texttt{always}, the following parameters may be adjusted:
+\begin{itemize}
+  \item The initial default value of \keyword{charge\_mix\_param} for
+    \keyword{mixer} \texttt{pulay} will be set to 0.05 (i.e., an overall
+    cautious value). For \option{frequency} {never}, the default value
+    of the \keyword{charge\_mix\_param} keyword remains at its usual
+    default value 0.2 (for many metallic or spin-polarized systems,
+    this is a fairly aggressive value).
+  \item In s.c.f. iteration \texttt{number}, the current estimated
+    value of the HOMO-LUMO gap (for solids, the band gap) is
+    checked. If the system shows fractional occupation numbers or if
+    the estimated gap has a value of less than 0.2~eV at this point,
+    the system is likely near-degenerate or metallic and the
+    s.c.f. cycle could be diffcult to converge. In this case, the
+    \keyword{charge\_mix\_param} is set to 0.02 -- a cautious value
+    but, in conjunction with the Pulay \keyword{mixer}, still
+    surprisingly effective. The broadening of the occupation numbers
+    near the Fermi level is increased to \keyword{occupation\_type}
+    \texttt{option} 0.05 [eV].
+  \item If, instead, the gap is found to be equal or greater than
+    0.2~eV in s.c.f. iteration \texttt{number}, the rather aggressive
+    default \keyword{charge\_mix\_param} 0.2 is kept for the Pulay
+    mixer, and the default broadening value (suitable for non-metallic
+    systems) \keyword{occupation\_type} \texttt{option} 0.05 [eV] is
+    also kept.
+\end{itemize}
+
+\keydefinition{charge\_mix\_param}{control.in}
+{
+  \noindent
+  Usage: \keyword{charge\_mix\_param} \option{value} \\[1.0ex]
+  Purpose: Parameter for simple linear mixing of electron densities of
+    previous and present s.c.f. iterations \\[1.0ex]
+  \option{value} is a real number between 0. and 1. Default: Depends
+    on chosen \keyword{mixer} algorithm. Now set by the
+    \keyword{adjust\_scf} keyword. \\
+}
+See Ref. \cite{Blum08} for details regarding the available density
+mixing algorithms. In the simplest case of a \texttt{linear}
+\keyword{mixer}, \option{value} specifies a constant value $\hat{G}^1$
+to mix the output density of the Kohn-Sham Equations in iteration
+number $\mu$, $n_\text{KS}^{(\mu)}$, with the (already mixed)
+\emph{input} density that defined those equations, $n^{(\mu-1)}$:
+\begin{equation}\label{Eq:dmp}
+  n^{(\mu)}_\text{dmp} = n^{(\mu-1)} + \hat{G}^1
+  (n_\text{KS}^{(\mu)}- n^{(\mu-1)}) \, .
+\end{equation}
+If a \keyword{preconditioner} is specified,
+\keyword{charge\_mix\_param} defines an additional linear factor to
+that preconditioner. In case of a \texttt{pulay} \keyword{mixer}, all
+density residuals are mixed with this factor.
+
+In general, the best choice for \option{value} is system-dependent,
+and also depends on the chosen \keyword{mixer} algorithm. In general,
+please also see Appendix \ref{sec:trouble-scf}, since several keywords
+can be used to alleviate s.c.f. mixing instabilities.
+\begin{itemize}
+  \item In principle, a \texttt{linear} \keyword{mixer} will always
+    converge with a sufficiently small \option{value}. In easy cases,
+    we recommend \option{value}=0.1-0.2, but in difficult cases,
+    ``sufficiently small'' can mean one to three orders of magnitude(!)
+    lower, i.e., the process can be apallingly slow.
+  \item For a straight \texttt{pulay} \keyword{mixer}, our default
+    \option{value} is adjusted according to the \keyword{adjust\_scf}
+    keyword, depending on the estimated band gap / HOMO-LUMO gap. For
+    non-metallic systems, we choose a conservative value of 0.2. In
+    metallic systems or systems that are otherwise problematic, the
+    default value set by \keyword{adjust\_scf} is
+    \option{value}=0.02. Note that
+    this small value does not necessarily correspond to slow mixing
+    since the Pulay mixer will learn over time and accelerate
+    the mixing process.
+  \item In metallic systems, density oscillations can occur from one
+    iteration to the next (charge sloshing). This can be alleviated by
+    a \keyword{preconditioner}. With a preconditioner and
+    \texttt{pulay} \keyword{mixer} specified together, \option{value}
+    is still important and may be chosen around 0.05 .
+\end{itemize}
+See also the \keyword{mixer} and \keyword{preconditioner}
+keywords.
+
+\keydefinition{relative\_fp\_charge\_mix}{control.in}
+{
+  \noindent
+  Usage: \keyword{relative\_fp\_charge\_mix} \option{value} \\[1.0ex]
+  Purpose: Parameter for under-relaxation of the fixed point part of s.c.f. cycle with the \option{broyden} \keyword{mixer} \\[1.0ex]
+  \option{value} is a real number between 0. and 1. Default: 0.05\\
+}
+\keyword{relative\_fp\_charge\_mix} determines the under-relaxation of the fixed point part of the Broyden mixer s.c.f. cycle together with \keyword{charge\_mix\_param}.
+\keyword{relative\_fp\_charge\_mix} and \keyword{charge\_mix\_param} are multiplicative, and if no history is included the effective under-relaxation is \keyword{relative\_fp\_charge\_mix} times \keyword{charge\_mix\_param}.
+
+\keydefinition{default\_initial\_moment}{control.in}
+{
+  \noindent
+  Usage: \keyword{default\_initial\_moment} \option{moment} \\[1.0ex]
+  Purpose: For spin-polarized calculations, sets the default initial
+    moment of the spin-polarized atoms that make up the initial
+    electron density. \\[1.0ex]
+  \option{moment} is either a string or a number that defines the
+    desired initial number of electrons, $N^\uparrow -
+    N^\downarrow$. Default: \texttt{hund} for isolated atoms. Zero
+    otherwise. \\
+}
+Sets the default initial spin moment for all atoms whose
+\keyword{initial\_moment}s are not specified explicitly in
+\texttt{geometry.in}.
+
+If there is at least a single \keyword{initial\_moment} keyword specified in
+\texttt{geometry.in}, the \keyword{default\_initial\_moment} will be zero for
+all other atoms, for which no \keyword{initial\_moment} is specified
+explicitly.
+
+If no \keyword{initial\_moment} is included in \texttt{geometry.in} at all, the
+\keyword{default\_initial\_moment} must be specified explicitly by the user
+for the code to run at all.
+
+For most (bonded) systems, it is advisable to set the
+\keyword{default\_initial\_moment} to a numerical value close to what most
+atoms in the structure will do. For example, ferromagnetic Fe would be close to
+2, whereas a large non-magnetic molecule would be better served with something
+close to zero.
+
+For isolated free-atom calculations, \keyword{default\_initial\_moment}
+\texttt{hund} can be used. This will result in the usual high-spin atom
+initialization characteristic of free atoms.
+
+Note that at least one moment in the system must be set to a non-zero value in
+order to reach any spin-polarized state at all. If the initial spin
+polarization is zero, the final s.c.f. result will also not be spin-polarized,
+no matter how magnetic the system is in reality.
+
+\emph{Warning.} It is not advisable to set a blanket
+\keyword{default\_initial\_moment} \texttt{hund} for any structures
+other than free atoms. The result can be enormous convergence
+difficulties because the calculation begins from a bad starting point
+-- a high-spin state that is completely unrealistic for most bonded
+structures. A calculation will converge \emph{much} better if the
+initial spin moment is realistic for \emph{each} individual atom in
+the structure.
+
+\emph{One more warning:} It is \emph{not} advisable to set a
+\keyword{default\_initial\_moment} other than zero in structures in
+which only a few atoms actually carry spin (such as a large molecule
+with a few transition metal atoms). Rather, a good choice would be to
+set a zero \keyword{default\_initial\_moment} and
+then set finite \keyword{initial\_moment} values for individual atoms in
+\texttt{geometry.in}.
+
+\emph{And again:} Setting
+\keyword{default\_initial\_moment} to zero and \emph{not} specifying
+any \keyword{initial\_moment} values in \texttt{geometry.in} will lead
+to a zero spin state in the final result, simply because the system is
+never given any indication which way to break its symmetry. So one does
+need to set a finite moment somewhere if a finite-spin converged
+solution is expected in the calculation.
+
+The upshot is: It pays to think about the right spin
+initialization. There may be multiple different
+self-consistent solutions, and in spin-polarized systems, this can
+happen for very natural reasons  (e.g., ferromagnetic
+vs. antiferromagnetic states). Similar to geometry optimization,
+starting from a very bad initial guess can cause
+problems. Conversely, a good starting point may greatly simplify a
+calculation.
+
+\keydefinition{force\_potential}{control.in}
+{
+  \noindent
+  Usage: \keyword{force\_potential} \option{type} \\[1.0ex]
+  Purpose: Determines how far / with which potential the Kohn-Sham
+    equations are solved. \\[1.0ex]
+  \option{type} is a string that determines the potential
+    used. Default: \texttt{sc} \\
+}
+This option is not required under normal circumstances. It is mainly
+useful to produce / test a fast, non-self-consistent solution for a
+superposition-of-atoms potential that yields only the sum of
+eigenvalues as a result. If a non-self-consistent total energy is
+needed (correct only for the non-spinpolarized free-atom density!),
+running a normal calculation with \keyword{sc\_iter\_limit}=0 is the
+better way.
+
+Options for \option{type} are:
+\begin{itemize}
+  \item \option{sc}: Self-consistent Kohn-Sham potential in each
+    s.c.f. iteration
+  \item \option{superpos\_pot}: Superposition of free-atom potentials,
+    evaluation only once (no self-consistency cycle). \emph{Restriction: This
+    method works only for self-adapting} \subkeyword{species}{angular\_grids}
+    \emph{(i.e.,} \subkeyword{species}{angular\_acc} \emph{not equal zero for at least one
+    \keyword{species}). This also means that the option will not perform well
+    in periodic boundary conditions. A fix is simple, contact us if needed.}
+  \item \option{superpos\_rho}: Superposition potential created from sum of
+    free-atom densities; evaluation only once (no self-consistency cycle)
+  \item \option{non-self-consistent}: Same as \option{superpos\_rho}.
+\end{itemize}
+
+\keydefinition{ini\_linear\_mixing}{control.in}
+{
+  \noindent
+  Usage: \keyword{ini\_linear\_mixing} \option{number} \\[1.0ex]
+  Purpose: If \keyword{mixer} is \texttt{pulay}, specifies simple
+    linear mixing for a \option{number} of initial iterations. \\[1.0ex]
+  \option{number} is the integer number of iterations for which linear
+    mixing is done. Default: 0 . \\
+}
+Try only if the standard / preconditioned \texttt{pulay}
+\keyword{mixer} definitely fails. Keywords
+\keyword{ini\_linear\_mix\_param}, \keyword{ini\_spin\_mix\_param}
+can be used to specify separate mixing parameters for the initial
+linear mixing.
+
+\keydefinition{ini\_linear\_mix\_param}{control.in}
+{
+  \noindent
+  Usage: \keyword{ini\_linear\_mix\_param} \option{value} \\[1.0ex]
+  Purpose: Separate parameter for simple linear mixing of electron
+  densities for \keyword{ini\_linear\_mixing}. \\[1.0ex]
+  \option{value} is a real number between 0. and 1. Default: same as
+  \keyword{charge\_mix\_param}. \\
+}
+\keyword{ini\_linear\_mixing} should only be tried if the standard
+algorithms provably fail. In that case, \option{value} should be
+relatively small.
+
+\keydefinition{ini\_spin\_mix\_param}{control.in}
+{
+  \noindent
+  Usage: \keyword{ini\_spin\_mix\_param} \option{value} \\[1.0ex]
+  Purpose: For spin-polarized calculations, separate parameter to mix
+    the \emph{spin} density during
+  \keyword{ini\_linear\_mixing}. \\[1.0ex]
+  \option{value} is a real number between 0. and 1. Default: same as
+  \keyword{spin\_mix\_param} \\
+}
+\keyword{ini\_spin\_mix\_param} should only be tried if the standard
+algorithms provably fail. In that case, \option{value} should be
+relatively small.
+
+\keydefinition{mixer}{control.in}
+{
+  \noindent
+  Usage: \keyword{mixer} \option{type} \\[1.0ex]
+  Purpose: Specifies the electron density mixing algorithm used to
+    achieve fast and stable convergence towards the self-consistent
+    solution. \\[1.0ex]
+  \option{type} specifies the density mixing algorithm used and can
+  be set to either \option{linear}, \option{pulay}, or \option{broyden}. Default: \texttt{pulay}. \\
+}
+FHI-aims provides three mainstream density mixing algorithms across the
+s.c.f. cycle, \option{type} \texttt{linear}, \texttt{pulay}, and \option{broyden}. We
+here only give a brief summary of options, please see
+Ref. \cite{Blum08} for further references and for the exact
+mathematical details.
+
+For most practical purposes (non-pathological systems), Pulay's DIIS
+mixing algorithm \cite{Pulay80} is robust and fast, and should be the
+algorithm of choice. For this algorithm, \keyword{n\_max\_pulay} $n$
+determines the number of past iterations $\mu-k$ ($k$=1,...,$n$) to be
+mixed with the Kohn-Sham output density of iteration
+$\mu$. \keyword{charge\_mix\_param} determines an additional
+(system-dependent) linear factor that is multiplied with the output
+density change of the Pulay mixer. Normally, this (and perhaps a
+\keyword{preconditioner}) is all you need to do to ensure convergence.
+
+In some pathological cases, reaching self-consistency is a more tricky
+problem. Broadly speaking, these are systems with a small HOMO-LUMO
+gap (band gap) and/or several competing possibilities for a
+self-consistent solution. Specifically, these difficult cases include:
+\begin{itemize}
+  \item Large metallic systems (e.g., slabs), where charge may
+    ``slosh'' from one end of the system to another before reaching
+    self-consistency. In that case, the \texttt{pulay} \keyword{mixer}
+    may be used together with a large \keyword{charge\_mix\_param}
+    \emph{and} a \keyword{preconditioner} (see that keyword) to dampen
+    the resulting oscillations. Also make sure that
+    \keyword{occupation\_type} is set to a sufficiently large
+    broadening of occupation numbers near the Fermi level in metallic
+    systems.
+  \item Spin-polarized systems with competing spin states. A
+    classic. If problems arise, playing with
+    \keyword{ini\_linear\_mixing}, the \keyword{charge\_mix\_param}
+    and \keyword{spin\_mix\_param} and further options listed in this
+    section may help. Likewise, setting a specific
+    \keyword{fixed\_spin\_moment} may be helpful. Finally, different
+    \keyword{initial\_moment} settings may easily switch between
+    different metastable self-consistent spin states (e.g.,
+    ferromagnetic vs. antiferromagnetic), and should be tested
+    separately if different competing spin states are suspected.
+  \item Systems near a level crossing (even dimers, if two or more
+    Kohn-Sham levels of different symmetry come close for a given
+    binding distance). Apart from the usual mixing mechanisms, keyword
+    \keyword{occupation\_type} with a larger broadening near the Fermi
+    level may help alleviate this situation.
+  \item Spin-polarized free atoms. The simplest conceivable systems
+    may exhibit unexpected problems towards self-consistency, likely
+    because the electron density can rotate between several fully
+    equivalent spin states. Here, demanding a specific orbital
+    occupation using the
+    \keyword{force\_occupation\_basis} keyword may be useful.
+\end{itemize}
+\emph{In principle}, even in the toughest cases
+a \texttt{linear} \keyword{mixer} will always converge with a
+sufficiently small \keyword{charge\_mix\_param}. Unfortunately,
+``sufficiently small'' can mean a \keyword{charge\_mix\_param} of
+10$^{-2}$-10$^{-4}$, i.e., the process can be apallingly slow. Playing
+with the \texttt{pulay} \keyword{mixer} settings is usually the better
+strategy, unless a proof of principle is sought.
+
+The \option{broyden} \keyword{mixer} is an improvement on the \option{linear} \keyword{mixer}. The \option{broyden} \keyword{mixer} works by effectively dividing the s.c.f. cycle into two separte parts: the space in which we have local information gained by previous evaluations of the s.c.f. cycle, and the remaining space in which we do not have information. \keyword{charge\_mix\_param} determines the linear factor which under-relaxes the density predicted by the \option{broyden} \keyword{mixer}, \keyword{n\_max\_broyden} \emph{n} controls the number of past iterations used to construct the next estimate, and \keyword{relative\_fp\_charge\_mix} is the additional (multiplicative) under-relaxation affecting only the step length in the space where we have no further information.
+
+Note that a modification is needed when going beyond DFT-LDA/GGA
+(Hartree-Fock, hybrid functionals, ...). In
+that case, the density implicitly enters the two-electron exchange
+operator (via the density matrix,
+$\hat{n}_{ij}=\sum_l f_l c_{il} c_{jl}$, where
+$i$ and $j$ label basis functions, and $l$ label the Kohn-Sham
+states), and should also be mixed.
+
+By default, for \texttt{linear}
+mixing, we do not mix the exchange operator, unless keyword
+\keyword{use\_density\_matrix\_hf} is enabled. The latter is the
+default if the \texttt{pulay} mixer is selected. Then, the
+density \emph{matrix} is submitted to the same Pulay mixing factors as
+the normal charge density $n(r)$ before constructing the exchange
+operator. Note that we do not have a formal density matrix
+available that corresponds to the \emph{initial} superposition of
+free-atom densities, making this form of mixing slightly less
+efficient than for normal Kohn-Sham DFT-LDA/GGA.
+
+\keydefinition{mixer\_threshold}{control.in}
+{
+  \noindent
+  Usage: \keyword{mixer\_threshold} \option{keyword}
+    \option{threshold} \\[1.0ex]
+  Purpose: Allows to cap the density step between two iterations
+    rigorously by setting an explicit threshold. \\[1.0ex]
+  \option{keyword} is a string, indicating whether the following is
+    the \texttt{charge} or \texttt{spin} density threshold. \\
+  \option{threshold} is a real number, the maximum allowed change in
+    the density norm (in electrons). Default: no thresholds. \\
+}
+This option is perhaps useful when there are definite convergence
+problems with the standard mixing algorithms, but can otherwise safely
+be ignored.
+
+\keydefinition{n\_max\_pulay}{control.in}
+{
+  \noindent
+  Usage: \keyword{n\_max\_pulay} \option{number} \\[1.0ex]
+  Purpose: The number of past iterations that the \texttt{pulay}
+    \keyword{mixer} uses for density mixing. \\[1.0ex]
+  \option{number} is the number of stored iterations used by the
+    mixer. Default: 8 \\
+}
+A larger \option{number} of stored iterations can sometimes lead to a
+stabilization of the mixing process. Choosing \option{number} too
+large (e.g., 20 and above), though, may destabilize the Pulay matrix,
+which can become near-singular.
+
+Note that the storage effort associated with Pulay mixing is
+significant on systems with few CPUs / low memory. Each additional
+stored iteration requires the storage of two charge density
+residuals, and two times three charge density gradient residual
+components. For large systems, low memory, and overall stable mixing,
+reducing \keyword{n\_max\_pulay} may be a way to get a given
+calculation below the most difficult memory barriers.
+
+\keydefinition{n\_max\_broyden}{control.in}
+{
+  \noindent
+  Usage: \keyword{n\_max\_broyden} \option{number} \\[1.0ex]
+  Purpose: The number of past iterations that the \texttt{broyden}
+    \keyword{mixer} uses for density mixing. \\[1.0ex]
+  \option{number} is the number of stored iterations used by the
+    mixer. Default: 8 \\
+}
+A larger \option{number} of stored iterations can sometimes lead to a
+stabilization of the mixing process. Choosing \option{number} too
+large (e.g., 20 and above), though, may destabilize the Broyden matrix,
+which can become near-singular.
+
+Note that the storage effort associated with Broyden mixing is
+significant on systems with few CPUs / low memory. Each additional
+stored iteration requires the storage of two charge density
+residuals, and two times three charge density gradient residual
+components. For large systems, low memory, and overall stable mixing,
+reducing \keyword{n\_max\_broyden} may be a way to get a given
+calculation below the most difficult memory barriers.
+
+\keydefinition{postprocess\_anyway}{control.in}
+{
+  \noindent
+  Usage: \keyword{postprocess\_anyway} \option{boolean} \\[1.0ex]
+  Purpose: By default, FHI-aims simply stops if the SCF procedure does not
+  converge.  In particular, all desired postprocessing steps are skipped.  If
+  you do want postprocessing to be done anyway, set \option{boolean} to
+  \texttt{.true.}. \\[1.0ex]
+  \option{boolean} is either \texttt{.true.} or \texttt{.false.}. Default:
+  \texttt{.false.}.
+  \\
+}
+
+\keydefinition{prec\_mix\_param}{control.in}
+{
+  \noindent
+  Usage: \keyword{prec\_mix\_param} \option{value} \\[1.0ex]
+  Purpose: Possible separate mixing parameter while the preconditioner
+  is on. \\[1.0ex]
+  \option{value} is a real number between 0. and 1. Default: same as
+  \keyword{charge\_mix\_param}. \\
+}
+It's our tentative observation that a larger mixing parameter (0.5-0.8)
+is sometimes helpful with the \keyword{preconditioner}, but after the
+\keyword{preconditioner} is switched off, a smaller mixing parameter
+(as set by \keyword{charge\_mix\_param}) may be
+desirable. \keyword{prec\_mix\_param} can provide the needed separate
+setting, if desirable.
+
+\keydefinition{preconditioner}{control.in}
+{
+  \noindent
+  Usage: \keyword{preconditioner} \option{keyword} [\option{type}]
+    [\option{value}] \\[1.0ex]
+  Purpose: ``Master keyword'' that precedes any information related to
+    the preconditioner. May appear multiple times in
+    \texttt{control.in}, in different contexts. \\[1.0ex]
+  Restriction: Because it cannot simply be written in a density matrix
+    formulation, the preconditioner has no effect on the density matrix
+    entering the exchange operator for Hartree-Fock, hybrid
+    functionals, etc. \\[1.0ex]
+  \option{keyword} : A string, indicating the type of information
+    following. \\
+  \option{type} : If required by \option{keyword}, a string with more
+    details. \\
+  \option{value} : If required by \option{keyword}, a numerical value. \\
+}
+Default values:
+\begin{itemize}
+  \item Non-periodic systems: \keyword{preconditioner} \texttt{kerker}
+    \texttt{off} (no preconditioner).
+  \item Periodic systems: \keyword{preconditioner} \texttt{kerker}
+    \texttt{2.0} (Preconditioner with a momentum of $q_0$=2.0
+     bohr$^{-1}$).
+\end{itemize}
+See Ref. \cite{Blum08} regarding the mathematical
+definition of the Kerker-type \cite{Manninen75,Nieminen77,Kerker81}
+preconditioner, which is the currently implemented form.
+
+See keyword \keyword{precondition\_max\_l} for the angular momentum
+cutoff specified for the \texttt{kerker} \keyword{preconditioner}.
+
+\option{keyword} can have the following forms, controlling various
+aspects of the preconditioner:
+\begin{itemize}
+  \item \texttt{kerker} :
+    \begin{itemize}
+      \item if followed by \texttt{off} : No preconditioner used.
+      \item if followed by \option{value} : \option{value} is a real
+        positive number, indicating the characteristic momentum $q_0$
+        associated with the Thomas-Fermi type screening assumed in the
+        preconditioner (in bohr$^{-1}$). Typical values in the
+        literature range around 1.0-2.0 bohr$^{-1}$, but larger values
+        may be useful in small clusters.
+    \end{itemize}
+  \item \texttt{turnoff} : To avoid any residual influence on the
+    s.c.f. cycle, the preconditioner can be switched off at a given
+    level of s.c.f. convergence, leaving the remaining convergence to
+    a pure \texttt{pulay} \keyword{mixer}. Possible \option{type}s of
+    turnoff criteria are:
+    \begin{itemize}
+      \item \texttt{charge} : \option{value} refers to the
+        root-mean-square deviation between $n^{(\mu-1)}$ (the mixed
+        and preconditioned \emph{input} density to the Kohn-Sham
+        Equations) and $n_\text{KS}^{(\mu)}$ (the unmixed
+        \emph{output} density from the Kohn-Sham Equations). Default:
+        \keyword{sc\_accuracy\_rho}.
+      \item \texttt{energy} : \option{value} refers to the total
+        energy difference between two successive iterations [in eV].
+      \item \texttt{sum\_ev} : \option{value} refers to the
+        difference in the eigenvalue sums between two successive
+        iterations [in eV].
+    \end{itemize}
+    All requested convergence criteria for the preconditioner must be
+    fulfilled. If \emph{no} explicit turnoff criterion is set, the
+    \keyword{preconditioner} \texttt{turnoff} \texttt{charge},
+    \texttt{energy} and \texttt{sum\_ev} defaults
+    to the same values as \keyword{sc\_accuracy\_rho},
+    \keyword{sc\_accuracy\_etot}, and \keyword{sc\_accuracy\_eev},
+    respectively.
+  \item \texttt{dielectric} : The inverse of the microscopic dielectric function,
+    $\epsilon^{-1}(\mathbf{r},\mathbf{r}' ; 0)$ is used to precondition the density. This
+    option is experimental and computationally expensive but the the dielectric function
+    can be theoretically justified to be a good preconditioner. Works only for non-periodic systems.
+  \item \texttt{none} or \texttt{off} : No preconditioner used.
+\end{itemize}
+
+\keydefinition{precondition\_max\_l}{control.in}
+{
+  \noindent
+  Usage: \keyword{precondition\_max\_l} \option{value} \\[1.0ex]
+  Purpose: Angular momentum cutoff used in the partitioned
+    atom-centered real-space form of the \texttt{kerker}
+    \keyword{preconditioner}. \\[1.0ex]
+  \option{value} is an integer number, specifying an angular
+    momentum. Default: 0. \\
+}
+We use a partitioned atom-centered multipole rewrite of the Kerker
+preconditioner in angular momentum space, similar in spirit to the
+Hartree potential (see Ref. \cite{Blum08} for details). In principle,
+\keyword{precondition\_max\_l} is thus the equivalent of the
+\subkeyword{species}{l\_hartree} angular momentum cutoff for the expansion.
+However, since
+we here precondition a density \emph{difference} (which reduces to
+zero as we approach self-consistency), and since we are combatting
+charge sloshing across potentially faraway parts of the systems,
+preconditioning the atom-centered \emph{monopole} component of the
+density difference (\option{value}=0) is often all that is needed
+for the preconditioner to work. This is also the numerically most
+efficient way of running the preconditioner.
+
+\keydefinition{kerker\_factor}{control.in}
+{
+  \noindent
+  Usage: \keyword{kerker\_factor} \option{value} \\[1.0ex]
+  Purpose: \option{value} is a real
+        positive number. Additional empirical factor for the last
+        step of the kerker precondioner. Best results were achieved by
+        choosing \option{value} as the characteristic momentum $(q_0-0.5)$
+        associated with the Thomas-Fermi type screening assumed in the
+        kerker preconditioner (\texttt{kerker}
+    \keyword{preconditioner}). \\[1.0ex]
+}
+This keyword is experimental and derived fully empirically. For notorious cases
+the keyword may help to achieve convergence (faster). For $q_0=1$ the method is
+identical to the standard kerker preconditioner.
+
+\keydefinition{restart}{control.in}
+{
+  \noindent
+  Usage: \keyword{restart} \option{file} \\[1.0ex]
+  Purpose: Saves and reads the final wave function or
+    density matrix of each scf-cycle
+    to/from \option{file}.\\[1.0ex]
+  \option{file} is a string, corresponding to the desired restart filename. \\
+}
+Note: A more generic restart functionality is provided by the
+\keyword{elsi\_restart} -- please see that keyword for a
+description. The 
+\keyword{elsi\_restart} keyword is the supported restart functionality
+going forward unless you have special reasons to prefer the
+simple \keyword{restart} keyword. 
+
+The \keyword{restart} keyword summarizes a set of different cases for
+which the electronic structure information in FHI-aims can be saved
+and then later used to restart a calculation from that
+point. \keyword{restart}  comes in many internal variants and, for
+example, restarting a 
+calculation with more MPI tasks than a previous run is not
+possible. The alternative \keyword{elsi\_restart} keyword (which uses
+a different storage format than the \keyword{restart} keyword) is much
+more flexible and may be the better choice.
+
+If \option{file} is not yet present, the calculation simply writes
+that file during the run. If \option{file} is already present, it is
+read and the wave function contained therein is used to restart the
+calculation, instead of a fresh superposition of free atoms
+initialization. Mind that \keyword{restart} is currently not supported for
+keywords \keyword{load\_balancing} and \keyword{use\_local\_index}
+so that \option{file} will not be written or read when either keyword is
+set.
+
+It is important to note that the \keyword{restart} infrastructure
+corresponds to a restart from the last Kohn-Sham orbitals, not from
+the last density. In practice, this means that the code will restart
+from the last \emph{unmixed} Kohn-Sham density, not from the last
+\emph{mixed} density. When restarting from a non-self-consistent
+starting point, this can lead to unexpected jumps in the calculated
+non-self-consistent total energy. Only the
+self-consistent total energy is truly meaningful and this (the
+self-consistent) total energy should be the same for the same
+stationary density. (Note also that some systems may exhibit several
+different self-consistent stationary densities -- a simple example are
+antiferromagnetic vs. ferromagnetic spin states in some systems. In
+such cases, the true ground state in a DFT sense is the one with the
+lowest energy and must be found by varying the initial density guess.)
+
+In parallel runs, there is one file for each process, numbered
+as \option{fileXXX}. See also \keyword{restart\_read\_only}
+and \keyword{restart\_write\_only}. There are limited checks on
+whether or not the restart file provided is actually from the same
+system, but ensuring that a given restart file works is mainly the
+user's responsibility. See also \keyword{restart\_relaxations}
+and \keyword{MD\_restart} for more information on the separate restarting process for
+relaxations and molecular dynamics respectively.
+
+A much more complete overview of the restart infrastructure in FHI-aims
+can be found in the dedicated Section \ref{Sec:restarts}.
+
+\keydefinition{restart\_read\_only}{control.in}
+{
+  \noindent
+  Usage: \keyword{restart\_read\_only} \option{file} \\[1.0ex]
+  Purpose: reads the final wave function of the last scf-cycle in a
+    preceding calculation from \option{file}.\\[1.0ex]
+  \option{file} is a string, corresponding to the desired restart
+  filename. \\
+}
+
+Similar to keyword \keyword{restart}, but does not overwrite
+\option{file} at any time (this may facilitate another restart from
+the same file later on).
+
+Note: A more generic restart functionality is provided by the
+\keyword{elsi\_restart}, described further below. We recommend to use
+\keyword{elsi\_restart} unless you have special reasons to prefer the
+simple \keyword{restart} keyword. 
+
+\keydefinition{restart\_write\_only}{control.in}
+{
+  \noindent
+  Usage: \keyword{restart\_write\_only} \option{file} \\[1.0ex]
+  Purpose: writes the final wave function of the last scf-cycle to
+  \option{file} for a later restart. \\[1.0ex]
+  \option{file} is a string, corresponding to the desired restart
+  filename. \\
+}
+Similar to keyword \keyword{restart}, but does not read the restart
+  \option{file} in case it already exists.
+
+Note: A more generic restart functionality is provided by the
+\keyword{elsi\_restart}, described further below. We recommend to use
+\keyword{elsi\_restart} unless you have special reasons to prefer the
+simple \keyword{restart} keyword. 
+
+\keydefinition{restart\_save\_iterations}{control.in}
+{
+  \noindent
+  Usage: \keyword{restart\_save\_iterations} \option{number} \\[1.0ex]
+  Purpose: writes restart information every \option{number}
+    scf-iterations or at the end of each cycle. \\[1.0ex]
+  \option{number} is the integer number of s.c.f. iterations after
+  which the restart information is rewritten. \\
+}
+See also \keyword{restart}.
+
+\keydefinition{force\_single\_restartfile}{control.in}
+{
+  \noindent
+  Usage: \keyword{force\_single\_restartfile} \option{.true.} \\[1.0ex]
+  Purpose: Forces FHI-aims to always write a single, wavefunction based restart
+  file if possible.\\[1.0ex]
+}
+Only relevant when using keyword \keyword{restart}.
+For technical and efficiency reasons FHI-aims uses different types of
+restartfiles depending on the eigenproblem solver (see
+Section~\ref{Sec:restarts} for details). In cases where the wavefunction is
+needed (e.g. for external post-processing, \ldots), the default \keyword{restart}
+handling might make it difficult to do so.
+
+This option only works for cluster (non-periodic) and periodic
+$\Gamma$-only calculations.
+
+\keydefinition{elsi\_restart}{control.in}
+{
+  \noindent
+  Usage: \keyword{elsi\_restart} \option{task} \option{freq} \\[1.0ex]
+  Purpose: Controls the density-matrix-based restart using parallel matrix I/O
+    routines provided by the ELSI software. Although they are not known to
+    interfere with each other, the two restart keywords, \keyword{restart} and
+    \keyword{elsi\_restart}, should not be requested in the same calculation. \\[1.0ex]
+  \option{task} is a string, specifying the desired restart task. \\[1.0ex]
+  \option{freq} is a positive integer, specifying the frequency of outputting
+    restart info. \\
+}
+Available options for \option{task} are:
+\begin{itemize}
+  \item \texttt{write} : Writes restart info (in ELSI format) to files. The info
+    will be written to files in every \option{freq} s.c.f. iterations, and will
+    always be written out after a converged cycle. The number of files depends
+    on the choice of \keyword{elsi\_restart\_use\_overlap}.
+  \item \texttt{read} : Reads restart info from files and uses it (instead of
+    free atom superpositions) as the initial guess of an s.c.f. cycle. The code
+    will search for files written by the \texttt{write} option. If relevant
+    files do not exist, the code will abort. \option{freq} is not used for this
+    option. The restarted run can use any number of MPI tasks, i.e., not
+    necessarily the same number as used in the original run.
+  \item \texttt{read\_and\_write} : Performs what the \texttt{write} and
+    \texttt{read} options do. Note that if the restart files do not exist, the
+    code will still proceed normally.
+\end{itemize}
+
+Restarting hybrid functional calculations from the density matrix obtained using
+a different (i.e. less expensive) functional may reduce the number of SCF
+steps taken by the hybrid calculation. However, hybrid functional calculations
+currently require that the \keyword{symmetry\_reduced\_k\_grid} be set to
+\texttt{.false.}. If you are planning to restart a calculation with a hybrid
+functional from a less-expensive functional, first use \keyword{elsi\_restart}
+combined with \keyword{symmetry\_reduced\_k\_grid} \texttt{.false.} for initial
+SCF convergence with the less expensive functional, then restart your
+calculation with the hybrid functional.
+
+\keydefinition{elsi\_restart\_use\_overlap}{control.in}
+{
+  \noindent
+  Usage: \keyword{elsi\_restart\_use\_overlap} \option{boolean} \\[1.0ex]
+  Purpose: By default, \keyword{elsi\_restart} uses density matrices as its
+    restart info. The number of density matrix files is equal to the number of
+    \texttt{k}-points times the number of spin channels. The density matrix
+    files can be used to restart a calculation of the same geometry.
+    \keyword{elsi\_restart\_use\_overlap} should be used to initialize a
+    calculation with the density matrices obtained from a different structure.
+    When this keyword is set to \texttt{.true.}, the code writes overlap matrix
+    files in addition to density matrix files. The number of overlap files is
+    equal to the number of \texttt{k}-points. The stored overlap matrices are
+    used to extrapolate the stored density matrices. \\[1.0ex]
+  \option{boolean} is either \texttt{.true.} or \texttt{.false.}. Default:
+  \texttt{.false.}. \\
+}
+
+\keydefinition{calc\_dens\_superpos}{control.in}
+{
+  \noindent
+  Usage: \keyword{calc\_dens\_superpos} .true. \\[1.0ex]
+  Purpose: When reinitializing the SCF cycle, fall back
+           to the superposition of free atoms density for
+           the initial guess (instead of using the guess from
+           the previous converged cycle). \\[1.0ex]
+}
+
+\keydefinition{sc\_abandon\_etot}{control.in}
+{
+  \noindent
+  Usage: \keyword{sc\_abandon\_etot} \option{iter} \option{threshold} \\[1.0ex]
+  Purpose: If the s.c.f. cycle diverges, abort the s.c.f. cycle after a
+  specified number of iterations between which the total energy changed
+  by more than a given threshold.\\[1.0ex]
+  \option{iter} is an integer number of iterations after which the
+  calculation is aborted. Default: 5 iterations. \\[1.0ex]
+  \option{threshold} is a positive real number - if the total energy
+  keeps changing by more than this number [in eV], the abort will be
+  triggered. Default: 1000~eV.\\
+}
+This keyword allows to catch obviously ludicrous runs. If it triggers,
+something went seriously wrong during the mixing procedure and the
+settings for mixers, occupation broadening, preconditioner etc. should
+all be revisited very carefully.
+
+The alternative setting \keyword{sc\_abandon\_etot} \texttt{never}
+switches the abort off, restoring the previous behaviour.
+
+\keydefinition{sc\_accuracy\_eev}{control.in}
+{
+  \noindent
+  Usage: \keyword{sc\_accuracy\_eev} \option{value} \\[1.0ex]
+  Purpose: Convergence criterion for the self-consistency cycle, based
+    on the sum of eigenvalues. \\[1.0ex]
+  \option{value} is a small positive real number [in eV], against
+  which the difference of the eigenvalue sum between the present and
+  previous s.c.f. iteration is checked. \\
+}
+Very sensitive criterion for s.c.f. convergence. Usually,
+\option{value}=10$^{-3}$~eV is enough to indicate a
+reliable total-energy and force convergence. If value is set to zero or
+not given, the sum of eigenvalues will not be used as a convergence
+criterion.
+
+\keydefinition{sc\_accuracy\_etot}{control.in}
+{
+  \noindent
+  Usage: \keyword{sc\_accuracy\_etot} \option{value} \\[1.0ex]
+  Purpose: Convergence criterion for the self-consistency cycle, based
+    on the total energy. \\[1.0ex]
+  \option{value} is a small positive real number [in eV], against
+  which the difference of the total energy between the present and
+  previous s.c.f. iteration is checked. \\
+}
+The Harris-Foulkes form of the functional is used as the total energy
+in FHI-aims (see Ref. \cite{Blum08} for a brief discussion). A typical tight
+convergence criterion is \option{value}=10$^{-6}$~eV. If value is set
+to zero or not given, the total energy will not be used as a
+convergence criterion.
+
+\keydefinition{sc\_accuracy\_forces}{control.in}
+{
+  \noindent
+  Usage: \keyword{sc\_accuracy\_forces} \option{value} \\[1.0ex]
+  Purpose: Convergence criterion for the self-consistency cycle, based
+    on energy derivatives (``forces''). \\[1.0ex]
+  \option{value} is EITHER a small positive real number [in eV/{\AA}],
+  against which the maximum difference of atomic forces between the
+  present and previous s.c.f. iteration is checked, OR a string,
+  '\texttt{not\_checked}'. \\[1.0ex]
+  Default: \texttt{not\_checked} \\
+}
+\emph{Attention:} If keyword \keyword{sc\_accuracy\_forces} is set in
+\texttt{control.in}, forces are by default computed, regardless of
+whether or not they are later needed. The rationale is that the only
+way to check a requested force convergence criterion is to compute the
+necessary forces, despite the added numerical effort. For single-point
+calculations (no relaxation required), \keyword{sc\_accuracy\_forces}
+should therefore not be set unless explicitly needed for some reason.
+
+One can explicitly set the keyword value to the string
+'\texttt{not\_checked}'. In this case, the forces are computed in only
+a single shot, their s.c.f. convergence will not be checked.
+
+In this case, the code now relies on the default convergence criterion for
+the electron density itself (\keyword{sc\_accuracy\_rho}) to be sufficiently
+tight to guarantee good forces. This avoids excessive numbers of force
+evaluations in production runs.
+
+Calculating forces is relatively expensive, so this convergence
+criterion is either not checked (default behavior), or it
+is checked \emph{after} the purely electronic /
+energetic criteria, \keyword{sc\_accuracy\_eev},
+\keyword{sc\_accuracy\_etot}, \keyword{sc\_accuracy\_rho}, are all
+fulfilled. To avoid too many iterations with force computations before
+the forces are converged, it is important to set the other criteria
+(especially \keyword{sc\_accuracy\_eev}, which checks a
+non-variational quantity) to tight convergence, as indicated
+above. For \keyword{sc\_accuracy\_forces} itself, e.g.,
+\option{value}=10$^{-4}$ eV/{\AA} is a reliable and robust criterion
+to avoid noise in geometry relaxations.
+
+For simple structure relaxation, \texttt{not\_checked} will often be
+good enough if the electronic criteria (especially
+\keyword{sc\_accuracy\_rho}) are set reasonably tightly.
+
+For molecular
+dynamics, however, even slightly underconverged forces may lead to
+long-term energy drifts in (nominally) constant-energy runs. Here, it
+is a good idea to try out in explicit tests how tightly
+\keyword{sc\_accuracy\_eev} must be set to guarantee drift-free
+trajectories.
+
+\keydefinition{sc\_accuracy\_rho}{control.in}
+{
+  \noindent
+  Usage: \keyword{sc\_accuracy\_rho} \option{value} \\[1.0ex]
+  Purpose: Convergence criterion for the self-consistency cycle, based
+    on the charge density. \\[1.0ex]
+  \option{value} is a small positive real number [in electrons],
+  against which the volume-integrated root-mean square change of the
+  charge density between the present and previous s.c.f. iteration is
+  checked. \\[1.0ex]
+  Default: Between 1d-6 and 1d-3 e/$\text{a}_{0}{}^{3}$, depending on number of atoms (see below). \\
+}
+By default, FHI-aims checks separately the convergence of the charge
+density and the spin density, using the same criterion. Specifically,
+the \emph{unmixed} output density of the Kohn-Sham Equations,
+$n_\text{KS}^{(\mu)}$, is checked against the input density
+$n^{(\mu-1)}$ to the same equations. A typical tight convergence
+criterion is \option{value}=10$^{-5}$.
+
+\keyword{sc\_accuracy\_rho}
+is the most important s.c.f. convergence criterion and must be
+set. If the keyword is not set in \texttt{control.in}, the code chooses
+its default as follows:
+\begin{itemize}
+  \item Up to 6 atoms in \texttt{geometry.in}: \option{value}=10$^{-6}$
+  \item Between 6 and 60 atoms in \texttt{geometry.in}: \option{value}=10$^{-6}\cdot$\texttt{n\_atoms}/6
+  \item Above 6000 atoms in \texttt{geometry.in}: \option{value}=10$^{-3}$
+\end{itemize}
+
+\keydefinition{sc\_accuracy\_stress}{control.in}
+{
+  \noindent
+  Usage: \keyword{sc\_accuracy\_stress} \option{value} \\[1.0ex]
+  Purpose: Convergence criterion for analytical stress. \\[1.0ex]
+  \option{value} is EITHER a small positive real number [in
+    eV/{\AA$^3$}], against which the maximum difference of the
+  analytical stress components between the present and previous
+  s.c.f. iteration is checked. A negative number, or simply the string
+  '\texttt{not\_checked}' results in no convergence check. \\[1.0ex]
+  Default: \texttt{not\_checked} .\\
+}
+\textbf{Warning. Setting \keyword{sc\_accuracy\_stress} to a finite
+  non-negative value will result in a disproportionately large
+  computational cost.} In this case, the number of stress evaluations
+  per relaxation step is at least doubled. This is normally by far the
+  most expensive part of the calculation. Only set this to a finite
+  value if you have a good reason to do so.
+
+The default for \option{value} is \texttt{not\_checked}, i.e. the convergence of
+the analytical stress will not be checked. \emph{However}, you have to ensure
+that other convergence criteria (especially \keyword{sc\_accuracy\_eev},
+which checks a non-variational quantity) are set to tight values, as
+indicated above.
+
+Calculating the analytical stress is relatively expensive, so this convergence
+criterion is only checked \emph{after} the purely electronic / energetic
+criteria, \keyword{sc\_accuracy\_eev}, \keyword{sc\_accuracy\_etot},
+\keyword{sc\_accuracy\_rho}, are all fulfilled. To avoid too many iterations
+with analytical stress computations before the analytical stress is converged,
+it is important to set the energetic criteria to tight convergence.
+
+\keydefinition{sc\_accuracy\_potjump}{control.in}
+{
+  \noindent
+  Usage: \keyword{sc\_accuracy\_potjump} \option{value} \\[1.0ex]
+  Purpose: Convergence criterion for the self-consistency cycle, based
+    on the vacuum level potential shift. \\[1.0ex]
+  \option{value} is a small positive real number [in eV], against
+  which the difference of the dipole correction potential jump between the present and
+  previous s.c.f. iteration is checked. \\
+}
+
+This keyword only makes sense (and is only accepted) for periodic slab calculations
+with the option \keyword{use\_dipole\_correction} set. If you are interested in the work function or
+vacuum level shifts explicitly, it is recommended to use this flag. A typical tight convergence
+criterion is \option{value}=10$^{-4}$.
+
+\keydefinition{sc\_init\_factor}{control.in}
+{
+  \noindent
+  Usage: \keyword{sc\_init\_factor} \option{number} \\[1.0ex]
+  Purpose: The \keyword{sc\_init\_iter} keyword will not trigger
+    if the density convergence criteria are already within a factor
+    \keyword{sc\_init\_factor} of the density convergence criterion,
+    \keyword{sc\_accuracy\_rho}. \\[1.0ex]
+  \option{number} is an real (double precision) number. Default: 1.d0 \\
+}
+See the \keyword{sc\_init\_iter} keyword for a more complete description of this
+behavior.
+
+\keydefinition{sc\_init\_iter}{control.in}
+{
+  \noindent
+  Usage: \keyword{sc\_init\_iter} \option{number} \\[1.0ex]
+  Purpose: If the s.c.f. cycles for the initial geometry of a run
+    fails to converge within (number) iterations, then FHI-aims
+    will end this s.c.f. cycle and begin a new one with the exact
+    last wave function as its starting guess. \\[1.0ex]
+  \option{number} is an integer number. Default: 1001 \\
+}
+\keyword{sc\_init\_iter} ends only the s.c.f. cycle for the first
+geometry of a run. The idea is to do a step that looks exactly like
+a new geometry step, but to not alter the geometry. Rather, reinitializing
+from the exact orbitals reached after (number) iterations ensures that
+the mixer and other parts of the calculation will not drag along some
+misguided information of the original superposition-of-free-atoms
+initialization. In some cases, such a clean start can help converge
+the s.c.f. cycle of a calculation that otherwise has difficulties to
+converge at all.
+
+See also the \keyword{sc\_init\_factor} keyword, which can be used to tune
+this behavior further.
+
+\keydefinition{sc\_iter\_limit}{control.in}
+{
+  \noindent
+  Usage: \keyword{sc\_iter\_limit} \option{number} \\[1.0ex]
+  Purpose: Maximum number of s.c.f. cycles before a calculation is
+    considered and abandoned. \\[1.0ex]
+  \option{number} is an integer number. Default: 1000 \\
+}
+\keyword{sc\_iter\_limit} is a keyword that should be set in every
+run. Note: \textbf{You must ensure for every run that the
+self-consistency cycle was actually converged.} If this is not the
+case, a loud warning is issued in the standard output of FHI-aims at
+the end of the s.c.f. cycle, and relaxations, molecular dynamics,
+and postprocessing may continue anyway depending on the
+\keyword{postprocess\_anyway} setting.
+
+If the end of the s.c.f. cycle is reached in this way, forces are
+computed regardless of whether the electronic convergence was reached.
+
+\keydefinition{spin\_mix\_param}{control.in}
+{
+  \noindent
+  Usage: \keyword{spin\_mix\_param} \option{value} \\[1.0ex]
+  Purpose: Separate parameter to mix the spin density between
+    different s.c.f. iterations. \\[1.0ex]
+  \option{value} is a real number between 0. and 1. Default: same as
+  \keyword{charge\_mix\_param}. \\
+}
+\keyword{spin\_mix\_param} may be different from
+\keyword{charge\_mix\_param}, but there is not usually a clear recipe
+\emph{how} it should be different. This option is thus only needed if
+the standard algorithms provably fail.
+
+\keydefinition{switch\_external\_pert}{control.in}
+{
+  \noindent
+  Usage: \keyword{switch\_external\_pert} \option{number} \option{type} \\[1.0ex]
+  Purpose: May be used as a combined parameter to switch on
+    an artificial perturbing \keyword{homogeneous\_field} only for a given
+    number of iterations. \\[1.0ex]
+  \option{number} is the integer number of s.c.f. iterations before
+    the external perturbation is switched off. \\
+  \option{type} is a string. If set to \texttt{safe}, specific
+    settings for the \keyword{occupation\_type} and for the
+    \keyword{homogeneous\_field} are enforced (see below). \\
+}
+This is an experimental keyword that allows to switch on an initial
+\keyword{homogeneous\_field}, e.g., to lock in the symmetry of a free
+atom in order to enforce smoother s.c.f. convergence. The field is
+switched off after \option{number} iterations, before self-consistency
+is reached.
+
+If \option{type} is not \texttt{safe}, the actual value of
+\keyword{homogeneous\_field} and \keyword{occupation\_type} should be
+set explicitly in \texttt{geometry.in} and \texttt{control.in},
+respectively. The default homogeneous field is 10$^{-3}$ eV/{\AA}.
+
+If \option{type} is set to safe, a homogeneous field of 10$^{-3}$
+eV/{\AA} and a Gaussian occupation with very small (10$^{-5}$ eV)
+broadening are automatically enforced.
+
+This flag is mainly used to artificially break the symmetry of
+spin-polarized free atoms with open $d$ and $f$ shells, which are
+sometimes very hard to converge otherwise (see special cases listed
+for \keyword{mixer}). Remember that FHI-aims does not allow to enforce
+a given symmetry automatically.
+
+
+\keydefinition{use\_density\_matrix\_hf}{control.in}
+{
+  \noindent
+  Usage: \keyword{use\_density\_matrix\_hf} \\[1.0ex]
+  Purpose: Technical keyword that states that the density matrix is
+    mixed prior to constructing the exchange matrix in hybrid
+    functionals, Hartree-Fock, \emph{et al.} \\[1.0ex]
+  Default: When possible, \keyword{use\_density\_matrix\_hf} is
+    assumed.
+}
+
+
+\keydefinition{apply\_boys}{control.in}
+{
+  \noindent
+  Usage: \keyword{apply\_boys} \option{KSmin$_{\alpha}$}
+  \option{KSmax$_{\alpha}$} \option{KSmin$_{\beta}$} \option{KSmax$_{\beta}$} \option{integer} \\[1.0ex]
+  Purpose: In the cluster case is used to switch on a subspace localization
+  using the Boys localization algorithm. \\[1.0ex]
+  \option{KSmin$_{\alpha}$} and \option{KSmax$_{\alpha}$} are the integer
+  KS-state indexes which define the lower and upper boundary of the subspace which should
+  be included in the transformation. In calculations without spin, the $\beta$
+  parameters are omitted.\\
+  \option{integer} is an integer and can either be 0, 1, or 2. If set to
+  0, the localization is performed at the beginning of the SCF cycle. If set to
+  1, it is performed throughout the cycle and if set to 2, it is performed at
+  the end (before writing the restart information).\\
+}
+This is an experimental keyword that allows to perform a Boys localization on
+one or more subspaces of the KS eigenvector. Boys localization is only
+applicable in non-periodic calculations. Since each localization requires
+calculation of the transition dipole matrix, this adds a considerable overhead
+in computation time if it is performed in each SCF cycle. The currently
+recommended setting is either 0 or 2.
+
+
+\keydefinition{xc\_pre}{control.in}
+{
+ \noindent
+ Usage: \keyword{xc\_pre} \option{xc-type} \option{steps} \\[1.0ex]
+ Purpose: Specifies the exchange-correlation approach used during the initial steps of a self-consistent DFT / Hartree-Fock. \\[1.0ex]
+ \option{xc-type} is a keyword (string) which specifies the chosen
+    exchange-correlation functional. \\
+ \option{steps} is an integer that determines the number of SCF steps performed with this functional before switching to the functional defined by \keyword{xc}.
+}

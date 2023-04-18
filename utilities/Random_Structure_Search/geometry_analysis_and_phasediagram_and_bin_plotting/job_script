@@ -1,0 +1,30 @@
+#!/bin/bash
+#@ shell=/bin/bash
+#@ error   = err.$(jobid)
+#@ output  = out.$(jobid)
+#@ job_type = parallel
+#@ job_name = rnd_name
+#@ environment = COPY_ALL
+#@ node_usage= not_shared
+#@ node = 12
+#@ tasks_per_node = 20
+#@ resources = ConsumableCpus(1) ConsumableMemory(2867 mb)
+#@ node_topology = island
+#@ island_count = 1
+#@ task_affinity = core(1)
+#@ network.MPI = sn_all,not_shared,us
+#@ wall_clock_limit = 24:00:00
+#@ notification = complete
+#@ queue
+
+export LD_LIBRARY_PATH=/u/system/SLES11/soft/intel1/14.0/mkl/lib/intel64:/u/system/SLES11/soft/gcc/4.8.2/lib64
+ulimit -s unlimited
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export MKL_DYNAMIC=FALSE
+
+work_dir=/ptmp/pr2d0262/aims/periodics/SiC_bulk/rnd_srch
+
+cd $work_dir
+
+./start_search

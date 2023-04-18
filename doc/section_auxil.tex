@@ -1,0 +1,923 @@
+\section{Hartree-Fock, hybrid functionals, $GW$, \emph{et al.}: All the details}
+\label{Sec:auxil}
+
+The basic keywords to invoke different exchange-correlation methods
+(ground state and excited states) are given described in
+Sec. \ref{Sec:xc}. Usually, invoking the relevant keyword together with
+the normal infrastructure required to run FHI-aims should be
+sufficient to produce a correct, converged result. 
+
+\emph{For Hartree-Fock and hybrid functionals, particularly for their
+  periodic implementations, see also the dedicated next section,
+  Sec. \ref{Sec:periodic_hf}.}  
+
+For methods that rely explicitly on a two-electron Coulomb operator
+(Hartree-Fock, hybrid functionals, $GW$, MP2, RPA, etc.) and/or a
+frequency-dependent response function ($GW$, RPA, ...), some
+considerable numerical trickery enters the computation in order to
+keep it efficient yet manageable for practical purposes. We
+hope to provide resilient, system-independent default settings, 
+but there is a lot of freedom beyond those defaults to either
+tighten up things or speed up calculations (at the price of
+reduced accuracy).
+
+The present section describes all numerical settings for the
+aforementioned exchange-correlation treatments. 
+
+Specifically, we describe:
+\begin{itemize}
+  \item All settings that relate to the setup of the (over-)complete
+    \emph{auxiliary basis} that expands the products of pairs of basis
+    functions into a separate basis to represent the Coulomb operator
+  \item All settings that rely to the frequency grid and analytic
+    continuation from the imaginary to the real axis in $GW$ related
+    methods. 
+\end{itemize}
+Even if you do not know what this is all about, you \emph{should} know
+that the ``auxiliary basis'' is determined as an overcomplete basis,
+and superfluous basis functions are then reduced out by a threshold
+criterion, using singular value decomposition. This threshold is a 
+value to be tested in case something unexpected happens.
+
+There are three key references that provide the technical background
+for these sections:
+\begin{enumerate}
+  \item Principle of how we calculate the two-electron Coulomb
+    operator by so-called resolution of identity: Xinguo Ren \emph{et
+    al.} (2012), New J. Phys. 14, 053020, Ref. \cite{Ren12a}. The
+    approach summarized below and implemented in Keyword
+    \keyword{RI\_method} \texttt{V} is still the default for any
+    non-periodic many-body perturbation calculations \emph{beyond} DFT
+    (i.e., for MP2, RPA, $GW$, etc.)
+  \item Localized resolution of identity (Keyword \keyword{RI\_method}
+    \texttt{LVL}), which is used by default for all Hartree-Fock and
+    hybrid functional calculations, and which is the only option for
+    any periodic calculations including the two-electron Coulomb
+    operator: Arvid Ihrig \emph{et al.} (2015), New J. Phys. 17,
+    093020, Ref. \cite{Ihrig2015}.
+  \item Linear-scaling and periodic implementation of periodic
+    Hartree-Fock and hybrid functionals based on \keyword{RI\_method} 
+    \texttt{LVL}, described in Sergey Levchenko \emph{et al.} (2015),
+    Comput. Phys. Commun. 192, 60-69, Ref. \cite{Levchenko2015}.
+\end{enumerate}
+
+\textbf{Mathematical background:}
+
+Any feature beyond standard DFT (e.g., HF, hybrid functional,
+MP2, $GW$, etc) requires the two-electron Coulomb repulsion integrals, and 
+in FHI-aims an additional auxiliary basis set is introduced to deal with 
+them. By utilizing the auxiliary basis functions the $N_\text{basis}^4$ many 
+4-center integrals are reduced to $N_\text{basis}^2\cdot N_\text{aux}$
+many 3-center integrals and  $N_\text{aux}^2$ many 2-center integrals (
+where $N_\text{basis}$ and $N_\text{aux}$ are the numbers of regular basis
+functions and auxiliary basis functions, respectively). There are different
+ways to do so, and here we describe two versions of these, namely, the
+ ``V" and ``SVS" \cite{Vahtras93} versions which have been implemented in 
+this code. In the ``V" version, the 4-center integrals are approximated by
+  \begin{equation}
+   (ij|i^\prime j^\prime) \approx \sum_{\mu\nu} (ij|\mu)V_{\mu\nu}^{-1} 
+   (\nu|i^\prime j^\prime),
+  \label{RI_V}
+  \end{equation}
+and in the ``SVS" one,
+  \begin{equation}
+   (ij|i^\prime j^\prime) \approx \sum_{\mu\nu} \sum_{\mu^\prime\nu^\prime}
+ (ij\mu)S_{\mu\mu^\prime}^{-1}V_{\mu^\prime\nu^\prime}S_{\nu^\prime\nu}^{-1} 
+   (\nu i^\prime j^\prime),
+  \label{RI_SVS}
+  \end{equation}
+where $i,j,i^\prime,j^\prime, \dots$ denote the regular basis functions 
+and $\mu,\nu, \dots$ denote the auxiliary basis functions. 
+Here $V_{\mu\nu}$ is the Coulomb repulsion integral between two auxiliary basis 
+functions, and $S_{\mu\nu}$ is the corresponding overlap integral. 
+$(ij\mu)$ and $(ij|\mu)$ are the overlap and Coulomb repulsion between the 
+regular basis orbital product 
+$\phi_i\phi_j$ and the auxiliary basis function $P_\mu$ respectively.
+Eq. (\ref{RI_V}) and (\ref{RI_SVS}) are often refered to as
+resolution of identity (Refs. \cite{Boys59,Alsenoy88,Vahtras93,Eichkorn95} and
+others).  In practice satisfactory accuracy can be gained with 
+an auxiliary basis size $N_\text{aux}$ of 4-5 times of
+$N_\text{basis}$. In addition, we implement a modified localized
+version of RI-V known as ``RI-LVL'', described in
+Ref. \cite{Ihrig2015} and also in Sec. \ref{Sec:periodic_hf}.
+
+How is the auxiliary basis functions constructed? In FHI-aims, it is  built 
+up as the ``on-site'' pair products of the regular basis functions (hence
+the auxiliary basis is also called the ``product basis'' in this context). 
+These products are then orthonormalized at each atom using the gram-Schmidt 
+method. These auxiliary basis functions are hence atom-centered numeric 
+functions with a radial function times spherical harmonics 
+ $P_{\mu}({\bf r}) = \frac{\xi(r)_{\text{at},n,l}}{r}Y_{lm}(\vartheta,\varphi)$. 
+The radial part of the auxiliary basis function is 
+formally linked to that of the regular basis functions by
+  \begin{equation}
+    \{\xi_{\text{at},n,l}(r)\} = \{u_{\text{at},n_1,l_1}(r)u_{\text{at},n_2,l_2},
+     |l_1-l_2| \le l \le |l_1+l_2|  \}.
+   \label{auxil_radial}
+  \end{equation}
+In Eq. (\ref{auxil_radial}) we make it clear that the set of auxiliary
+basis functions centered on certain atom  originates from the pair
+products of regular basis functions  
+centered on the the same atom. The angular momentum of the auxiliary basis
+and those of the two constituent regular basis satisfy the triangular 
+true. The number of auxiliary basis function for a give $l$ 
+(enumerated by $n$) is
+controlled by the allowed pairs of regular basis functions, and the accuracy 
+threshold in the Gram-Schmidt orthormalization. The process is
+described in Ref. \cite{Ren12a} and in more detail with an
+illustrating figure in Ref. \cite{Ihrig2015} (open access). The
+parameters that controls the construction of the auxiliary basis
+functions can be found below. 
+
+For self-energy calculatons a proper frequency grid is needed. For instance,
+in the $GW$ approximation, the self-energy is given by
+  \begin{equation}
+    \Sigma({\bf r, r^\prime};i\omega) = \frac{i}{2\pi} \int d\omega^\prime
+     G({\bf r, r^{\prime}};i\omega+i\omega^\prime) 
+    W({\bf r,r^\prime};i\omega^\prime)
+   \label{GW_selfenergy}
+  \end{equation}
+In FHI-aims, the self-energy is first calculated in the imaginary frequency
+grid, and then analytically continued to the real frequency grid. One popular 
+way of performing the analytical continuation is to model the self-energy with
+a multi-pole expression \cite{Rojas95}, namely,
+    \begin{equation} 
+       \Sigma(i\omega) \approx A_0 + \sum_n \frac{A_n}{i\omega - B_n},
+      \label{multipole_fitting}
+    \end{equation}
+where $n$ is the number of poles, and $A_n$ and $B_n$ are complex numbers. 
+Eq. (\ref{multipole_fitting}) is used to fitted the calculated self-energy
+on imagninary axis using the non-linear least square fitting algorithm. Once the
+the the parameters $A_n$ and $B_n$ are obtained that give the best fitting,
+the self-energy on the real frequency axis can be obtained by
+    \begin{equation}
+       \Sigma(\omega) \approx A_0 + \sum_n \frac{A_n}{\omega - B_n}.
+       \label{eq:multipole-real}
+    \end{equation}
+In practice $n=2$ (the so-called two-pole fitting) is often found to
+give good performance. 
+
+A Pade approximation based variant with more poles is also implemented
+in FHI-aims. In the Pade approximation, the self-energy is 
+parameterized as
+  \begin{equation}
+       \displaystyle
+       \Sigma(i\omega) =
+       \dfrac{a_1}{1+\dfrac{a_2(i\omega-i\omega_1)}{1+\dfrac{a_3(i\omega-i\omega_2)}{\cdots}}} .
+      \label{eq:pade}
+  \end{equation}
+For a given, chosen set of calculated self-energy data points
+$\{i\omega_n, \Sigma(i\omega_n)\}$ with $n=1,\cdots, N$, the $N$
+complex parameters  
+$a_1, \cdots, a_N$ can be uniquely determined. The self-energy on the real
+frequency axis is then obtained by replacing $i\omega$ by $\omega$ in   
+Eq.~(\ref{eq:pade}). We note that the Pade approximation given by
+(\ref{eq:pade}) can be interpreted as a multipole expression, with
+the number of poles $N_{pole} = N-1$.
+
+The type of the analytical continuation used in $GW$
+(Eqs. (\ref{eq:multipole-real}) or (\ref{eq:pade})) is determined
+using the \keyword{anacon\_type} and \keyword{n\_anacon\_par}
+keywords. The number of frequency points used on the imaginary axis
+(this determines the accuracy of the input used for fitting the
+expressions Eqs. (\ref{eq:multipole-real}) or (\ref{eq:pade})) can be
+set using the \keyword{frequency\_points} keyword. The frequency grid
+used is a modified Gauss-Legendre grid that ranges from zero to
+infinity. Our experience suggests that highly accurate results for molecules
+(few meV accuracy for electronic excitations, compared to exact
+expressions for the self-energy on the real axis) 
+can be obtained using a 16-parameter Pade approximation with 200
+frequency points.\cite{GW100} However, the numerical accuracy is then much higher
+(and much more costly) than the accuracy of the underlying $GW$
+approximation itself, and thus somewhat reduced defaults are set in
+the code (see keyword descriptions below).
+
+More importantly, the Pade approximation is also numerically less
+stable than the two-pole approximation. This means that, for some
+systems with a complicated pole structure of the self-energy, the Pade
+fit might not converge for certain eigenvalues. The results must
+therefore be inspected carefully, even if (for normal light-element
+molecules and valence-like states) its accuracy can be much higher
+than the two-pole approximation. This is, in fact, not a simple
+implementation issue but rather one that goes back to the mathematical
+structure of the true self-energy.
+
+The analytical continuation becomes increasingly inaccurate for 
+deeper states since the structure of the self-energy is typically more
+complicated, i.e., has more poles. The fitted pole models fail to
+represent these more complicated structures, see Ref.~\cite{Golze2018}.
+In these cases, the self-energy should be calculated on the real-frequency
+axis using the contour deformation technique, which is controlled by
+ the keyword \keyword{contour\_def\_gw}. 
+
+
+%\newpage
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{hf\_version}{control.in}
+{ \noindent
+  Usage: \keyword{hf\_version} \option{version} \\[1.0ex]
+  Purpose: Allows to switch between the standard density-matrix based
+    setup of the Fock operator, and an orbital based exchange
+    operator. \\[1.0ex]
+  \option{version} is a number, either 0 (alias \texttt{density\_matrix}) or
+  1 (aliases \texttt{eigencoefficients} and \texttt{overlap}). Default: 0 \\
+}
+The exchange operator can be constructed either by summing over all
+states \emph{first} to construct the density matrix (\option{version}
+0), of by a straightforward setup of orbitals and computation of the
+exchange operator only then (\option{version} 1).
+
+Both versions are pure matrix algebra. For small systems (few states),
+\option{version} 1 is vastly more efficient, but towards large systems
+(many states) an efficiency crossover clearly favors the density matrx
+based update.
+
+By default, FHI-aims relies on the density-matrix based update always, because
+this is more memory efficient, but for small systems (atoms) with lots of
+basis functions, this choice should be reconsidered.  Please note that both
+versions should work seamlessly with Pulay mixing.
+
+\keydefinition{anacon\_type}{control.in}
+{ \noindent
+  Usage: \keyword{anacon\_type} \option{string} \\[1.0ex]
+  Purpose: Specifies type of analytical continuation for the self-energy
+   (we calculate the self-energy on the imaginary frequency axis, and
+   hence need to continue it to the real axis) \\ 
+  \option{string} is a string that indicates the self-energy type,
+  either 'two-pole' or 'pade'. Default: No default (must be set by the
+  user if the self-energy is required).
+}\\[1.0ex]
+  \begin{itemize}
+     \item \option{string} = 'two-pole' or '0' : The normal two-pole
+       fitting (Eq (\ref{eq:multipole-real})).
+    \item \option{string} = 'pade' or '1' : Pade approximation (Eq. (\ref{eq:pade})).
+  \end{itemize}
+The number of parameters in either approximation can be set using the
+keyword \keyword{n\_anacon\_par}.
+
+\emph{Note} that the \keyword{anacon\_type} only makes sense if 
+\keyword{qpe\_calc} or \keyword{sc\_self\_energy} is set, i.e., the
+post-processing-type self-energy calculation is required.
+
+This keyword must be set in control.in if the self-energy on the real
+axis is needed (usually, for $GW$).
+In past versions of FHI-aims, the code would set a silent default for
+\keyword{anacon\_type} if a self-energy calculation for the real axis
+was required. This is no longer the case in
+present versions. Users must make this choice explicitly in
+'control.in'; if that is not the case, the code will stop with a
+(hopefully gentle and instructive) warning message.
+
+The reason is that the choice of the analytical continuation used
+can have a noticeable effect on the accuracy of $GW$-calculated
+eigenvalues. The two-pole approximation is well established, but less
+accurate than the Pade approximation when the latter works.\cite{GW100} On the
+other hand, systems with a complicated self-energy structure can lead
+to numerical problems with the Pade approximation that can result in
+seemingly random values for certain predicted quasiparticle
+eigenvalues (this can be tested, for instance, by modifying the
+\keyword{frequency\_points} keyword and tracking the results). 
+
+\keydefinition{freq\_grid\_type}{control.in}
+{ \noindent
+  Usage: \keyword{freq\_grid\_type} \option{value} \\[1.0ex]
+  Purpose: If set, specifies the type of the grid for the imaginary frequency.
+  \begin{itemize}
+    \item \option{value} = 0 : Normal Gauss-Legendre grid ranging from 0
+     to a maximum frequency, specified by the keyword \keyword{maximum\_frequency}.
+    \item \option{value} = 1 : Modified Gauss-Legendre grid ranging from 0 to positive infinity.
+    \item \option{value} = 2 : Logrithmic grid ranging from 0.01 a.u. to a maximum value specified by
+       \keyword{maximum\_frequency}.
+  \end{itemize}
+  Default: \option{value}=1
+}\\[1.0ex]
+
+\emph{Note} that the \keyword{freq\_grid\_type} only makes sense if 
+\keyword{qpe\_calc} or \keyword{sc\_self\_energy} is set, i.e., the
+post-processing-type self-energy calculation is required.
+
+\keydefinition{n\_anacon\_par}{control.in}
+{ \noindent
+  Usage: \keyword{n\_anacon\_par} \option{value} \\[1.0ex]
+  Purpose: If set, specifies the number of parameters used in the two-pole
+  fitting (Eq.~(\ref{multipole_fitting})) or Pade approximation (Eq~(\ref{eq:pade})).
+  The default value for \keyword{n\_anacon\_par} is 5 if \keyword{anacon\_type} is
+  set to 'two-pole' (two-pole fitting), and 16 if
+  \keyword{anacon\_type} is set to 'pade' (Pade approximation).  
+}\\[1.0ex]
+
+\emph{Note} that the \keyword{n\_anacon\_par} only makes sense if 
+\keyword{qpe\_calc} or \keyword{sc\_self\_energy} is set, i.e., the
+post-processing-type self-energy calculation is required.
+
+\keydefinition{contour\_def\_gw}{control.in}
+{ \noindent
+  Usage: \keyword{contour\_def\_gw} \option{state$_{\textnormal{\option{start,$\alpha$}}}$}
+         \option{state$_{\textnormal{\option{end,$\alpha$}}}$ \option{state$_{\textnormal{\option{start,$\beta$}}}$}  \option{state$_{\textnormal{\option{end,$\beta$}}}$}}\\[1.0ex]
+  Purpose: If set, specifies the range of states for which the $GW$ quasiparticle 
+  energies are computed with the contour deformation, see Ref.~\cite{Golze2018}
+  for a description of the implementation. The range can be specified for the $\alpha$ and $\beta$
+  spin channel separately. Giving the range for the $\beta$ channel is optional. If not specified, the range set for
+  $\alpha$ will be also used for the $\beta$ channel. For spin-unpolarized calculations specify only the
+  $\alpha$ channel.\par
+  The quasiparticle energies for 
+  the other states are computed with the analytic continuation, i.e., the parameters
+  \keyword{anacon\_type} and \keyword{n\_anacon\_par} should be set as well. 
+  Setting \keyword{frequency\_points} is mandatory (200 grid points is a 
+  solid choice).
+}
+
+\keydefinition{contour\_spin\_channel}{control.in}
+{ \noindent
+  Usage: \keyword{contour\_spin\_channel} \option{integer (1 or 2)}  \\[1.0ex]
+  Purpose: If specified, restricts the contour deformation to a certain
+  spin channel. If not given, QP energies for both channels will be calculated.
+}
+
+\keydefinition{contour\_eta}{control.in}
+{ \noindent
+  Usage: \keyword{contour\_eta} \option{real}  \\[1.0ex]
+  Purpose: Specifies the broadening parameter $\eta$ used for the 
+  contour deformation. It might be useful to set this parameter to 
+  higher values (e.g 0.002 a.u.) when printing the self-energy or 
+  spectral function. Otherwise the default setting
+  ensures numerical accuracy and stability. \\
+  Default: 0.001~a.u.
+}
+
+\keydefinition{contour\_restart}{control.in}
+{ \noindent
+  Usage: \keyword{contour\_restart} \option{task}  \\[1.0ex]
+  Purpose: The iteration of the QP equation can become expensive
+  for large systems. A restart is possible.\\[1.0ex]
+  \option{task} is a string, specifying the desired restart task. \\[1.0ex]
+  Available options for \option{task} are:
+  }
+   \begin{itemize}
+  \item \texttt{write} : Writes restart info to file \texttt{contour\_gw\_qp\_energies.dat}.
+  \item \texttt{read} : Reads restart info from \texttt{contour\_gw\_qp\_energies.dat} and 
+   continues the QP iteration cycle.
+  \item \texttt{read\_and\_write} : Performs what the \texttt{write} and
+    \texttt{read} options do. If the restart files do not exist, the
+    code will still proceed normally.
+\end{itemize}
+
+
+\keydefinition{full\_cmplx\_sigma}{control.in}
+{ \noindent
+  Usage: \keyword{full\_cmplx\_sigma} \option{boolean}  \\[1.0ex]
+  Purpose: Technical keyword for the contour deformation. If set to .true., 
+  the complex broadening term $i\eta$ enters also the integral term of the self-energy.
+  This requires more grid points in the frequency integration, i.e.,
+  \keyword{frequency\_points} should be set to 2000. Including $i\eta$
+  is not necessary when calculating the quasiparticle energies, but gets rid of
+  (the very small) unphysical steps in the spectral function at the
+  KS/HF energies.
+   \\
+  Default: .false.
+}
+
+\keydefinition{gw\_zshot}{control.in}
+{ \noindent
+  Usage: \keyword{gw\_zshot} \option{boolean}  \\[1.0ex]
+  Purpose: If set to .true., the $Z$-factor is calculated
+  and the quasiparticle equation is not calculated iteratively,
+  but linearized using a Taylor expansion. Less exact than the
+  iterative solution. 
+   \\
+  Default: .false.
+}
+
+\keydefinition{gw\_hedin\_shift}{control.in}
+{ \noindent
+  Usage: \keyword{gw\_hedin\_shift} \option{state}  \\[1.0ex]
+  Purpose: If set, the poor-man's self-consistency proposed
+  by Hedin \cite{Hedin1999} is enabled. The Hedin shift is referenced to a particular state, 
+  typically the HOMO. This procedure can be also considered as
+  fixing the zero of the energy scale in a $G_0W_0$ calculation employing 
+  an overall energy shift $\Delta E$. When including this shift, the starting point
+  dependence is significantly reduced, similar to an ev-sc$GW_0$ calculation.
+  The computational overhead is negligible. 
+   \\
+  Default: .false.
+}
+
+\keydefinition{print\_self\_energy}{control.in}
+{ \noindent
+  Usage: \keyword{print\_self\_energy} \option{state} \option{freq$_{\textnormal{\option{start}}}$}
+  \option{freq$_{\textnormal{\option{end}}}$} \\[1.0ex]
+  Purpose: If set, the diagonal self-energy matrix elements for the requested
+  state are printed in the given frequency range that should be given in eV.
+  Setting the frequency range is optional.
+}
+
+\keydefinition{auxil\_basis}{control.in}
+{ \noindent
+  Usage: \keyword{auxil\_basis} \option{type} \\[1.0ex]
+  Purpose: Specifies the type of auxiliary basis used in the
+  ``beyond-DFT'' calculation. 
+    \\[1.0ex]
+  \option{type} is a string, which can be set either as \option{full}
+  or \option{opt}.   Default: \texttt{full}. Here is a brief explanation.
+  \begin{itemize}
+     \item  \texttt{full} : The auxiliary basis is constructed as
+     the ``on-site" pair products of the regular basis functions. 
+     The allowed pair products are controlled by the parameters 
+     \subkeyword{species}{max\_n\_prodbas} and
+     \subkeyword{species}{max\_l\_prodbas} (see later).
+     These pair products
+     are then orthonormalized using Gram-Schmidt procedure for each atom. 
+     \item  \texttt{opt} : The auxiliary basis is obtained
+     from an optimization procedure, and must be specified by
+     hand in \texttt{control.in} -- in the same spirit as the basis
+     sets used in standard Gaussian-bases RI-MP2 calculations.
+  \end{itemize}
+}
+
+\keydefinition{default\_prodbas\_acc}{control.in}%
+{ \noindent %
+  Usage: \keyword{default\_prodbas\_acc} \option{threshold} \\[1.0ex]
+  Purpose: Specifies the default for \subkeyword{species}{prodbas\_acc}\\[1.0ex]
+  \option{threshold} is a real value, defining the onsite threshold for the
+  auxiliary basis construction.\\
+  Default: 10$^{-4}$ for \keyword{RI\_method} \texttt{lvl}, depends on species
+  (\subkeyword{species}{species\_z}) otherwise.  
+}
+
+See \subkeyword{species}{prodbas\_acc} for more details. Default settings are:
+\begin{itemize}
+  \item 10$^{-2}$ for $Z \le$10 (light elements)
+  \item 10$^{-3}$ for 10$< Z \le$18
+  \item 10$^{-4}$ for $Z >$18 (all heavier elements)
+\end{itemize}
+The old default (version 042811 and earlier) was simply 10$^{-2}$ for
+all elements. For light elements, this setting produces accurate total
+energies and energy differences to the sub-meV level in all our
+tests. For heavier elements, significant inaccuracies could happen in
+atomic total energies. These inaccuracies would cancel out in energy
+differences; to guarantee total energy accuracy as well, we now set
+significantly tighter defaults for \subkeyword{species}{prodbas\_acc}
+in this range (alas, also more expensive, both in time and memory use).
+
+\keydefinition{default\_max\_l\_prodbas}{control.in}%
+{ \noindent %
+  Usage: \keyword{default\_max\_l\_prodbas} \option{value} \\[1.0ex]
+  Purpose: Specifies the default for
+  \subkeyword{species}{max\_l\_prodbas}\\[1.0ex]
+  Default: 20 for \keyword{RI\_method} \texttt{lvl}, 5 for \keyword{RI\_method} \texttt{V} and
+    nuclear charge $Z<=54$, and 6 for \keyword{RI\_method} \texttt{V} and $Z>54$.  }
+
+\keydefinition{default\_max\_n\_prodbas}{control.in}%
+{ \noindent %
+  Usage: \keyword{default\_max\_n\_prodbas} \option{value} \\[1.0ex]
+  Purpose: Specifies the default for
+  \subkeyword{species}{max\_n\_prodbas}\\[1.0ex]
+  Default: 20 for \keyword{RI\_method} \texttt{lvl}, 6 otherwise.
+}
+
+\keydefinition{frequency\_points}{control.in}
+{ \noindent
+  Usage: \keyword{frequency\_points} \option{value} \\[1.0ex]
+  Purpose: If set, specifies the number of (imaginary) frequency points for the self-energy 
+  calculation.\\[1.0ex]  
+%  Default: \option{value}=80. \\[1.0ex]
+  The default value for the frequency points depends on the choice of the analytical continutation type.
+  For two-pole fitting (\keyword{anacon\_type}='two-pole'), the default value for \keyword{frequency\_points} value is 40;
+  for the Pade approximation (\keyword{anacon\_type}='pade') the default value for \keyword{frequency\_points} is 100.
+}
+\emph{Note} that the \keyword{frequency\_points} only makes sense if 
+\keyword{qpe\_calc} or \keyword{sc\_self\_energy} is set, i.e., the post-processing-type self-energy calculation 
+is required.
+
+
+\keydefinition{maximum\_frequency}{control.in}
+{ \noindent
+  Usage: \keyword{maximum\_frequency} \option{value} \\[1.0ex]
+  Purpose: If set, specifies the maximal (imaginary) frequency value for the 
+  self-energy self-consistent calculation.  The unit for \option{value} here is Hartree.\\[1.0ex]  
+}
+\emph{Note} that the \keyword{maximum\_frequency} only makes sense when the \keyword{freq\_grid\_type} is set to be 0 or 2, i.e., when
+the stdandard Gauss-Legendre grid or logrithmic grid is used. For \keyword{freq\_grid\_type}$=$0, the default value for \keyword{maximum\_frequency} is
+10 Hartree; for \keyword{freq\_grid\_type}$=$2, the default value is 5000 Hartree. However, when self-consistent $GW$ is involked (both sc$GW$ and sc$GW_0$), the
+default value for \keyword{maximum\_frequency} is 7000 Hartree.
+
+\keydefinition{maximum\_time}{control.in}
+{ \noindent
+  Usage: \keyword{maximum\_time} \option{value} \\[1.0ex]
+  Purpose: If set, specifies the maximal (imaginary) time value for the
+  self-consistent self-energy calculation.  The unit for \option{value} here is Hartree$^{-1}$. The default value
+  is 1000 a.u..\\[1.0ex]
+}
+\emph{Note} that the \keyword{maximum\_time} only makes sense if
+\keyword{sc\_self\_energy} is set, i.e., the self-consistent self-energy calculation
+is required.
+
+\keydefinition{n\_poles}{control.in}
+{ \noindent
+  Usage: \keyword{n\_poles} \option{value} \\[1.0ex]
+  Purpose: If set, specifies the number of poles (i.e. the number of functions of the form 
+  $f_i(\omega) = 1/(b_i +i\omega)$ ) adopted in the pole-based
+  computation of the Fourier transform in self-consistent $GW$-type calculations. \\[1.0ex]
+}
+\emph{Note} that the \keyword{n\_poles} only makes sense if
+\keyword{sc\_self\_energy} is set, i.e., the post-processing-type self-consistent self-energy calculation
+is required.
+
+\keydefinition{pole\_max}{control.in}
+{ \noindent
+  Usage: \keyword{pole\_max} \option{value} \\[1.0ex]
+  Purpose: If set, specifies the position in the (imaginary) frequency axis of the 
+  largest poles (i.e. the largest $b_i$ coefficient in $f_i(\omega) = 1/(b_i +i\omega)$ ) 
+  used in computation of the Fourier transform in self-consistent $GW$-type calculations. 
+   The unit for \option{value} here is Hartree. \\[1.0ex]
+}
+\emph{Note} that the \keyword{pole\_max} only makes sense if
+\keyword{sc\_self\_energy} is set, i.e., the post-processing-type self-consistent self-energy calculation
+is required.
+
+\keydefinition{pole\_min}{control.in}
+{ \noindent
+  Usage: \keyword{pole\_min} \option{value} \\[1.0ex]
+  Purpose: If set, specifies the position in the (imaginary) frequency axis of the 
+  smallest poles (i.e. the smallest $b_i$ coefficient in $f_i(\omega) = 1/(b_i +i\omega)$ ) 
+  used in computation of the Fourier transform in self-consistent $GW$-type calculations. 
+   The unit for \option{value} here is Hartree. \\[1.0ex]
+}
+\emph{Note} that the \keyword{pole\_min} only makes sense if
+\keyword{sc\_self\_energy} is set, i.e., the post-processing-type self-consistent self-energy calculation
+is required.
+
+
+\keydefinition{prodbas\_nb}{control.in}
+{ \noindent
+  Usage: \keyword{prodbas\_nb} \option{nb} \\[1.0ex]
+  Purpose: For very large scale beyond-GGA calculations, the distribution of
+  auxiliary basis functions among the CPUs becomes problematic because each
+  CPU only gets very few.  The default Scalapack distribution is more taylored
+  to efficient calculations and distributes these functions in chunks of
+  finite size.  In massively parallel runs, often each CPU gets either one or
+  two of these chunks, leading to bad memory distribution.  This can be
+  circumvented, possibly sacrificing some performance, by setting the chunk
+  size \option{nb} to ``1''.
+  % 
+  \\[1.0ex]  
+  \option{nb} is the chunk size of auxiliary basis functions.
+  \\
+  \texttt{Default:} $\mathrm{min}\,(16,
+  \lfloor N_{\mathrm{aux}}/N_{\mathrm{proc}}\rfloor)$.
+}
+
+\keydefinition{prodbas\_threshold}{control.in}
+{ \noindent
+  Usage: \keyword{prodbas\_threshold} \option{threshold} \\[1.0ex]
+  Purpose: Prevent the possible ill-conditioning of the auxiliary basis, similar
+  to \keyword{basis\_threshold} for the regular basis.  \\[1.0ex]  
+  \option{threshold} is a small positive real number for the eigenvalue of the
+   Coulomb matrix for the auxiliary basis. \texttt{Default:} 10$^{-5}$. 
+}
+
+  The the auxiliary basis functions centered on different atoms are nonorthogonal,
+  and the possible linear dependence (with certain accuracy) between them 
+  and the resultant behavior has to be carefully eliminated. This is achieved by
+  setting the cutoff threshold for the auxiliary basis \keyword{prodbas\_threshold}.
+  From many test calculations, it is found that the reliable value for 
+  \option{threshold} here are between 10$^{-5}$ to 10$^{-3}$. Within this window,
+   the total energy may still have some noticable change, but the energy difference 
+   is usually negligible. It is suggested that the user should play with this
+   value if he/she is not sure about his/her result.
+
+
+\keydefinition{RI\_method}{control.in}
+{ \noindent
+  Usage: \keyword{RI\_method} \option{type} \\[1.0ex]
+  Purpose: Specifies the version of the resolution of identity used in the 
+      beyond-DFT calculations. Here \option{type} is a string, with
+      possible options listed below.
+      \\[1.0ex]
+  Default: Non-periodic: \option{type}=\texttt{lvl} for Hartree-Fock
+  and hybrid functional calculations, which can be used for geometry
+  relaxations. \option{type}=\texttt{v} for MP2, RPA and $GW$
+  etc. calculations that require unoccupied states.  This gives better
+  accuracy for a given auxiliary basis, but is usually more expensive
+  and provides no geometry relaxation at present. Periodic: 
+  \option{type}=\texttt{LVL\_fast}, which provides the necessary
+  reduction to what is essentially an $O(N)$ framework. \\
+}
+
+Different options for the \option{type} option include:
+\begin{itemize}
+  \item \texttt{svs} (for the ``SVS'' version, i.e.,
+    Eq. (\ref{RI_SVS}))
+  \item \texttt{v} (for the ``V'' version, i.e. Eq. (\ref{RI_V}))
+  \item \texttt{lvl} (for the ``LVL'' version)
+  \item \texttt{LVL}, \texttt{LVL\_fast}, or \texttt{lvl\_fast} are
+    all synonymous with option \texttt{lvl}
+  \item \texttt{lvl\_full} implements a non-linear scaling version of
+    the ``LVL'' approach for total energy evaluations only
+  \item \texttt{lvl\_2nd} implements the so-called ``robust Dunlap
+    correction'' for total energies only, which essentially follows up
+    an s.c.f. calculation with an additional RI-V-like step. In our
+    experience, similar results are better accomplished without this
+    correction (see also Ref. \cite{Ihrig2015}).
+\end{itemize}
+
+Rules of thumb:
+\begin{itemize}
+  \item \option{type}=\texttt{V} is the preferred method for
+    non-periodic calculations. For formal reasons, this is clearly the
+    most accurate version. However, neither a periodic version nor
+    gradients (forces and relaxations) are implemented at present.
+  \item \option{type}=\texttt{LVl\_fast} is the preferred version for
+    periodic calculations, as well as for non-periodic Hartree-Fock and
+    hybrid functional calculations with
+    forces and relaxation. It scales as $O(N)$ and greatly limits
+    the memory use compared to RI-V. \keyword{RI\_method}
+    \texttt{LVL\_fast} localizes the expansion of the Coulomb
+    potential of basis function products to two centers, as described
+    in Sec. \ref{Sec:periodic_hf} and in
+    Refs. \cite{Ihrig2015,Levchenko2015}. It also relies extensively
+    on screening near-zero elements of the density matrix and of the
+    Coulomb operator. On the other hand, the localized
+    version has slightly larger errors than RI-V for hybrid
+    functionals, and \emph{significantly} larger errors for correlated
+    methods like MP2 or RPA. These can be remedied by adding a few
+    extra functions to the construction of the auxiliary basis set
+    using the \keyword{for\_aux} keyword, as described in detail in
+    Ref. \cite{Ihrig2015}.
+  \item At present, \emph{do not use RI-LVL for MP2 and RPA} unless
+    you know what you are doing. It is possible to repair their
+    accuracy in RI-LVL, by increasing the size of the auxiliary basis
+    set using the \keyword{for\_aux} keyword, as described in detail in
+    Ref. \cite{Ihrig2015}, but please see the figures and benchmarks
+    in that reference before trying.
+  \item \option{type}=\texttt{LVL\_full} is a slower, non-screened version
+    of LVL for non-periodic systems. Very useful as a reference to
+    make sure.
+  \item \option{type}=\texttt{SVS} is here only for testing
+    purposes. This is the naive, purely overlap based version of RI
+    and should not be used in production.
+\end{itemize}
+
+There is an additional option for non-periodic systems,
+\option{lvl\_2nd}, which adds a correction term to the nonlocal
+exchange energy to make it ``robust'' in the Dunlap sense 
+\cite{Dunlap10-RIreview}, that is, the error in the energy is quadratic in
+the error in the product expansion.
+
+\keydefinition{sbtgrid\_lnrange}{control.in}
+{ \noindent
+     Usage: \keyword{sbtgrid\_lnrange} \option{lnrange} \\[1.0ex] 
+     Purpose: for \keyword{use\_logsbt}, set the range of the logarithmic grid
+     (in logarithmic units).
+     Default is $45$, which corresponds to nearly twenty orders of magnitude.
+     Please note that the range should be larger than intuitively guessed
+     because the range is the same both in real and reciprocal space (for
+     algorithmic reasons) and the tails in reciprocal space have to be captured.
+}
+
+\keydefinition{sbtgrid\_lnr0}{control.in}
+{ \noindent
+     Usage: \keyword{sbtgrid\_lnr0} \option{lnr0} \\[1.0ex] 
+     Purpose: for \keyword{use\_logsbt},set the onset of the logarithmic grid
+     in real space.  The default is $-38$.
+}
+
+\keydefinition{sbtgrid\_lnk0}{control.in}
+{ \noindent
+     Usage: \keyword{sbtgrid\_lnk0} \option{lnk0} \\[1.0ex] 
+     Purpose: for \keyword{use\_logsbt}, set the onset of the logarithmic grid
+     in Fourier space.  The default is $-25$.
+}
+
+\keydefinition{sbtgrid\_N}{control.in}
+{ \noindent
+     Usage: \keyword{sbtgrid\_N} \option{N} \\[1.0ex] 
+     Purpose: for \keyword{use\_logsbt}, set the number of logarithmic grid
+     points both in real and Fourier space.  The default is $4096$.
+}
+
+For the accuracy, the density of points $N/\mathtt{lnrange}$ is relevant.
+Additionally, one has to make sure that the tails in real and Fourier space
+are properly included.
+
+
+\keydefinition{state\_lower\_limit}{control.in}
+{ \noindent
+  Usage: \keyword{state\_lower\_limit} \option{value} \\[1.0ex]
+  Purpose: If set, specifies the lowest single-particle eigenstate to be included 
+  for the quasiparticle calculation. \\[1.0ex]  
+}
+\emph{Note} that the \keyword{state\_lower\_limit} only makes sense if 
+\keyword{qpe\_calc} is set, i.e., the post-processing-type self-energy calculation 
+is required.
+
+\keydefinition{state\_upper\_limit}{control.in}
+{ \noindent
+  Usage: \keyword{state\_upper\_limit} \option{value} \\[1.0ex]
+  Purpose: If set, specifies the highest single-particle eigenstate to be included 
+  for the quasiparticle calculation. \\[1.0ex]  
+}
+\emph{Note} that the \keyword{state\_upper\_limit} only makes sense if 
+\keyword{qpe\_calc} is set, i.e., the post-processing-type self-energy calculation 
+is required.
+
+\keydefinition{time\_points}{control.in}
+{ \noindent
+  Usage: \keyword{time\_points} \option{value} \\[1.0ex]
+  Purpose: If set, specifies the number (imaginary) time points for the self-energy
+  calculation.\\[1.0ex]
+  Default: \option{value}=80. \\[1.0ex]
+}
+\emph{Note} that the \keyword{frequency\_points} only makes sense if
+\keyword{qpe\_calc} or \keyword{sc\_self\_energy} is set, i.e., the post-processing-type self-energy calculation
+is required.
+
+\keydefinition{use\_logsbt}{control.in}
+{ \noindent
+     Usage: \keyword{use\_logsbt} \option{bool} \\[1.0ex] 
+     Purpose: If set, the two-center integrals are calculated by
+     one-dimensional integrations in Fourier-space. In the case of
+     \keyword{RI\_method} \texttt{LVL}, also the three-center
+     integrals are computed by this method.\\[1.0ex]
+     Default: \texttt{.true.} \\
+}
+\keyword{use\_logsbt} \texttt{.true.} is faster and more accurate than
+the alternative.
+
+The algorithm for the overlap and Coulomb integrals is described by Talman in
+\cite{Talman03-MCI}.  It uses an efficient spherical Bessel transform on a
+logarithmic radial grid
+\cite{Talman09-numSBT,Hamilton00-fftlog,Hamilton00-fftlog-www} to obtain the
+Fourier transform of the auxiliary basis functions and calculates the
+integrals in Fourier space.
+
+
+
+\keydefinition{use\_ovlp\_swap}{control.in}
+{ \noindent
+     Usage: \keyword{use\_ovlp\_swap} \\[1.0ex] 
+     Purpose: if set, the atomic orbital (AO) based 3-index overlap matrix 
+     (``ovlp\_3fn" in the source code) is written to the disk before transforming 
+     to the molecular orbital (MO) based 3-index overlap matrix (``O\_2bs1HF" for 
+     HF calculations and ``ovlp\_3KS" for $GW$ calculations in the source code).
+     This avoids the double allocation of both the AO-based 3-index integral matrix 
+     and MO-based 3-index integral matrix at the same time and thus reduces the
+     memory cost by about a factor of two.
+}
+\newpage
+
+\subsection*{Subtags for \emph{species} tag in \texttt{control.in}:}
+
+\subkeydefinition{species}{aux\_gaussian}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{aux\_gaussian} \option{L} \option{N}
+    \option{[alpha]} \\
+    \hspace*{0.1\textwidth} [ alpha\_1  coeff\_1 ] \\
+    \hspace*{0.1\textwidth} [ alpha\_2  coeff\_2 ] \\
+    \hspace*{0.1\textwidth} [ ... ] \\
+    \hspace*{0.1\textwidth} [ alpha\_N  coeff\_N ]
+    \\[1.0ex]
+  Purpose: For \keyword{auxil\_basis} \texttt{opt}, adds a Gaussian
+    basis function to the auxiliary basis set for the Coulomb
+    operator. \\[1.0ex]
+  \option{L} is an integer number, specifying the angular momentum \\ 
+  \option{N} is an integer number, specifying how many primitive Gaussians
+    comprise the present radial function \\
+  \option{alpha} : \emph{If} \option{N}=1, this is the exponent
+    defining a primitive Gaussian function [in bohr$^{-2}$]. \\
+  \option{alpha\_i} \option{coeff\_i} : 
+    \emph{If} \option{N}$>$1, $i=1,\dots,N$ additional lines specify
+    exponents $\alpha_i$ and expansion coefficients $g_i$ for a
+    non-primitive linear combination of Gaussians.\\
+}
+See the description of \subkeyword{species}{gaussian} basis functions;
+Gaussian basis functions in the \emph{auxiliary} basis use essentially
+the same infrastructure.
+
+\subkeydefinition{species}{for\_aux}{control.in}
+{
+ \noindent
+  Usage: \subkeyword{species}{for\_aux} \option{basis} \option{options}    
+  \\[1.0ex]
+   Purpose: Add a extra basis function to constructor of auxiliary basis function.
+  \\[1.0ex] 
+   \option{Basis} is a either \subkeyword{species}{hydro} or \subkeyword{species}{ionic} 
+    basis function keyword and \option{options} are options for that basis function.
+  \\[1.0ex] 
+}
+Adds extra basis function ONLY to the construction of the auxiliary
+basis set used to expand the Coulomb operator (resolution of identity,
+see keyword \keyword{RI\_method}). In particular, the accuracy of 
+\keyword{RI\_method} \texttt{LVL} can be increased by adding extra
+high-angular momentum radial functions to the auxiliary basis set. The
+improvement becomes less and less relevant as the orbital basis set
+itself increases. For instance, there may be a noticeable change for
+\emph{tier 1}, but much less or not at all for \emph{tier 2}. 
+Currently supports only \subkeyword{species}{hydro}  and
+\subkeyword{species}{ionic} basis functions. 
+
+For a detailed description with benchmarks, please see
+Ref. \cite{Ihrig2015}. 
+
+Here is an example for the use of the \subkeyword{species}{for\_aux},
+which was obtained by altering the ``light'' settings of the C atom:
+
+\small
+\begin{verbatim}
+[...]
+#  "First tier" - improvements: -1214.57 meV to -155.61 meV
+     hydro 2 p 1.7
+     hydro 3 d 6
+     hydro 2 s 4.9
+#  "Second tier" - improvements: -67.75 meV to -5.23 meV
+  for_aux     hydro 4 f 9.8
+#     hydro 3 p 5.2
+#     hydro 3 s 4.3
+  for_aux     hydro 5 g 14.4
+#     hydro 3 d 6.2
+[...]
+\end{verbatim}
+\normalsize
+
+Adding those two high-angular momentum functions does improve the
+quality of the \keyword{RI\_method} \texttt{LVL} noticeably, at the
+price of more CPU time. On the other hand ... ``light'' settings are
+specifically chosen because not everything is completely converged. In
+fact, the orbital basis set error itself may be larger than the
+accuracy gained by amending the two-electron Coulomb operator
+expansion. 
+
+\subkeydefinition{species}{prodbas\_acc}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{prodbas\_acc} \option{threshold} \\[1.0ex]
+  Purpose: Technical cutoff criterion for on-site orthonormalization
+    of auxiliary radial functions. Here \option{threshold} is a small 
+    positive real value. Default: See below. \\
+}
+To construct the set of auxiliary basis functions, the radial functions for 
+a single species are ``on-site" Gram-Schmidt orthonormalized. If 
+ the norm of the function after
+  orthonormalization is smaller than \option{threshold}, that function
+  is omitted.
+
+The present default values are:
+\begin{itemize}
+  \item 10$^{-2}$ for $Z \le$10 (light elements)
+  \item 10$^{-3}$ for 10$< Z \le$18
+  \item 10$^{-4}$ for $Z >$18 (all heavier elements)
+\end{itemize}
+The old default (version 042811 and earlier) was simply 10$^{-2}$ for
+all elements. For light elements, this setting produces accurate total
+energies and energy differences to the sub-meV level in all our
+tests. For heavier elements, significant inaccuracies could happen in
+atomic total energies. These inaccuracies would cancel out in energy
+differences; to guarantee total energy accuracy as well, we now set
+significantly tighter defaults for \subkeyword{species}{prodbas\_acc}
+in this range (alas, also more expensive, both in time and memory use).
+
+For simplicity, it is also possible to use
+\keyword{default\_prodbas\_acc} to set a global value of
+\subkeyword{species}{prodbas\_acc} across all elements. 
+
+\emph{Note} that the \subkeyword{species}{prodbas\_acc} should not be confused with
+the \keyword{prodbas\_threshold}. The former is used when constructing the
+auxiliary basis functions for each species, whereas the latter is used to 
+deal with the ill-conditioning behavior of the Coulomb repulsion and/or 
+the overlap matrix between the set of auxiliary basis functions 
+for the whole systems.
+
+\subkeydefinition{species}{max\_n\_prodbas}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{max\_n\_prodbas} \option{value} \\[1.0ex]
+  Purpose: Specifies the maximal principal quantum number for the \textit{regular}
+  basis function to be included in the \textit{auxiliary (product)} basis construction. 
+  \\[1.0ex]
+  \option{value} is a positive integer number here.
+} 
+
+\emph{Note} that \subkeyword{species}{max\_n\_prodbas} has an effect only when
+\keyword{auxil\_basis} is setted to \texttt{full}.
+
+\subkeydefinition{species}{max\_l\_prodbas}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{max\_l\_prodbas} \option{value} \\[1.0ex]
+  Purpose: Specifies the maximal angular quantum number for the
+  \textit{auxiliary (product)} basis function. Any possible auxiliary basis
+  with an angular momentum higher than \subkeyword{species}{max\_l\_prodbas}
+  is excluded.  \\[1.0ex]
+  \option{value} is a positive integer number here.
+}
+
+\emph{Note} that \subkeyword{species}{max\_l\_prodbas} controls the 
+ \textit{auxiliary} basis whereas \subkeyword{species}{max\_n\_prodbas} 
+  controls only directly the \textit{regular} basis. \subkeyword{species}{max\_l\_prodbas} 
+ has an effect regardless whether \keyword{auxil\_basis} is setted to \texttt{full}
+ or \texttt{opt}.
+
+

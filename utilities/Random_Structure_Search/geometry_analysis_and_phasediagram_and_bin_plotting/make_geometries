@@ -1,0 +1,40 @@
+#!/bin/bash
+
+rm -f `find -name end_geo.in`
+rm -f all-* end_geo_files
+
+echo
+echo "Collecting Geometry and Energy Information..."
+echo
+
+min=0
+k=0
+
+topdirs=`ls -d */ | sed s/"\/"/""/`
+for td in `ls -d */ | sed s/"\/"/""/`
+ do
+ echo "Working in $td..."
+ cd $td
+ subdirs=`ls -d */ | sed s/"\/"/""/`
+ for sd in $subdirs; do
+  cd $sd
+  i=$td/$sd/run.light
+  cat geometry.in.next_step | grep -v trust | grep -v hessian | grep -v vacuum | grep -v "#" > end_geo.in
+  k=$(echo "$k + 1" | bc)
+  tot_en=$(cat run.light | grep "| Total" | grep energy | grep Hartree-Fock | awk '{print $12}')
+  if [ -n "$tot_en" ]; then
+   echo "$k    $tot_en    $i" >> ../../all-converged.dat
+   echo "$td/$sd/end_geo.in    $tot_en" >> ../../end_geo_files
+   islower=$(echo "$tot_en < $min" | bc)
+   if [ $islower -eq 1 ]; then
+    min=$tot_en
+    echo "Minimum at $min for $i" > ../../all-lowest_tot_en.dat
+    echo "New minimum at $min for $i."
+   fi
+  else
+   echo "$k    $i" >> ../../all-not_converged.dat
+  fi
+  cd ..
+ done
+ cd ..
+done

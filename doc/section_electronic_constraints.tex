@@ -1,0 +1,376 @@
+\section{Electronic constraints}
+\label{Sec:constraint}
+
+Most production calculations only require the converged ground state
+of a calculation, but in some cases, a deliberate deviation from the
+Born-Oppenheimer surface is desired. For example it may be desirable
+to fix the spin state of a spin-polarized calculation using a defined
+\keyword{multiplicity}. 
+
+More generally, intuitive chemical concepts
+may suggest the localization of a fixed given spin moment or number of
+electrons in one part of a system, and a different spin moment or
+number in another part. Examples include enforcing definite charges on 
+ions in a system, or a desired spin moment on one particular atom.
+
+The latter idea of partitioning different numbers of electrons or spin
+moments in \emph{space} thought of as divided into different atoms is
+inherently ambiguous. Nonetheless, this is a classic intuitive picture
+of chemistry, and, at least in the limit of well-separated system
+parts, becomes exact.
+
+For \emph{non-periodic} geometries, FHI-aims implements the possibility
+of constrained calculations to enforce predefined electron numbers in
+different regions and/or spin channels. We follow the prescription of
+Behler et al. \cite{Behler05,Behler07}, which assigns electrons to different
+atoms according to a Mulliken-like analysis, i.e., by partitioning the
+occupied Kohn-Sham eigenstates according to the occupation of
+different atom-centered basis functions. 
+
+For details regarding the method, we refer to the original references,
+but we add here a clear word of caution. The implemented partitioning
+is well-defined when the relevant parts of the system are far apart,
+and/or when relatively small, confined basis sets are employed. For
+large, overlapping basis sets, electrons may be \emph{spatially}
+located at one atom even though they are \emph{numerically} assigned
+to the basis functions of a different atom. In other words, the
+procedure becomes more ambiguous as the basis size and completeness
+increase. Contrary to the usual paradigm of electronic structure
+theory, it is not meaningful to converge constrained DFT calculations
+to the basis set limit \emph{if} the individual pieces of the system
+are not very well separated.
+
+To set up an electronic constraint, the only keywords normally
+required are \keyword{constraint\_region} in \texttt{geometry.in} and
+\keyword{constraint\_electrons} in \texttt{control.in}. The remaining
+keywords documented below are normally required only for experimental
+purposes or troubleshooting.
+
+For the purpose of simulating electronic excitations, either from 
+electronic core levels (XPS) or from valence levels (UPS), the keywords 
+\keyword{force\_occupation\_basis} and \keyword{force\_occupation\_projector}
+enforce electron occupations of specific atomic basis states or Kohn-Sham states, 
+respectively.
+
+\newpage
+
+\subsection*{Tags for \texttt{geometry.in}:}
+
+\keydefinition{constraint\_region}{geometry.in}
+{
+  \noindent
+  Usage: \keyword{constraint\_region} \option{number} \\[1.0ex]
+  Purpose: Assigns the immediately preceding \keyword{atom} to the
+    region labelled \option{number}. \\[1.0ex]
+  \option{number} is the integer number of a spatial region, which
+    must correspond to a region defined by keyword
+    \keyword{constraint\_electrons} in file
+    \texttt{control.in}. Default: 1.
+}
+To divide up space into regions for the purpose of enforcing an
+electronic constraint, each atom in the structure is included in a 
+\keyword{constraint\_region}.
+
+Simple example of an Na-Cl dimer (\texttt{geometry.in}):
+\begin{verbatim}
+  atom 0. 0. 0. Na
+    constraint_region 1
+  atom 0. 0. 3. Cl
+    constraint_region 2
+\end{verbatim}
+assigns Na to the first region and Cl to the second region of a constrained calculation.
+
+The special case of only one region (e.g., for a fixed spin moment
+calculation) needs no explicit \keyword{constraint\_region}
+labels. Note that, apart from an explicit setup by keyword
+\keyword{constraint\_electrons}, the case of an \emph{integer} fixed
+spin moment for the \emph{whole} system (all atoms) can also be called
+by the shortcut \keyword{multiplicity}. 
+
+\newpage
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{constraint\_debug}{control.in}
+{
+  \noindent
+  Usage: \keyword{constraint\_debug} \option{flag} \\[1.0ex]
+  Purpose: If set, provides extra output that monitors the convergence
+    of the local constraint potentials used to enforce the requested
+    constraint. \\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.true.} or
+  \texttt{.false.} Default: \texttt{.false.} \\
+}
+
+\keydefinition{constraint\_electrons}{control.in}
+{
+  \noindent 
+  Usage: \keyword{constraint\_electrons} \option{region} \texttt{n\_1}
+    [\texttt{n\_2}] \\[1.0ex]
+  Purpose: Fixes the number of electrons to \texttt{n\_1} (in the
+    spin-polarized case, to \texttt{n\_1} in the spin-up channel and
+    \texttt{n\_2} in the spin-down channel) for a given
+    \option{region}. \\[1.0ex]
+  \option{region} is an integer number, corresponding to one of the
+    regions listed as \keyword{constraint\_region} in
+    \texttt{geometry.in}. \\
+  \option{n\_1} is the number of electrons in the corresponding
+    \option{region} (the number of spin-up electrons in the case of a
+    spin-polarized calculation). \\
+  \option{n\_2} is the number of spin-down electrons in the
+    corresponding \option{region} (only needed in the spin-polarized
+    case). \\
+}
+This is the central keyword that can be used to define a strict
+constraint on the electron numbers associated (i) with the orbitals of a
+given subset of atoms (``region'') and / or (ii) with a given spin channel.
+See the \keyword{multiplicity} keyword for a shortcut for fixed spin
+moment calculations with an integer spin multiplicity. 
+
+\keydefinition{constraint\_it\_lim}{control.in}
+{
+  Usage: \keyword{constraint\_it\_lim} \option{number} \\[1.0ex]
+  Purpose: For the determination of the constraint potentials in
+    different \keyword{constraint\_region}s, sets the maximum number
+    of internal iterations before the search for a converged value is
+    aborted. \\[1.0ex]
+  \option{number} is an integer number. Default: 200. \\
+}
+The method to determine the constraint potentials that enforce the
+local electron / spin constraint is set by \keyword{constraint\_mix};
+for more than one active \keyword{constraint\_region}, this
+determination is always iterative. Keyword
+\keyword{constraint\_it\_lim} sets the maximum number of iterations
+before this search is aborted in case of failed convergence (or too
+ambitious accuracy requirements from keyword
+\keyword{constraint\_precision}). 
+
+\keydefinition{constraint\_precision}{control.in}
+{
+  \noindent
+  Usage: \keyword{constraint\_precision} \option{tolerance} \\[1.0ex]
+  Purpose: Sets the precision with which each requested local
+    constraint on the electron count must be fulfilled. \\[1.0ex]
+  \option{tolerance} is a small positive real number. Default:
+  10$^{-6}$. \\
+}
+
+\keydefinition{constraint\_mix}{control.in}
+{
+  \noindent
+  Usage: \keyword{constraint\_mix} \option{factor1} [\option{factor2}]
+    \\[1.0ex]
+  Purpose: Mixing factors for the iteratively determined constraint
+    potentials. \\[1.0ex] 
+  \option{factor1} is a mixing factor for the iteratively determined
+    constraint potentials (for spin-polarized calculations, the
+    spin-up mixing factor). \\
+  \option{factor2} is the mixing factor for spin-down constraint
+    potentials in the case of spin polarized calculations. \\
+}
+Only meaningful for non-standard settings of
+\keyword{mixer\_constraint}, irrelevant for the standard
+\texttt{bfgs} case. 
+
+\keydefinition{ini\_linear\_mixing\_constraint}{control.in}
+{
+  \noindent
+  Usage: \keyword{ini\_linear\_mixing\_constraint} \option{number}
+    \\[1.0ex]
+  Purpose: If keyword \keyword{mixer\_constraint} is a Pulay mixer,
+    initial linear mixing for a few iterations can be requested
+    first. \\[1.0ex]
+  \option{number} is the number of initial linear iterations. \\
+}
+Only meaningful for non-standard settings of
+\keyword{mixer\_constraint}, irrelevant for the standard
+\texttt{bfgs} case. 
+
+\keydefinition{mixer\_constraint}{control.in}
+{
+  \noindent
+  Usage: \keyword{mixer\_constraint} \option{type} \\[1.0ex]
+  Purpose: Sets the iterative algorithm to determine constraint
+    potentials. \\[1.0ex]
+  \option{type} is a string. Default: \texttt{bfgs} \\
+}
+This flag has nothing to do with electron density mixing or the
+electronic self-consistency loop. Instead, this defines the process to
+determine constraint potentials that enforce the requested electron
+number constraints, \emph{if} the keyword \keyword{constraint\_electrons} was
+invoked. This process happens in each  
+s.c.f. iteration after the Hamiltonian matrix is known, in the
+course of solving the Kohn-Sham eigenvalue problem.
+
+If more than one constraint regions are requested, determining the
+constraint potentials to enforce the local constraint on the electron
+numbers is an iterative process. Technically, FHI-aims supports three
+different algorithms for \option{type} :
+\begin{itemize}
+  \item \texttt{bfgs} : The default. A BFGS algorithm that optimizes
+    the constraint potentials to their nearest local optimum. Nothing
+    else should be used unless for experimental purposes. 
+  \item \texttt{linear} : Linear mixing algorithm to determine the
+    constraint potentials.
+  \item \texttt{pulay} : Pulay-type mixing algorithm to determine the
+    constraint potentials. 
+\end{itemize}
+Under normal circumstances, the \keyword{mixer\_constraint} keyword
+should not be needed explicitly.
+
+\keydefinition{n\_max\_pulay\_constraint}{control.in}
+{
+  \noindent
+  Usage: \keyword{n\_max\_pulay\_constraint} \option{number} \\[1.0ex]
+  Purpose: If the \texttt{pulay} mixer is selected for
+    \keyword{mixer\_constraint}, sets the number of iterations to be
+    mixed. \\[1.0ex]
+  \option{number} is the number of mixed iterations. Default: 8. \\
+}
+Only meaningful for non-standard settings of
+\keyword{mixer\_constraint}, irrelevant for the standard
+\texttt{bfgs} case. 
+
+\keydefinition{force\_occupation\_basis}{control.in}
+{
+  \noindent
+  Usage: \keyword{force\_occupation\_basis} \option{i\_atom} \option{spin} \option{basis\_type} \option{basis\_n} \option{basis\_l} \option{basis\_m}
+   \option{occ\_number} \option{max\_KS\_state} \\[1.0ex]
+  Purpose: Flag originally programmed to compute core-hole spectroscopy simulations (for a short how-to cf. \keyword{force\_occupation\_projector}). 
+           In practice, it constrains the occupation of a specific
+           energy level of an specific atom, being also able to ``break the symmetry'' 
+           of an atom.  \\[1.0ex]
+  \option{i\_atom} is the number of the atom on which the occupancy is constrained, as it is listed in the
+                   geometry.in file.\\[1.0ex] 
+  \option{spin} is the spin channel (e.g., 1 if only one spin channel). \\[1.0ex] 
+  \option{basis\_type} is the type of basis which is used to force
+                       the occupation of the orbital (set it to \texttt{atomic}). \\[1.0ex]
+  \option{basis\_n} is the main quantum number for
+                    the state of interest.\\[1.0ex]
+  \option{basis\_l} is the orbital momentum quantum number for the state of interest.\\[1.0ex]
+  \option{basis\_m} is the projection of the orbital momentum onto the z-axis (-1, 0, or 1 for a p state).\\[1.0ex]
+  \option{occ\_number} is the occupation constraint for the chosen state.\\[1.0ex]
+  \option{max\_KS\_state} is the number of the highest energy Kohn-Sham state 
+                    in the system that will be included in the constraint.\\[1.0ex]  
+}
+  Example: \\[1.0ex]
+  \texttt{force\_occupation\_basis 1 1 atomic 2 1 1 1.3333 6}
+
+  This choice will constrain the overall occupation of a given basis function 
+  (not Kohn-Sham state!) in the system to 1.3333 electrons.
+
+  The basis function in question resides on the first atom (number 1)
+  as listed in \texttt{geometry.in}. The first spin channel is
+  constrained. 
+
+  Since we are interested in constraining an atomic-like orbital, we
+  choose one that is part of the minimal basis (type ``atomic''). 
+
+  In fact, we let the constraint act on a 2$p$ level, $m$=1 (defined
+  by the sequence ``2 1 1'').
+
+  Only Kohn-Sham orbitals up to the 6th state (counted in the overall
+  system) will be included in the constraint. In general, it is a good
+  idea to constrain the orbital in question out of the occupied space,
+  i.e., choose a value for \texttt{max\_KS\_state} that indicates a
+  state above the Fermi level.
+
+  There is a small problem here: We need to define the occupation of a
+  ``basis function,'' but   really, we here have a non-orthogonal
+  basis. Strictly speaking, only the Kohn-Sham states    in the system
+  have a well-defined occupation. What to do? 
+
+  One thing we could use (and we do) are Mulliken occupation numbers
+  of the basis functions. These are formally always well defined. In
+  practice, however, as the overall basis set becomes larger and
+  larger and approaches (over-)completeness, Mulliken occupations
+  become less and less meaningful because other basis functions are
+  not exactly orthogonal to the one used in our projection, and can
+  ``restore'' the component that was originally constrained away. 
+
+  Either way, we use Mulliken occupations, assuming that the atomic
+  core basis functions are sufficiently compact and practically
+  orthogonal to everything else.  
+
+  This assumption will work well for localized basis functions
+  such as the 1$s$ levels of most elements. As a rule, the constraint
+  is expected to be less and less unique if applied to more
+  delocalized basis functions -- there can even be multiple
+  different self-consistent constrained solutions for the same formal
+  constraint. For instance, Si 2$p$ basis functions can exhibit this
+  problem if the basis sets on the surrounding atoms -- which overlap
+  with the Si atom -- become too large. Here, a smaller basis set
+  (tier 1) can indeed be the way to keep a qualitatively meaningful
+  Mulliken-type constraint.
+
+
+\keydefinition{force\_occupation\_projector}{control.in}
+{
+  \noindent
+  Usage: \keyword{force\_occupation\_projector} \option{KS\_state} \option{spin} \option{occ} \option{KS\_start} \option{KS\_stop} \\[1.0ex]
+  Purpose: This keyword enforces the occupation \option{occ} in \option{KS\_state}
+     of spin channel \option{spin}. Between different SCF steps the overlap of this state 
+     with states \option{KS\_start} to \option{KS\_stop} is being checked and the 
+     constraint is changed correspondingly if the main character of the state changes. \\
+}
+
+  Example: \\[1.0ex]
+  \texttt{force\_occupation\_projector  8  1 0.0 6 10} \\
+  \texttt{force\_occupation\_projector  9  2 1.0 6 10} \\
+
+This enforces 0.0 occupation in state 8 of spin channel 1 
+and 1.0 occupation for state 9 of spin channel 2. KS states 
+between 6 and 10 are checked for overlap with state 8 and 9 
+of previous SCF steps. If 8/1 was occupied and 9/2 was unoccupied 
+in the ground state, this corresponds to a triplet excitation 8$\rightarrow$9.
+
+To simulate XPS energies with $n$ inequivalent atoms of the same species (called excitation centre in the following) a total of $n+1$ single runs is required: One ground state calculation and one \keyword{force\_occupation\_basis}/\keyword{force\_occupation\_projector} calculation for each of the excitation centres.
+
+The ground state calculation should use the \keyword{restart\_write\_only} or the \keyword{restart} flag to create a restart file that is needed for the \keyword{force\_occupation\_basis} or alternatively the \keyword{force\_occupation\_projector} run. Therefore the geometry.in and all other parameters (except the charge) such as basis sets have to match. In practise it is often beneficial for the interpretation of the XP spectra to use \keyword{output cube eigenstate} to have an idea of the localization of the different core levels. 
+
+For the simulation of the XPS spectra typically a full core hole is introduced at the excitation centre (for example in ref.\ \cite{Diller2014}). Relying on initial state effects alone (i.e., defining the ionization energies using ground state eigenvalues) neglects the screening of the core hole by valence electrons \cite{Lizzit2001} and is therefore not a good approximation for XPS. For example, to force the occupation of eigenstate 3 to 1.0, where states 1-4 are (near-)degenerate or at least very similar in energy and type: 
+
+  \texttt{force\_occupation\_projector 3 1 1.0 1 4 } \\
+
+Results in the following occupation (the introduction of the core hole leads to a re-ordering):
+
+\texttt{
+\begin{tabular}{cccc}
+State & Occupation & Eigenvalue [Ha] & Eigenvalue [eV]\\
+      1   &    1.00000     &    -16.148150     &    -439.41353 \\
+      2   &    2.00000     &    -14.162982     &    -385.39434 \\
+      3   &    2.00000     &    -14.162981     &    -385.39432 \\
+      4   &    2.00000     &    -14.091396     &    -383.44640 \\
+\end{tabular}}
+
+Note that \keyword{charge} was set to 1 to take into account the reduced electron number and a restart from the ground state run was made using \keyword{restart}.
+
+XPS energies can then be calculated as the difference of the total energy obtained in the ground state calculation and the total energy of the core-hole excited simulation (corresponding to the definition of the ionization energy). That means that for each excitation center an ionization energy is calculated. For the core level shifts only relative energy differences are relevant, which are already directly reflected in the differences of total energies of the core-hole excited states. If, however, absolute energies are of interest, note that experiments are referenced to either the vacuum level or the Fermi level, and that simulations including an extended surface might differ by the workfunction from those for isolated molecules. The ionization energies can then by broadened with Gaussian functions of same amplitude (assuming no preferential direction, especially valid for $1s$ spectra) and summed up to obtain the total XPS spectrum.
+
+Simulating NEXAFS spectra can be less straightforward as there are different approximations to account for the core hole and the excited electron. One possibility is to use the transition potential approach \cite{Triguero1998}, where instead of a full core only half a core hole is used, i.e., $n = 0.5$ in one spin channel. Independently from the approximation used for the core hole: To obtain the dipole matrix elements that give information about the transition probability the flag \keyword{compute\_dipolematrix} needs to be used. Note that to use this option the FHI-aims binary has to be compiled enabling hdf5, as the output is a hdf5 container containing eigenvalues and matrix elements. It is recommended to include additional \keyword{empty\_states}, depending on the amount of unoccupied states you want to probe. In this case the ground state calculation has already to include the same number of empty states, otherwise a restart is not possible.
+
+
+\keydefinition{force\_occupation\_smearing}{control.in}
+{
+  \noindent
+  Usage: \keyword{force\_occupation\_smearing} \option{smearing\_width} \\[1.0ex]
+  Purpose: If keyword is set, the occupation constraints are enforced in form of gaussians 
+  with a width of \option{smearing\_width} instead of delta peaks. This applies to
+  orbitals within an energy range of -+ 3*\option{smearing\_width} \\[1.0ex]
+  Default: No Smearing at all. \\
+}
+
+  Example: \\[1.0ex]
+  \texttt{force\_occupation\_smearing  0.05} \\
+
+This keyword helps to converge systems with state degeneracies, which are 
+constrained by force\_occupation\_projector. Specifically 
+when calculating electronic excited states in the frontier orbital regime, many state 
+degeneracies can occur. If one of two degenerate states is constrained to a different 
+than the ground state occupation, convergence can be hindered. If this happens, 
+this keyword can enable convergence for the price of a minimally different final occupation 
+and therefore also a small error in excitation energy. One should be very careful with 
+this keyword and only employ it if convergence can not be reached without.
+
+WARNING: It is very easy to generate reandom numbers when using this keyword. The 
+smearing value should never exceed 0.15

@@ -1,0 +1,21 @@
+\chapter{XML output}
+\label{appendix_xml_output}
+
+The FHI-aims can print results of the calculations in an XML format. This 
+functionality is provided by the \verb`xml_write` module. The module is quite 
+general and capable of printing any XML, but also has convenient functions for 
+printing scalars, vectors, matrices and $n$-dimensional arrays. The formatting 
+of the data in the XML elements is both human-readable and machine-readable. The 
+obvious advantage is that such an output from the code is extremely easy and 
+fast to parse.
+
+There are two ways how the XML module can be used. There is a global XML file 
+which can be turned on with \verb`xml_file <filename>` in \verb`control.in`.  
+Printing to this file is as simple as loading the module and calling one of its 
+routines. Note however that if the block of code that prints to this global file
+calls another code also printing to the global file, the XML output of these two
+codes might get intertwined, resulting in a valid but nonsensical XML file.
+
+A second way how to use the XML module is to create a new ``local'' XML file
+with the \verb`open_xml_file` routine and use that one by calling the module 
+printing routines with the optional argument \verb`file=<xml_file_instance>`.

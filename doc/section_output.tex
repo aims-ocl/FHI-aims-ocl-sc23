@@ -1,0 +1,1678 @@
+
+\section{Output options}
+\label{section output}
+
+The primary (and most important) output of FHI-aims is written to the
+standard output channel, and can / should be captured in a file from
+there. However, FHI-aims provides a host of further output options
+that can be activated to yield more specialized data not ordinarily
+required from a standard calculation, but highly useful for specific
+purposes.
+
+The majority of these output options is activated by invoking the
+\keyword{output} option in file \texttt{control.in}. The individual
+subkeywords to this keyword are therefore listed separately, towards
+the end of this section. In addition, some particularly important
+output options are revisited with examples in Chapter
+\ref{CH:running}.
+
+\newpage
+
+\subsection*{Tags for \texttt{geometry.in}:}
+
+% WPH 23 April 2018: I've inlined the keydefinition macro here, removing the
+%     portion related to hyperlinking, as the original version completely broke
+%     the flow of the text.
+\centerline{\rule{1.0\textwidth}{1pt}}
+\textbf{Tag: \texttt{verbatim\_writeout}}{ \color{filename_color} (geometry.in)}
+\\[2ex] \hspace*{0.05\textwidth}
+\begin{minipage}{0.92\textwidth}
+  \noindent
+  Usage: \texttt{verbatim\_writeout} \option{flag} \\[1.0ex]
+  Purpose: Enables or suppresses the writing of \texttt{geometry.in} to
+  the FHI-aims standard output stream exactly as it is read the first
+  time. \\[1.0ex]
+  \option{flag} is a logical variable (.true. or .false.). Default:
+  \texttt{.true.} . \\
+\end{minipage} \\
+}
+By default, \texttt{geometry.in} is now written (copied) verbatim into
+the FHI-aims standard output as it is parsed for the first time,
+allowing to reproduce exactly any FHI-aims calculation simply by
+copy-pasting that part to a new \texttt{geometry.in} file.
+
+If \keyword{verbatim\_writeout} is set to false anywhere in
+\texttt{geometry.in}, no writing will occur from that point on
+forward.
+
+The exact same option (same keyword / syntax) can also be used in
+\texttt{control.in}, producing the same effect there.
+
+Note that the keyword has the same name in \texttt{geometry.in} and
+\texttt{control.in}, and is therefore only documented as a clickable
+link for \texttt{control.in}. Apologies for this omission.
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{dos\_kgrid\_factors}{control.in}
+{
+  \noindent
+  Usage: \keyword{dos\_kgrid\_factors} $n_1 \, n_2 \, n_3$ \\[1.0ex]
+  Purpose: If set, a post-scf density of states is computed with a
+    denser k-point grid than used in the s.c.f. cycle. \\[1.0ex]
+  Restriction: Works only for periodic systems. Does not work when keyword
+    \keyword{use\_local\_index} is set. \\
+}
+%
+Only useful in conjunction with the keywords \keyword{output}
+\subkeyword{output}{dos} or \keyword{output}
+\subkeyword{output}{postscf\_eigenvalues}, and only for periodic systems.
+
+In a periodic calculation, one usually specifies the basic
+\keyword{k\_grid} used to obtain the self-consistent electron density,
+total energy etc. Such $k$-space grids are usually fairly sparse, and
+if a density of states (DOS) is calculated directly from the eigenvalues
+stored at these $k$-points only, the DOS will either look choppy, or
+(after significant broadening), smooth, broad, and blurred.
+
+A simple remedy is to use the original \keyword{k\_grid} while
+approaching self-consistency as usual, but then compute the DOS using
+an auxiliary $k$-grid that is made \emph{denser} by factors $n_1$,
+$n_2$, $n_3$, respectively. For example, the settings \\
+  \keyword{k\_grid} 10 10 10 \\
+  \keyword{output} \subkeyword{output}{dos} [...] \\
+  \keyword{dos\_kgrid\_factors} 8 8 8 \\
+mean that the s.c.f.-cycle itself is run with a 10$\times$10$\times$10
+$k$-point grid, but subsequently, a density of states is computed with
+an 80$\times$80$\times$80 $k$-point grid.
+
+Note that this additional calculation is done using serial lapack solutions
+of the eigenvalue problems for individual k-points on individual CPU cores.
+This always works but will create memory problems as the system size increases,
+simply because local copies of all matrices are kept on single CPUs. For large
+systems, our usual, more sophisticated parallelization strategies have not yet
+been copied over to this routine.
+
+\keydefinition{evaluate\_work\_function}{control.in}
+{
+  \noindent
+  Usage: \keyword{evaluate\_work\_function}  \\[1.0ex]
+  Purpose: Surface slab calculations only -- if true, the work functions of
+  both slab surfaces will be evaluated.
+ \\[1.0ex]
+}
+%
+This option requires that a reference $z$ coordinate for the electrostatic
+potential evaluation deep in the vacuum be provided by hand, through the
+keyword \keyword{set\_vacuum\_level}. The surface must be parallel to the $xy$
+plane.
+
+The output for the ``upper' and ``lower'' surface of the slab (larger and
+smaller $z$ value, respectively), will be printed separately. Note that for
+\emph{non-symmetric} slabs, these work functions should generally be
+different. In practice, this behavior is correctly reproduced only if the
+\keyword{use\_dipole\_correction} is additionally specified.
+
+If the work function output is requested, keyword
+\keyword{compensate\_multipole\_errors} is now automatically switched
+on by default. This will change total energies slightly compared to
+the uncompensating case, and -- we believe -- even for the better. It will
+certainly lead to a better description of the long-range Hartree potential.
+
+However, it must be possible to find a vacuum plane $z$, where the
+surface dipole is compensated, that is further than 6 {\AA} away from
+the nearest atom. Otherwise, the calculation will stop and alert the user.
+
+Specifically, the reference Hartree potential component for the work function
+evaluation is only the long-range (reciprocal-space) Hartree potential term of
+the Ewald sum, not the full electrostatic potential. Thus, the vacuum level
+\emph{must} be specified in a region where all real-space components of the
+electrostatic potential have safely died away to zero. One may achieve this by
+increasing the vacuum layer thickness, which can be done at very small
+overhead cost in FHI-aims.
+
+\keydefinition{output}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \option{type} [\option{further options}]\\[1.0ex]
+  Purpose: This is the central keyword that controls most of the
+    non-standard output that can be written by FHI-aims. \\[1.0ex]
+  \option{type} is a string that specifies the kind of requested
+    output; any further needed options, or possibly additional lines,
+    depend on \option{type}. \\
+}
+The list of additional output \option{type}s is given as a separate
+subsubsection below.
+
+\keydefinition{output\_boys\_centers}{control.in}
+{
+  \noindent
+  Usage: \keyword{output\_boys\_centers} \\[1.0ex]
+  Purpose: Calculates and outputs the maximally localized Boys centers
+  (equivalent of Wannier centers for the isolated molecule case). \\
+}
+The maximization procedure follows JCP 135, 134107 (2011). Currently
+only the cartesian position of the centers is outputted in xyz format in
+\texttt{geometry\_boys.xyz}.  The transformation matrix is also calculated,
+but not applied to the KS orbitals.
+
+\keydefinition{output\_cube\_nth\_iteration}{control.in}
+{
+  \noindent
+  Usage: \keyword{output\_cube\_nth\_iteration} \option{n} \\[1.0ex]
+  Purpose: Writes all cube files specified in \texttt{control.in} every
+   n$^{th}$ SCF iteration. \\[1.0ex]
+  \option{n} is an integer greater than or equal to 1.  Default: N/A (cube
+   files will be output after the SCF cycle has converged.) \\
+}
+By default, cube files are written once, after the SCF cycle has converged.
+With this keyword,all cube files specified in \texttt{control.in} will be
+written each $n^{th}$ iteration, where \texttt{n} is an integer greater than
+zero. This keyword should be helpful to analyse what is going on during
+subsequent SCF cycles. However, the output of cubes is usually quite slow, so
+choosing this option will slow down the calculation a lot.
+
+This keyword does not support spin-orbit coupling, as spin-orbit coupling is
+applied after the SCF cycle has converged.
+
+This keyword is only applicable when the
+\keyword{output} \subkeyword{output}{cube} keyword(s) are being used; please see
+the manual entry for \keyword{output} \subkeyword{output}{cube} for more
+information.
+
+\keydefinition{output\_in\_original\_unit\_cell}{control.in}
+{
+  \noindent
+  Usage: \keyword{output\_in\_original\_unit\_cell} \option{flag} \\[1.0ex]
+  Purpose: Shifts the atoms in a periodic calculation back into the
+    first unit cell before printing them out at the beginning of a new
+    geometry step. \\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.true.} or
+    \texttt{.false.} Default: \texttt{.true.} \\
+}
+In some, atoms in FHI-aims can unexpectedly ``switch'' unit cells
+during relaxation. This has no effect on the calculation, but the
+output geometry coordinates (written to the standard output stream)
+will look strangely detached when visualized. By default, FHI-aims
+maps its coordinates back to the first unit cell anyway, but this
+behavior can be forcibly switched off if so requested (makes nicer
+movies).
+
+\keydefinition{output\_level}{control.in}
+{
+  \noindent
+  Usage: \keyword{output\_level} \option{level} \\[1.0ex]
+  Purpose: Allows to increase the amount of output written to the
+    standard output of FHI-aims. \\[1.0ex]
+  \option{level} is a string that determines the amount of output
+    written. Default: \texttt{normal} . \\
+}
+If increased to \texttt{full}, the Kohn-Sham eigenvalues of every
+s.c.f. iteration are written to the standard output file. For
+single-point calculations, this may be quite desirable, but leads to
+unmanageable file sizes for long relaxation or molecular dymnamics
+runs. \\
+Another option, useful for long molecular dynamics (MD) runs, is \texttt{MD\_light}.
+It writes standard output only in the initialization part and at the end of each
+MD step, while a minimal output is written for the single scf cycle.
+
+\keydefinition{overwrite\_existing\_cube\_files}{control.in}
+{
+  \noindent
+  Usage: \keyword{overwrite\_existing\_cube\_files} \option{flag} \\[1.0ex]
+  Purpose: Allows overwriting of pre-existing cube files with new cube files of
+    the same name, instead of preserving the pre-existing cube files by
+    appending numbers to the end of the new file names. \\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.true.} or
+    \texttt{.false.} Default: \texttt{.false.} \\
+}
+If set to .false., FHI-aims will check during the output of cube files whether a
+file with the selected file name already exists. If such a file is found, the
+file name will be changed by adding a number (1,2,3...) to the end of the file
+name. This is very useful when relying on default names or when plotting cubes
+during the SCF cycle.
+
+If set to .true. FHI-aims will not check during output whether a file with the
+selected name already exists. If it does exist, it will be simply overwritten!
+
+This keyword is only applicable when the
+\keyword{output} \subkeyword{output}{cube} keyword(s) are being used; please see
+the manual entry for \keyword{output} \subkeyword{output}{cube} for more
+information.
+
+\keydefinition{verbatim\_writeout}{control.in}
+{
+  \noindent
+  Usage: \keyword{verbatim\_writeout} \option{flag} \\[1.0ex]
+  Purpose: Enables or suppresses the writing of \texttt{control.in} to
+  the FHI-aims standard output stream exactly as it is read the first
+  time. \\[1.0ex]
+  \option{flag} is a logical variable (.true. or .false.). Default: \texttt{.true.} . \\
+}
+By default, \texttt{control.in} is now written (copied) verbatim into
+the FHI-aims standard output as it is parsed for the first time,
+allowing to reproduce exactly any FHI-aims calculation simply by
+copy-pasting that part to a new \texttt{control.in} file.
+
+If \keyword{verbatim\_writeout} is set to false anywhere in
+\texttt{control.in}, no writing will occur from that point on
+forward.
+
+The exact same option (same keyword / syntax) can also be used in
+\texttt{geometry.in}, producing the same effect there.
+
+\newpage
+
+\subsection*{Specific options \texttt{output} keyword:}
+
+\subkeydefinition{output}{aitranss}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{aitranss} \\[1.0ex]
+  Purpose: Writes Kohn-Sham eigenvectors $c_{il}$ and energies $\varepsilon_l$
+    (where $i$ is a basis function index and $l$ is an eigenstate index) of each
+    spin channel and overlap matrix $s_{ij}$ into separate ASCII-files in a
+    format compatible with \textsc{aitranss} (\textit{ab initio} transport
+    simulations) package. \\[1.0ex]
+  Restrictions: This functionality is available only for
+    \emph{non-periodic} systems. If \keyword{KS\_method} \texttt{scalapack} is
+    used, \keyword{packed\_matrix\_format} is not supported. Flag
+    \keyword{use\_local\_index} is not supported either.\\
+}
+\emph{Please, look at Chapter~\ref{Ch:aitranss} for
+  a comprehensive description on how to perform transport simulations across
+  nanoscale objects}. \\
+
+
+\subkeydefinition{output}{atom\_proj\_dos}{control.in}
+{
+  Usage: \keyword{output} \subkeyword{output}{atom\_proj\_dos}
+  \option{Estart Eend n\_points broadening} \\[1.0ex]
+  Purpose: Writes an atom-projected, angular-momentum resolved partial
+    density of states (pDOS). \\[1.0ex]
+  \option{Estart} : Lower bound of the single-particle energy range
+    for which the pDOS are given. \\
+  \option{Eend} : Upper bound of the single-particle energy range
+    for which the pDOS are given. \\
+  \option{n\_points} : Number of energy data points for which the
+    pDOS are given. \\
+  \option{broadening} : Gaussian broadening applied to obtain a smooth
+    partial density of states based on the peaks produced by
+    individual states. \\
+}
+This option is based on a Mulliken Analysis and shares its syntax with
+\keyword{output} \subkeyword{output}{dos} and \keyword{output}
+\subkeyword{output}{species\_proj\_dos}. See also section \ref{band
+and dos plotting} for more details.
+
+There are two types of output files for each atom:
+\begin{itemize}
+  \item \texttt{atom\_proj\_dos\_\emph{number}\_raw.dat}, where \emph{number}
+    denotes the atom number in the order of \texttt{geometry.in}. This file
+    contains the total and angular-momentum resolved DOS components as a
+    function of eigenvalue energy (first column) as used internally in
+    FHI-aims. The energy zero is then given by the vacuum level (non-periodic
+    systems) or by the $\boldG$=0 component of the long-range Hartree
+    potential (periodic systems).
+  \item \texttt{atom\_projected\_dos\_\emph{number}.dat}, which gives the same
+    information, except that the energy zero is shifted to the Fermi energy
+    (metallic systems) or valence band maximum (insulators), respectively.
+\end{itemize}
+Note that projected densities of states such as given here must be
+based on some kind of projection orbitals, the choice of which is
+somewhat arbitrary by necessity. This is thus a tool for
+\emph{qualitative} analyses.
+
+In FHI-aims, we project directly on
+the atom-centered angular-momentum components as defined by the
+\emph{overlapping} basis set. This definition becomes the more arbitrary the
+larger the basis set, just like a \subkeyword{output}{mulliken}
+analysis. The closer the full basis comes to completeness, the
+more ambiguous will a \subkeyword{output}{mulliken}-like analysis become,
+since it may not be \emph{a priori} clear which electrons should be counted
+towards the basis functions of one atom vs. those of another atom. Thus, do
+\emph{not} expect a pDOS to simply converge as the basis set size is
+increased; use it as a qualitative indicator of trends, but nothing more.
+
+This keyword supports spin-orbit coupling.  When spin-orbit coupling is
+enabled, the file(s) containing the spin-orbit-coupled DOS will have the
+default filename(s) and the file(s) containing the scalar-relativistic
+(i.e. no SOC) DOS will have an additional suffix ".no\_soc".
+
+
+\subkeydefinition{output}{band}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{band} \option{kstart1
+    kstart2 kstart3 kend1 kend2 kend3 n\_points name\_start
+    name\_end}\\[1.0ex]
+  Purpose: Plots a band along the line from
+    \option{<kstart1,kstart2,kstart3>} to
+  \option{<kend1,kend2,kend3>} at \option{n\_points} equally
+  spaced points. The $k$-vectors are written in relative
+  coordinates of the reciprocal basis vectors. \\
+}
+Several bands can be plotted; FHI-aims outputs one file
+per specified \keyword{output band} line.
+
+The band structure output files are named
+\option{bandXYYY.out}, where the letters X and YYY are replaced with
+numbers in the actual output file names:
+\begin{itemize}
+\item The letter X encode the spin
+channel. In a non-spinpolarized or in a spin-orbit coupled
+calculation, X will always be 1. In a spin-polarized calculation, X=1
+indicates the first spin channel, X=2 indicates the second spin
+channel.
+\item The letters YYY are the consecutive numbers of the bands
+(starting from 001) requested in the \texttt{control.in} file, that
+is, the bands given in the order of \keyword{output} \subkeyword{band}
+lines in \texttt{control.in}.
+\end{itemize}
+The files \option{bandXYYY.out} have the format\\[1.0ex]
+%
+\option{ipoint k1 k2 k3 E1 occ1 E2 occ2 ... EN occN}, \\[1.0ex]
+%
+i.e. they specify not only the bands for each $k$-point but also
+the occupation number for this particular point.
+
+A safe starting value for \option{n\_points} when performing semi-local
+calculations is 21.  We have found that this generally samples the fine
+features of the k-path reasonably well, even for small unit cells with
+correspondingly large Brillouin zones.  For hybrid-functional calculations,
+due to the computational expense one should consider using a smaller value.
+We also note that \option{n\_points} includes the end-points, i.e.
+\option{n\_points}=21 will give 20 intervals for a given branch.  For
+comparison with results calculated by other DFT codes, it's recommended to
+use values of form 1, 6, 11, 16, 21, ... to ensure that the reciprocal
+coordinates are nice, simple fractions.
+
+Note that a fully occupied band has the occupation number 2.0 in a
+non-spinpolarized calculation. In a spin-polarized or
+spin-orbit-coupled calculation, the maximum occupation number is 1.0.
+
+Since this format contains all the important information,
+but is not particularly useful for actually plotting the band
+structure, we provide a small script which is described in
+section \ref{band and dos plotting}.
+
+Note: the last two input options are technically not needed by the
+FHI-aims main program, but they are seriously helpful when
+turning this data into a plot and are used by the band plotting
+script provided along with this distribution, see Section
+\ref{band and dos plotting} for details.
+
+For periodic calculations, the eigenvectors, overlap matrices, and
+hamiltonian matrices at each k-point requested by
+\keyword{output} \subkeyword{output} {band}
+can be written out using the
+\keyword{output} \subkeyword{output}{eigenvectors},
+\keyword{output} \subkeyword{output}{overlap\_matrix}, and
+\keyword{output} \subkeyword{output}{hamiltonian\_matrix} keywords,
+respectively.
+
+For periodic band structure output, the
+\keyword{exx\_band\_structure\_version} keyword must be set -- see the
+respective Section \ref{Sec:periodic_hf} for a brief explanation of
+the background.
+
+This keyword supports spin-orbit coupling.  When spin-orbit coupling is
+enabled, the file(s) containing the spin-orbit-coupled band structures
+will have the default filename(s) and the file(s) containing the
+scalar-relativistic (i.e. no SOC) band structures will have an additional
+suffix ".no\_soc".
+
+\subkeydefinition{output}{band\_during\_scf}{control.in}
+{
+  Usage: \keyword{output} \subkeyword{output}{band\_during\_scf} \option{kstart1
+    kstart2 kstart3 kend1 kend2 kend3 name\_start
+    name\_end} \\[1.0ex]
+  Purpose: Plots a band along the line from
+    \option{<kstart1,kstart2,kstart3>} to
+  \option{<kend1,kend2,kend3>} but only at those $k$ points that are
+  already part of the normal s.c.f. \keyword{k\_grid}. The
+  $k$-vectors are written in relative
+  coordinates of the reciprocal basis vectors. \\
+}
+This keyword allows to get the band structure along a certain
+reciprocal-space direction, but \emph{only} at those $k$-points that
+are already used during the s.c.f. calculation. If there are no
+appropriate $k$-points, no band structure is printed. If there are
+appropriate $k$-points, they are printed in the same format as the
+normal band structure from \keyword{output}\subkeyword{output}{band},
+although some additional editing may be required to get a clean plot.
+
+The purpose of this keyword is to allow to extract a band structure
+even in cases when the normal
+\keyword{output}\subkeyword{output}{band} functionality is
+experimental or, for some reason, not available.
+
+
+\subkeydefinition{output}{band\_mulliken}{control.in}
+{
+	Usage: \keyword{output} \subkeyword{output}{band\_mulliken} \option{kstart1
+		kstart2 kstart3 kend1 kend2 kend3 n\_points name\_start
+		name\_end}\\[1.0ex]
+	Purpose: Plots a band along the line from
+	\option{<kstart1,kstart2,kstart3>} to
+	\option{<kend1,kend2,kend3>} at \option{n\_points} equally
+	spaced points. The $k$-vectors are written in relative
+	coordinates of the reciprocal basis vectors. \\
+}
+
+This keyword allows to calculate the mulliken charge analysis at all K points along the band K path. The file name is named as bandmlk1001.out, bandmlk1002.out, ..., etc. In the output file, the mulliken charge data is written first by K point, then by eigenstates. In each eigenstate, the mulliken charge on all atoms is written line by line. In each line, the following information is written: eigenstate ID, eigenvalue, occupation number, atom ID, spin ID, total mulliken charge, mulliken charge for l = 0, 1, 2,.. etc. For each state at a given point, the total mulliken charge for all atoms should sum up to 1 or 2, for non-SOC and SOC, respectively.
+
+There is a keyword called \keyword{band\_mulliken\_orbit\_num} specifying how many orbitals (states) to be written out. If the number following the keyword \keyword{band\_mulliken\_orbit\_num} is I, then the orbitals in the range of HOMO - I + 1 and LUMO + I would be written out in the output file. The default value of \keyword{band\_mulliken\_orbit\_num} is 50 for non-SOC and 100 for SOC.
+
+To plot the band structures with Mulliken decomposition, two python script in the utilities directory in FHI-aims distribution can be used,
+i.e., band\_mlk.py and band\_mlk\_soc.py for non-SOC and SOC, respectively. Running of these scripts is instructed in the first lines of these python files.
+
+\subkeydefinition{output}{basis}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{basis} \\[1.0ex]
+  Purpose: Writes radial functions before and after
+    orthonormalization, as well as second derivatives and the
+    basis-defining potentials to separate files. \\[1.0ex]
+}
+This output option allows to visualize the basis functions used, as
+well as some of the other defining pieces of the basis set. Note
+that the output is written for each grid point of the dense
+1-dimensional \subkeyword{species}{logarithmic} grid, with the radius
+given in bohr.
+
+Specifically, this option produces the following types of files:
+\begin{itemize}
+  \item \texttt{A$i$\_$j$\_$nl$\_base.dat} : Atomic (minimal basis)
+    radial function $u(r)$ \emph{after} the basis-confining potential
+    was applied, for \keyword{species} number $i$, atomic-like
+    (minimal) radial function  number $j$, radial and angular quantum
+    numbers $nl$.
+  \item \texttt{A$i$\_$j$\_$nl$\_base\_kin.dat} : Corresponding
+    kinetic energy expression $[\epsilon - v(r)]\cdot u(r)$
+  \item \texttt{C$i$\_$j$\_$nl$\_base.dat} :
+    \subkeyword{species}{confined} free-atom like radial function $u(r)$
+      number $j$ for \keyword{species} number $i$, radial and angular
+      quantum numbers $nl$.
+  \item \texttt{C$i$\_$j$\_$nl$\_base\_pot.dat} : Corresponding
+    basis-defining potential including confining potential
+  \item \texttt{\emph{El}\_base\_$n$\_$l$.dat} : Radial function
+    $u(r)$ \emph{after} the basis-confining potential was applied for
+    the \keyword{species} named \emph{El}, radial and angular
+      quantum numbers $nl$ (same as
+    \texttt{A$i$\_$j$\_$nl$\_base.dat}).
+  \item \texttt{\emph{El}\_base\_pot.dat} : Basis-defining potential
+    for atomic (minimal) radial functions of the \keyword{species}
+    named \emph{El}, after addition of the confining potential (as
+    defined by \subkeyword{species}{cut\_pot}).
+  \item \texttt{\emph{El}\_base\_pot.dat} Free-atom density of
+    \keyword{species} named \emph{El} (same as
+    \texttt{\emph{El}\_base\_pot.dat}).
+  \item  \texttt{\emph{El}\_free\_$n$\_$l$.dat}: Radial function
+    $u(r)$ \emph{before} the basis-confining potential was applied for
+    the \keyword{species} named \emph{El}, radial and angular
+    quantum numbers $nl$
+  \item \texttt{\emph{El}\_free\_pot.dat} Spherical self-consistent
+    free-atom potential of the \keyword{species} named \emph{El}
+    (implicitly confined by the \subkeyword{species}{cut\_free\_atom}
+    potential, but this artificial part is here not included)
+  \item \texttt{\emph{El}\_free\_rho.dat} Free-atom density of
+    the \keyword{species} named \emph{El}.
+  \item \texttt{H$i$\_$j$\_$nl$\_base.dat} :
+    \subkeyword{species}{hydro} radial function $u(r)$
+      number $j$ for \keyword{species} number $i$, radial and angular
+      quantum numbers $nl$.
+  \item \texttt{H$i$\_$j$\_$nl$\_base\_kin.dat} : Corresponding
+    kinetic energy expression $[\epsilon - v(r)]\cdot u(r)$
+  \item \texttt{I$i$\_$j$\_$nl$\_base.dat} :
+    \subkeyword{species}{ionic} radial function $u(r)$
+      number $j$ for \keyword{species} number $i$, radial and angular
+      quantum numbers $nl$.
+  \item \texttt{I$i$\_$j$\_$nl$\_base\_pot.dat} : Corresponding
+    basis-defining potential including confining potential
+  \item \texttt{\emph{ty}\_$i$\_$j$\_$n$\_$l$.dat} : \emph{After}
+    on-site orthonormalization, radial function $u(r)$ of type
+    \emph{ty} (atomic, \subkeyword{species}{confined},
+    \subkeyword{species}{hydro}, \subkeyword{species}{ionic}, ...),
+    for \keyword{species} number $i$, radial function number $j$,
+    radial and angular quantum numbers $n,l$.
+  \item \texttt{kin\_\emph{ty}\_$i$\_$j$\_$n$\_$l$.dat} :
+    Corresponding kinetic energy expression after on-site
+    orthonormalization.
+  \item \texttt{S$i$\_$j$\_$nl$\_base.dat} : Slater-type orbital
+    radial function $u(r)$ for \keyword{species} number $i$, radial
+    function number $j$, radial and angular quantum numbers $nl$.
+  \item \texttt{S$i$\_$j$\_$nl$\_base\_kin.dat} : Corresponding
+    kinetic energy expression $[\epsilon - v(r)]\cdot u(r)$
+\end{itemize}
+
+\subkeydefinition{output}{batch\_statistics}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{batch\_statistics} \\[1.0ex]
+  Purpose: Write out statistics for each batch of points used in the evaluation of
+           real-space quantities, organized by associated MPI task (one file per MPI
+           task) \\[1.0ex]
+}
+
+This keyword outputs information about the batch distribution used by FHI-aims to evaluate
+real-space quantities (real-space Hamiltonian, charge density update, etc.)  Every MPI task
+creates a \texttt{batch\_statistics\_task\_\#\#\#.dat} file, where \#\#\# is the MPI task's
+rank, and statistics for each batch are output sequentially to file.  Statistics output for
+each batch include:
+\begin{itemize}
+  \item Number of points in the batch
+  \item Minimum and maximum number of radial basis functions evaluated on batch
+  \item Maximum number of basis functions evaluated on batch
+  \item Minmum and maximum number of atoms whose basis functions are evaluated on the batch
+  \item Minimum and maximum values for the integration weights for points in batch
+\end{itemize}
+Note:  As of this writing, the output files will be rewritten with every SCF restart, including
+SCF reinitialization, geometry relaxation steps, and MD steps.
+
+\subkeydefinition{output}{cube}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{cube} \option{type} \\[1.0ex]
+  Purpose: Writes a quantity (density, eigenfunction, ...) to a
+    uniform three-dimensional grid, using the ASCII-based cube file
+    format established by the Gaussian code and accepted by numerous
+    visualization tools. \\[1.0ex]
+  \option{type} is a string, indicating the quantity to be plotted. \\
+}
+The ``cube'' file format originates from the Gaussian code, but
+publically available descriptions exist, for example here: \\[1.0ex]
+ \url{http://paulbourke.net/dataformats/cube/} \\[1.0ex]
+It is accepted by multiple visualization tools; three visualization
+tools which may be used to plot cube file and are available for all
+major operating systems are Avogadro (\url{https://avogadro.cc}), jmol
+(\url{http://www.jmol.org}), and VMD
+(\url{http://www.ks.uiuc.edu/Research/vmd/}).  Please see the documentation
+of those programs for more information on plotting the resulting cube files.
+
+By default, the cube files will be output once, after the SCF cycle has
+converged, and FHI-aims will avoid overwriting pre-existing cube files it finds
+by appending numbers to the end of new file names.  To output the cube files at
+regular intervals during the SCF cycle, use the
+\keyword{output\_cube\_nth\_iteration} keyword, and to overwrite pre-existing
+cube files with new files, use the \keyword{overwrite\_existing\_cube\_files}
+keyword.
+
+This keyword supports spin-orbit coupling, but only when the \texttt{type} is
+either \texttt{eigenstate\_density} or \texttt{eigenstate}.  The large-scale
+\keyword{use\_local\_index} and \keyword{load\_balancing} keywords
+are only supported when the \texttt{type} is either \texttt{eigenstate\_density}
+or \texttt{eigenstate}.
+
+% The specification of the cube format was removed because it had no clear
+% target audience: it was too technical for the average user trying to use
+% the code and not technical enough for the average deveoper trying to extend
+% the code.
+
+Before we move on to the supported options for \texttt{type}, as well as
+other keywords related to cube output, there is an important note about
+specifying the dimensions of the cube that all users should know.  In some
+cases, such as separated molecules or surfaces with large amounts of vacuum,
+the cube dimensions that FHI-aims would silently default to may not be ideal
+and may result in excessively large files.  Presently, the code will stop if
+the defaults imply cube files with more than 650 MB. Also, many viewers do not
+implement non-rectangular cube edges, which would result from non-rectangular
+unit cells by default.
+
+In short: Users are \emph{always} strongly encouraged to specify cube
+geometries directly.
+
+A list of all keywords related to cube plotting is given below.  After this
+list of keywords, we have provided an example set of lines for plotting the
+total density of a molecule as well as the densities for individual eigenstates.
+This example should be adaptable for other \texttt{types} of cube files.
+Units for densities and eigenstates are {\AA}$^{-3}$ and {\AA}$^{-3/2}$, respectively.
+The unit for the long range and hartree potential is Hartree [Ha].
+
+\begin{itemize}
+\item \keyword{output} \subkeyword{output}{cube} \option{type}
+This is the only mandatory line, specifying which type of cube file should be produced.
+FHI-aims presently allows the following options for \option{type}:
+\begin{enumerate}
+  \item \texttt{delta\_density} : Writes the difference between the
+    initial (superposition of free atoms) and the final
+    self-consistent density to a file.
+  \item \texttt{eigenstate\_density $n$}. Writes the electron density of the
+    $n-th$ eigenstate to a file.  The eigenstate density is obtained as the
+    square of the wavefunction.  In periodic calculations, this includes the
+    contribution from the imaginary part of the wave function, and thus the
+    output of this \texttt{type} is more physically relevant than the
+    \texttt{eigenstate} \texttt{type}, which outputs only the real part of the
+    wave function.  By default, the first spin channel and the first k-point
+    is printed out, see also \texttt{cube spinstate}.
+  \item \texttt{eigenstate $n$} :  Writes the \emph{real part} of the wave function
+    of the $n-th$ eigenstate to a file.  $n$ must be an integer number. For
+    non-periodic non-spin-orbit coupled calculations, the wave function has
+    no complex part, so this \texttt{type} can be used safely.  However, periodic
+    and/or spin-orbit-coupled calculations produce wave functions with both a real
+    part and a complex part.  Accordingly, it is highly recommended that you use the
+    \texttt{eigenstate\_density} \texttt{type} for periodic calculations (and non-periodic
+    calculations with spin-orbit coupling) instead, as the output for this \texttt{type}
+    will be missing the contribution from the complex part of the wavefunction and
+    thus have limited physical significance.  By default, the first spin channel
+    and the first k-point is printed out, see also \texttt{cube spinstate} and
+    \texttt{cube kpoint}.
+  \item \texttt{spin\_density} : The spin density $n^\uparrow(\boldr)
+    - n^\downarrow(\boldr)$ is written to a file named
+    \texttt{spin\_density.cube}. Only available for \keyword{spin}
+    \texttt{collinear}.
+  \item \texttt{stm} :
+    Must be followed by a real number $V$. Calculates
+    3D tunneling current map (more precisely, the tunneling current
+    is proportional to the printed values)
+    which can be used to
+    plot STM images for a given voltage $V$ (in Volts) in the frame
+    of the Tersoff-Hamann model.
+    This is done by summing up eigenstate densities
+    for all eigenstates between the Fermi level and $V$ (in eV),
+    and the result is multiplied by $V$.
+    In addition, a file \texttt{cube\_xxx\_stm\_z\_map.cube}
+    will be printed. It contains values of the z-coordinate at the
+    vertices of the cube, and can be used along with the tunneling current map
+    to color the constant current isosurfaces according to their extent in
+    the z-direction (to mimic the constant current image contrast in STM
+    imaging). The output of stm-cubes works only for periodic systems.
+  \item \texttt{total\_density} : The full electron density is
+    recomputed and written to the a. In case of a periodic calculation,
+    electron density from all unit cells that overlap with the cube
+    output region will be printed.
+  \item \texttt{long\_range\_potential} : Prints the long range
+    electrostatic potential of the Ewald summation. This result is
+    useful in regions where no electron density is found and is much
+    faster than the output of the full potential.
+  \item \texttt{hartree\_potential}: The whole (i.e, short-range and
+    long-range) electrostatic potential is recomputed on a cube grid
+    and written out. Be careful with keyword
+    \texttt{potential}. Please report errors.
+  \item \texttt{xc\_potential}: The xc potential is recomputed on a
+    cube grid and written out. \textbf{PBE only},  \textbf{spin unpolarized only}.
+  \item \texttt{potential}: Legacy. The whole (i.e, short-range and
+    long-range) electrostatic potential is recomputed on a cube grid
+    and written out. The keyword is considered
+    broken/experimental. Use \texttt{hartree\_potential}.
+  \item \texttt{delta\_v}: Output $\delta v = v - v^\mathrm{free}$. This is especially tested for MPB solvation effects and is also an experimental feature especially for vacuum calculations.
+  \item \texttt{ion\_dens}: Ionic charge density $n_\mathrm{ion}^\mathrm{MPB}$ as obtained from an MPB-DFT calculation. Still experimental.
+  \item \texttt{dielec\_func}: Dielectric function $\varepsilon[n_\mathrm{el}]$ as used in the MPB-DFT calculation.
+  \item \texttt{elf}: Electron localization function. Different options are available
+for spin-polarized systems, see keyword \texttt{cube elf\_type}.
+Currently under testing, please report any errors. The implementation is not yet compatible
+with spin-orbit calculations.
+\end{enumerate}
+
+\item \subkeyword{output}{cube} \texttt{spinstate} \textit{spin} \\
+This keyword allows the user to choose whether to print spin-channel 1 or 2. The
+default value is 1.  An example for how to use the \texttt{cube spinstate} keyword
+to print eigenstates in both spin channels is given below.  This keyword is only
+useful for spin-polarized calculations (keyword\keyword{spin} \texttt{collinear}), as
+spin-non-polarized calculations (keyword\keyword{spin} \texttt{none}) have degenerate
+spin channels by definition.  This keyword is not supported by spin-orbit-coupled
+calculations (keyword\keyword{include\_spin\_orbit}), as spin-orbit-coupled systems do not
+have spin channels; by definition, spin and orbit are coupled.
+
+\item \subkeyword{output}{cube} \texttt{kpoint} \textit{kpoint} \\
+This keyword allows to choose the k-point to be printed.
+$kpoint$ is an integer number following the same ordering
+as the k-points within the SCF-cycle. It is presently not
+possible to output cube files at a k-point not included in the scf.
+Keyword \keyword{output} \subkeyword{output}{k\_point\_list} may be
+used to print out the entire list of k-points used in the s.c.f. cycle.
+This will help identify which k-point is printed in a cube file.
+Default: 1
+
+\item \subkeyword{output}{cube} \texttt{state} \textit{spin} \textit{k-point} \\
+Deprecated keyword to choose spin and k-point.
+The \texttt{cube spinstate} keyword
+should be used instead as given in the example below.
+If nothing else is specified, this keyword defaults to
+\texttt{cube state $1$ $1$}. Note that for cluster
+calculations, $k-point$ must always be 1.
+
+\item \subkeyword{output}{cube} \texttt{filename} \textit{name\_of\_the\_file} \\
+Allows to customize the name of the cubefile. If this line is not given, FHI-AIMS
+will default to a file name which contains the number of the cube requested, its
+type, and, if applicable, the corresponding spin and k-point of the data.
+
+\item \subkeyword{output}{cube} \texttt{format} \textit{format} \\
+Apart from the default cube format, FHI-AIMS also supports output
+in the formats of the gOpenMol and XCrysden software. This is requested by the line
+\texttt{cube format $format$}. The options for $format$ are cube,
+gOpenMol, and xsf (the XCrysden format). Default: cube
+
+\item \subkeyword{output}{cube} \texttt{divisor} \textit{number} \\
+This is a technical settings which governs the paralellization of the
+cube output. The whole cube is divided into smaller, so-called minicubes,
+which are then treated one after the other. The value governs the number of points in each
+directed to be used for each minicube, i.e., its size. A larger setting therefore results
+in less minicubes (and it thus potentially faster), but also a larger demand for memory.
+Unless there are problems with memory, this setting usually does not
+need to be touched, with the exception of output potential, where it
+should be set to its maximal value (45), independent of the number of
+processors used. Default: 10
+
+\item \subkeyword{output}{cube} \texttt{spinmask} $i$ $j$ \\
+For total\_density cube files, the line \texttt{cube spinmask}
+    $i$ $j$ with integer $i$ and $j$ allows to manipulate the spin channels
+    independently according to the following formula: $i\cdot n^\uparrow(\boldr)
+    - j\cdot n^\downarrow(\boldr)$. If $i$ = 1 and $j$ = 1 (which is the default),
+    the total density will be computed as normal.
+    This keyword replaces the earlier keyword \subkeyword{output}{cube} \texttt{spin} .
+
+\item \subkeyword{output}{cube} \texttt{elf\_type} $i$ \\
+Specifies the type of electron localization function (ELF) to be calculated.
+The default $i=0$ (and the only available option for spin-unpolarized calculations)
+is the Savin {\em et al.} formula~\cite{Savin96}. For spin-polarized systems,
+$i=1$ and $i=2$ correspond to the original formulation by
+Becke and Edgecombe~\cite{Becke90} for spin channels 1 and 2, respectively.
+If $i$ is not 0, 1, or 2, and the system is spin-polarized,
+the Kohout-Savin variant of ELF~\cite{Kohout96} will be calculated.
+
+\item \subkeyword{output}{cube} \texttt{origin} $x$ $y$ $z$ \\
+Single line which specifies the origin , i.e., the center of the region to be plotted. Values are given in \AA
+If omitted, the same origin as for the previous cube file is used. If
+no origin has been given yet, it defaults to the geometric center of
+the molecule in the cluster case or (0,0,0) for periodic
+calculations. For slab type calculations (when using
+\texttt{dipole\_correction .true.}), the origin is set to the center
+of the slab.
+
+\item \subkeyword{output}{cube} \texttt{edge} $n$ $dx$ $dy$ $dz$ \\
+Specifies the edges of the volumetric data to be plotted. Separate
+lines have to be given for each of the three edges of the cube. In
+each line, $n$ indicates the number of steps a particular edge
+(voxel), and $dx$, $dy$, $dz$ indicate the length of each individual
+step [i.e., the full cube edge length is ($n\cdot dx$, $n\cdot dy$,
+  $n\cdot dz$). If omitted, the same edges as for the previous cube
+  file are used. If no edges have been specified yet, FHI-aims
+  defaults (in the cluster case) to orthogonal grids of 0.1 {\AA}
+  length, which span the whole molecule plus 14 Bohr beyond the
+  outermost nucleii. For periodic calculations, the default edges
+  are the same as the lattice vectors, again with 0.1 {\AA} step
+  length. \emph{Note: In some cases, such as separated molecules or
+    surfaces with large amounts of vacuum, the defaults might be far
+    from ideal and result in excessively large files.  Presently, the
+    code will stop if the defaults imply cube files with more than
+    650MB. Users are \emph{always} strongly encouraged to specify
+    cube geometries themselves. }
+\end{itemize}
+
+\textbf{NOTE:} A word of warning here: Historically grown, FHI-aims outputs the density and the wave function
+in units of 1/\AA$^3$, although the cube voxels are in atomic units. This must be accounted for
+when doing any kind of postprocessing! Although this behaviour might be considered a bug, we
+decided to leave it this way in order not to break any scripts people are already using.
+Instead, the keyword \texttt{cube\_content\_unit} was introduced. \newline
+\texttt{cube\_content\_unit legacy} is the default and gives the output in SI units, while \newline
+\texttt{cube\_content\_unit bohr} switches to a consistent output in atomic units.
+(Note that the definition of cube file usually is in bohr, which is why we do not provide
+a switch to \AA).
+
+As promised, an example set of lines for the \texttt{control.in} file showing how
+to plot the total density and densities for individual eigenstates of a hypothetical
+spin-polarized non-periodic system.  This example will not exactly correspond
+to your system and should not be blindly copy-paste'd, nevertheless it should give
+you an idea how the keywords presented previously work together.
+\begin{verbatim}
+    output cube total_density
+    cube origin 1.59 9.85 12.80
+    cube edge 101 0.15 0.0 0.0
+    cube edge 101 0.0 0.15 0.0
+    cube edge 101 0.0 0.0 0.15
+    output cube eigenstate_density 151
+    cube spinstate 1
+    output cube eigenstate_density 151
+    cube spinstate 2
+    output cube eigenstate_density 152
+    cube spinstate 1
+    output cube eigenstate_density 152
+    cube spinstate 2
+    output cube eigenstate_density 153
+    cube spinstate 1
+    output cube eigenstate_density 153
+    cube spinstate 2
+    output cube eigenstate_density 154
+    cube spinstate 1
+    output cube eigenstate_density 154
+    cube spinstate 2
+\end{verbatim}
+The first line requests cube output for the total density. See the
+details above on how to get individual versions of the spin
+density. Then, the \textbf{center} of the cube is specified at (1.59,
+9.5, 12.80) {\AA}. Each cube direction has 101 points that are spaced
+apart by 0.15 {\AA}, giving a total cube edge length of 15 {\AA} in
+each direction. Finally, output is requested for the densities correspond to
+the Kohn-Sham wave functions associated with eigenstates number 151-154. For
+each eigenstate, the additional \texttt{cube spinstate} \emph{i} line requests
+first the spin-up channel ($i$=1), then spin-down ($i$=2).
+
+\textbf{NOTE} that for periodic systems, the \texttt{cube spinstate} lines
+may have to be followed by \texttt{cube kpoint} lines to specify the k-point
+at which an eigenstate is printed. By default, only $k$-point number 1 is printed.
+For unshifted $k$ grids, that is the $\Gamma$ point.
+
+Thus ends our brief treatise on cube plotting.  We return you to your regularly
+scheduled programming.
+
+\subkeydefinition{output}{density}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{density} \\[1.0ex]
+  Purpose: Writes the electron density $n(\boldr)$
+    at each integration grid point $\boldr$ to a file
+  \texttt{density.dat}. \\[1.0ex]
+}
+Note that this density output is \emph{not} given on a uniform grid,
+but simply on the overlapping atom-centered grid used for all internal
+operations of FHI-aims. For a density on a uniform grid, see the
+\keyword{output} \subkeyword{output}{cube} subkeyword.
+
+\keyword{output} \subkeyword{output}{density} additionally writes the
+difference between the current density and the
+superposition-of-free-atom reference density to a file \texttt{diff-density.dat}
+
+\subkeydefinition{output}{dipole}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{dipole} \\[1.0ex]
+  Purpose: Calculates and writes the electrical dipole moment of the
+    structure to the FHI-aims standard output as a post-processing step. \\[1.0ex]
+}
+This is generally useful, but the dipole moment is particularly needed
+to compute molecular oscillator strengths for individual vibrational
+frequencies.
+
+Note that, for charged systems, the electrical dipole is defined with
+respect to the (possibly arbitrary) origin of the file
+\texttt{geometry.in}, rather than an origin within the system
+itself. Thus, charged systems will yield different dipole moments
+for different choices of origin, but the important dipole
+\emph{differences} needed to compute, e.g., oscillator strengths via
+finite diffences remain well-defined.
+
+\subkeydefinition{output}{dos}{control.in}
+{
+  Usage: \keyword{output} \subkeyword{output}{dos} \option{Estart Eend
+    n\_points broadening} \\[1.0ex]
+  Purpose: Writes the density of states (DOS) to an external file for
+    plotting purposes.\\[1.0ex]
+  \option{Estart} : Lower bound of the single-particle energy range
+    for which the DOS is given. \\
+  \option{Eend} : Upper bound of the single-particle energy range
+    for which the DOS is given. \\
+  \option{n\_points} : Number of energy data points for which the
+    DOS is given. \\
+  \option{broadening} : Gaussian broadening applied to obtain a smooth
+    density of states based on the peaks produced by
+    individual states. \\
+}
+This keyword shares its syntax with \keyword{output}
+\subkeyword{output}{atom\_proj\_dos} and \keyword{output}
+\subkeyword{output}{species\_proj\_dos}. See also section \ref{band
+  and dos plotting} for more details.
+
+Two output files emerge from this option:
+\begin{itemize}
+  \item \texttt{KS\_DOS\_total\_raw.dat} contains the total DOS components as
+    a function of the eigenvalue energy (first column) as used internally in
+    FHI-aims. The energy zero is then given by the vacuum level (non-periodic
+    systems) or by the $\boldG$=0 component of the long-range Hartree
+    potential (periodic systems).
+  \item \texttt{KS\_DOS\_total.dat} contains the same
+    information, except that the energy zero is shifted to the Fermi energy
+    (metallic systems) or valence band maximum (insulators), respectively.
+\end{itemize}
+
+When followed by the following keyword
+
+\keyword{dos\_kgrid\_factors}  $n_1$  $n_2$  $n_3$
+
+where $n_1$, $n_2$ and $n_3$ are integers, the dimensions of the k-point grid along
+the first, second and third lattice vectors are multiplied by $n_1$, $n_2$ and $n_3$,
+ respectively. New eigenvalues are re-calculated
+non-selfconsistently on the new denser k-point grid. The new eigenvalues are
+then used to plot an improved (so-called perturbative) density of states.
+
+If no \keyword{dos\_kgrid\_factors} are specified, the original k-point grid is used.
+
+The unit of output for the density of states is $(eV \cdot
+V_\text{unit cell})^{-1}$, i.e., number of states per energy unit (eV)
+and unit cell volume.
+
+This keyword supports spin-orbit coupling.  When spin-orbit coupling is
+enabled, the file(s) containing the spin-orbit-coupled DOS will have the
+default filename(s) and the file(s) containing the scalar-relativistic
+(i.e. no SOC) band structure will have an additional suffix ".no\_soc".
+
+\subkeydefinition{output}{eigenvectors}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{eigenvectors} \\[1.0ex]
+  Purpose: Writes the actual Kohn-Sham eigenvectors $c_{il}$ into
+    separate files for each spin channel. \\[1.0ex]
+  Restriction: This functionality is best tested for periodic systems
+  with \keyword{KS\_method} \texttt{lapack} at present. For periodic systems,
+  it has no effect unless specific band structure output is requested through
+  \keyword{output} \subkeyword{output}{band}. \\[1.0ex]
+}
+For \emph{non-periodic} systems, this option causes the Kohn-Sham eigenvectors
+$c_{il}$ (for basis functions $i$, eigenstates $l$) to be written out for each
+  state, whenever the Kohn-Sham eigenvalues
+are written. However, at present the non-periodic version is mostly of 'debug'
+character. In particular, \keyword{KS\_method} \texttt{scalapack} is not
+supported under all circumstances. Please test carefully.
+
+For \emph{periodic} systems, eigenvector output must be requested together
+with the \keyword{output} \subkeyword{output}{band} functionality described
+above. If \keyword{output} \subkeyword{output}{eigenvectors} is set in
+addition, the Kohn-Sham eigenvectors $c_{il}(\mbox{\boldmath$k$})$ will be
+written into separate files for each spin channel, \emph{only} for each
+$k$-point for which band output was requested.
+
+For each state $l$, the real and imaginary part of
+$c_{il}(\mbox{\boldmath$k$})$ will then be written out for each basis function
+$i$. Output file names are assigned automatically based on the number of the
+output band, and to the specific k-point in that band, to which they pertain,
+e.g.:
+\\[1.0ex]
+\texttt{KS\_eigenvectors.band\_$\ast$.kpt\_$\ast$.out} \\[1.0ex]
+In addition to the eigenvectors themselves, these files also contain as header
+information:\\[-2.0ex]
+\begin{itemize}
+  \item the \emph{relative} coordinates of the $k$-point in question (in
+    units of the reciprocal lattice vectors of the structure in question) \\[-2.0ex]
+  \item Information on the identity (atom number and angular momentum) for
+    each basis function \\[-2.0ex]
+  \item The Kohn-Sham eigenvalue and occupation number of each state. \\[-2.0ex]
+\end{itemize}
+The listed eigenvectors pertain to the superimposed, Bloch-like basis
+functions (with phase factors!) $\chi_{i,k}(\mbox{\boldmath$r$})$ as defined
+through Eq. (22) of the FHI-aims Computer Physics Communications description,
+Ref. \cite{Blum08}.
+
+Note that the \keyword{output} \subkeyword{output}{aitranss} keyword
+provides one further option to print eigenvectors and other
+information for any non-periodic system, serial or parallel (scalapack
+or elpa).
+
+This keyword will output scalar-relativistic eigenvectors.  For spin-orbit-coupled
+eigenvectors, please see the \subkeyword{output}{soc\_eigenvectors} keyword.
+
+
+\subkeydefinition{output}{elpa\_timings}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{elpa\_timings}  \\[1.0ex]
+  %
+  Purpose: Writes timings for the parallel Elpa eigenvalue solver to standard
+  output.  \\
+}
+
+\subkeydefinition{output}{elsi\_log}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{elsi\_log}  \\[1.0ex]
+  %
+  Purpose: Output ELSI runtime information in a JSON format. \\
+}
+When this flag is enabled, the ELectronic Structure Infrastructure
+(ELSI) will output information every time it is used to solve the Kohn-Sham
+eigenvalue problem, including timings for the ELSI invocation, a list of
+values for relevant variables, and versioning information.
+
+This information is stored in a JSON format and is written to the file
+\texttt{elsi\_log.json} using the FortJSON library, which is distributed with
+FHI-aims and ELSI and is built automatically.  Only task 0 will output this
+file, and it will be overwritten every time the SCF cycle is reinitialized
+(including geometry relaxations and MD steps.)
+
+To output information from an FHI-aims calculation in a JSON format, please
+use the \keyword{output} \subkeyword{output}{json\_log} keyword.
+
+\subkeydefinition{output}{grids}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{grids} \\[1.0ex]
+  Purpose: Writes to separate files: (i) the
+    \subkeyword{species}{radial\_base} integration grid shells for each
+    species incl. integration weights, and (ii) the full
+    three-dimensional grid point locations incl. integration weights. \\[1.0ex]
+}
+
+\subkeydefinition{output}{h\_s\_matrices}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{h\_s\_matrices} \\[1.0ex]
+  Purpose: Writes the Hamiltonian and overlap matrices $s_{ij}$ and
+  $h_{ij}$ into separate files. The output format has one line per
+  matrix entry. On this line the first column is the row index of the
+  entry, the second column the column index of the entry and the third
+  column is the value of the entry. Only the upper triangle and the
+  diagonal of the symmetric matrix is written. \\[1.0ex]
+  This functionality behaves slightly differently in periodic vs.~cluster
+  calculations. In the cluster case $s_{ij}$ and $h_{ij}$ are written
+  out in keeping with the \keyword{packed\_matrix\_format}. In the
+  periodic case only the Gamma-point Hamiltonian is written out and only as
+  a dense matrix regardless of \keyword{packed\_matrix\_format} settings.\\[1.0ex]
+}
+
+\subkeydefinition{output}{hamiltonian\_matrix}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{hamiltonian\_matrix} \\[1.0ex]
+  Purpose: Writes out the k-point dependent complex hamiltonian matrix
+    for a periodic system for those k-points for which band structure
+    output was requested. \\[1.0ex]
+  Restriction: For periodic systems only, and scalapack is not
+  supported. Specific band structure output must be requested through
+  \keyword{output} \subkeyword{output}{band}. \\[1.0ex]
+}
+For \emph{periodic} systems, this option allows to write out the
+k-dependent (Bloch) hamiltonian matrices that correspond to the set of
+k-points requested with the \keyword{output} \subkeyword{output}{band}
+keyword. Both spin channels are written into the same file.
+
+\subkeydefinition{output}{ks\_coulomb\_integral}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{ks\_coulomb\_integral} \\[1.0ex]
+  Purpose: Writes the Coulomb integrals matrices $<ij|V|kl>$ into the file named
+  \rm{coulomb\_integrals\_mo.out}. The output format has one line per
+  matrix entry. On this line the four columns are the indices $i, j, k, l$, denoting
+  the KS molecular orbitals.
+  The last column is the value of the entry. The whole matrix is written out.
+  This functionality works only for cluster calculations at this point.
+}
+
+\subkeydefinition{output}{hessian}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{hessian} \\[1.0ex]
+  Purpose: Writes the initial Hessian approximation for the structure
+  optimizer into the file \texttt{hessian.out}. \\[1.0ex]
+}
+
+\subkeydefinition{output}{hirshfeld}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{hirshfeld} \\[1.0ex]
+  Purpose: Produces a Hirshfeld analysis of partial charges and
+    moments on each atom. \\[1.0ex]
+    Restriction: Currently disabled for Hartree-Fock and some other
+    functionals. Support for this can easily be added by commenting
+    out the ``stop'' line in the source code, except that the
+    Hirshfeld analysis is then based on the DFT-LDA free atom density
+    $n_\text{at}^\text{free}(r)$.
+    For the hybrid functionals HSE, PBE0, and B3LYP, the underlying
+    densities used for the partitioning are free-atom PBE and BLYP
+    densities, respectively.  \\[1.0ex]
+}
+Defining ``atoms-in-molecules'' is a classic, intuition based problem;
+one would like to associate individual (partial) charges or moments
+with individual atoms in a bonded structure. This process is by
+necessity not uniquely definable (molecules \emph{are} not atoms, and
+the are no rigorously defined boundaries between atoms). Nonetheless,
+much chemical intuition is based on such a concept.
+
+Hirshfeld's \cite{Hirshfeld77} ``atoms-in-molecules'' partitioning
+relies on the same idea as the partitioning of our charge density for
+the electrostatic potential (Eq. \ref{Eq:mp}), using the free-atom
+electron density $n_\text{at}^\text{free}(r)$ as the weight function
+$g_\text{at}(\boldr)$ in Eq. (\ref{Eq:part}). Since (for a given
+functional), we know the spherical $n_\text{at}^\text{free}(r)$
+exactly, this analysis remains well-defined even as external
+circumstances such as the basis set change. However, the resulting
+values are still qualitative in the sense that Hirshfeld's
+\cite{Hirshfeld77} ``atoms-in-molecules'' partitioning is just one
+among many other prescriptions that have been suggested in the
+literature. Any ghost atoms in the system are skipped for this analysis.
+This could lead to ``missing'' charge if the ghost atoms carried any
+nonnegligible charge, but that should happen only in abnormal systems.
+
+Note that the \keyword{output} \subkeyword{output}{hirshfeld} keyword itself
+only writes a Hirshfeld analysis for the final geometry of an FHI-aims
+run, not, for
+instance, for intermediate molecular dynamics steps. This ensures that the
+Hirshfeld analysis does not accidentally clutter an output file with large
+amounts of data if the \keyword{output\_level} \texttt{MD\_light}
+output level is set. Output for every geometry can be accomplished
+with the \keyword{output} \subkeyword{output}{hirshfeld\_always}
+keyword below.
+
+\subkeydefinition{output}{hirshfeld\_always}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{hirshfeld\_always} \\[1.0ex]
+  Purpose: Writes out a Hirshfeld analysis at every geometry step of a run. \\[1.0ex]
+}
+
+This keyword ensures that a Hirshfeld analysis is written at every
+geometry step of a FHI-aims run, not just after the final step.
+If \keyword{output} \subkeyword{output}{hirshfeld-I} is requested
+together with \keyword{output} \subkeyword{output}{hirshfeld\_always},
+results from both the normal and the iterative Hirshfeld analysis are
+written at every step.
+
+\subkeydefinition{output}{hirshfeld-I}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{hirshfeld-I} \\[1.0ex]
+  Purpose: Produces an ``iterative Hirshfeld'' analysis of partial charges and
+    moments on each atom. \\[1.0ex]
+}
+Similar functionality to the normal \keyword{output}
+\subkeyword{output}{hirshfeld} Hirshfeld analysis -- see the comments
+for that keyword -- except that in the ``iterative Hirshfeld'' \cite{Bultinck07}
+analysis the partition weights are changed. Here, the partitioning
+densities are not those of neutral atoms but rather those of ions with
+the same formal charge as the formal charge determined by the
+``iterative Hirshfeld'' analysis.
+
+This keyword is implemented but has not seen much production use. It
+is therefore not guaranteed that it will always work or that the
+results will always make sense or even be in line with the original
+``iterative Hirshfeld'' publication.\cite{Bultinck07} All may be well, but if you do
+use the functionality, please check very carefully that the results
+appear to be correct.
+
+\subkeydefinition{output}{json\_log}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{json\_log}  \\[1.0ex]
+  %
+  Purpose: Output FHI-aims runtime information in a JSON format. \\
+}
+
+When this flag is enabled, FHI-aims will output information in a JSON format,
+which may be easily parsed by your favorite post-processing language (or Python).
+
+This feature was added in 2018, and much of the functionality in FHI-aims
+outside of the main SCF cycle will not write out any information.  A partial
+list of quantities which will be written includes:
+\begin{itemize}
+  \item Initial/final geometries
+  \item Versioning information
+  \item Runtime settings: number of basis functions, number of k-points, etc.
+  \item SCF convergence evolution
+  \item Mulliken decompositions (when calculated)
+  \item Domain decomposition (a.k.a. batch partitioning) statistics
+  \item Total energies
+  \item HOMO/LUMO levels (on the SCF k-grid)
+  \item Fundamental gap (on the SCF k-grid)
+  \item Timings
+\end{itemize}
+
+This information is written to the file \texttt{aims.json} using the FortJSON
+library, which is distributed with FHI-aims and built automatically.  Only task
+0 will output this file.  Unlike the ELSI JSON log (which is written out using
+the \keyword{output} \subkeyword{output}{elsi\_log} keyword), this JSON log will
+persist through SCF reinitialization, geometry relaxation steps, and MD steps;
+it will only be overwritten when a new FHI-aims calculation is performed.
+
+To output information from ELSI directly in a JSON format, please use the
+\keyword{output} \subkeyword{output}{elsi\_log} keyword.
+
+\subkeydefinition{output}{k\_eigenvalue}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{k\_eigenvalue}
+  \option{number} \\[1.0ex]
+  Purpose: For periodic structures, determines for how many $k$ points
+    FHI-aims will write the electronic eigenvalues
+    $\epsilon_l(\boldk)$. \\[1.0ex]
+  \option{number} is an integer number. Default: 1. \\
+}
+Eigenvalues will only be written for the first \option{number}
+$k$-points by default. For dense $\boldk$-grids, the sheer number of
+$k$-points simply gets too large to allow for a full output.
+
+\subkeydefinition{output}{k\_point\_list}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{k\_point\_list} \\[1.0ex]
+  Purpose: For periodic geometries only, this option writes a complete
+  listing of the reciprocal space coordinates of all $k$-points in the
+  calculation to the standard output file. Warning: This output is empty if using Scalapack. \\
+}
+The $k$-point coordinates are written in units of the reciprocal
+lattice vectors of the structure. This option is also the default when
+using \keyword{output\_level} \texttt{full} and \keyword{KS\_method} is set to some version of Lapack.
+
+\subkeydefinition{output}{matrices\_2005}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{matrices\_2005} \\[1.0ex]
+  Purpose: Writes the Hamiltonian and overlap matrices $s_{ij}$ and
+  $h_{ij}$ into separate files. The output format is the legacy format
+  where the entries of the matrix are written out in five-by-five
+  blocks. \\[1.0ex]
+  Restriction: This functionality is unavailable for periodic systems,
+    or if a \keyword{packed\_matrix\_format} is used. \\[1.0ex]
+}
+
+\subkeydefinition{output}{matrices\_parallel}{control.in}
+{
+  \noindent
+  Usage: \texttt{output matrices\_parallel} \option{types} [\option{format}]
+  \\[1.0ex]
+  %
+  Purpose: Writes Scalapack/Elpa matrices into separate files.  \\[1.0ex]
+  %
+  \option{types} is a string that determines the type of matrices that are
+  written.  \\[1.0ex]
+  %
+  \option{format} (optional) is a string that determines the format of the
+  output.  \\
+}
+Depending on option ``\option{types}'', the upper part of up to three different
+matrices is written into separate files. If \option{types} is ``\texttt{n}''
+(without quotes), no matrices are written. If \option{types} is set to
+``\option{h}'', then the Hamiltonian is written. The choice ``\option{o}''
+causes the overlap matrix to be output. Finally, ``\option{s}'' refers to the
+system matrix from which the eigenvalues are calculated. The last three options
+can be combined. For example, ``\option{ho}'' means Hamiltonian and overlap.
+
+The format of the files can be controlled with the optional parameter
+\option{format}. Possible values are ``\option{asc}'' for ASCII output (default)
+and ``\option{bin}'' for binary output.
+
+
+\subkeydefinition{output}{memory\_tracking}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{memory\_tracking} \\[1.0ex]
+  Purpose: Outputs all tracked allocations and deallocations. \\[1.0ex]
+  Restriction: A large number of allocations and deallocations in FHI-aims are
+    currently not tracked. \\[1.0ex]
+}
+
+
+\subkeydefinition{output}{mulliken}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{mulliken} \\[1.0ex]
+  Purpose: Produces a Mulliken analysis of the occupation of each atom
+    and its angular momentum channels in terms of the basis
+  used. \\[1.0ex]
+  Restriction: This option is available as a per-atom summary only if
+    ScaLapack is used. \\[1.0ex]
+}
+Defining ``atoms-in-molecules'' is a classic, intuition based problem;
+one would like to associate individual (partial) charges or moments
+with individual atoms in a bonded structure. This process is by
+necessity not uniquely definable (molecules \emph{are} not atoms, and
+the are no rigorously defined boundaries between atoms). Nonetheless,
+much chemical intuition is based on such a concept.
+
+A classic ``atoms-in-molecules'' concept is the Mulliken analysis
+\cite{Mulliken55}, which defines electronic occupations of atoms by
+projected occupations into the localized basis functions associated
+with them (see the standard literature for exact definitions and use).
+
+In short, when so requested, FHI-aims will provide a decomposition of
+the electronic density per atom, angular momentum channel, and
+possibly spin channel, allowing to deduce approximate partial
+charges. The summarized Mulliken analysis is written into the standard
+output stream, while a separate file \texttt{Mulliken.out} contains
+detailed state-by-state projected electron occupations.
+
+Note that a Mulliken analysis is somewhat ill-defined because of basis
+function overlap; thus electrons can be counted to one atom or another
+at will. For small basis sets, a Mulliken analysis may still yield
+qualitatively reasonable numbers, but it becomes increasingly
+ill-defined as the atom-centered basis sets approach basis set
+completeness.
+
+This keyword supports spin-orbit coupling.  When spin-orbit coupling is
+enabled, the file(s) containing the spin-orbit-coupled Mulliken analysis
+will have the default filename(s) and the file(s) containing the
+scalar-relativistic (i.e. no SOC) Mulliken analysis will have an additional
+suffix ".no\_soc".
+
+\subkeydefinition{output}{nuclear\_potential\_matrix}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{nuclear\_potential\_matrix} \\[1.0ex]
+  Purpose: Writes the matrix elements of only the bare electron-nuclear
+  potential in the current basis sto to a file
+  \\[1.0ex]
+  Restriction: This functionality is unavailable for periodic systems,
+    or if a \keyword{packed\_matrix\_format} is used. \\[1.0ex]
+}
+This can be useful if the FHI-aims basis functions are needed for a further,
+  separate purpose (Quantum Monte Carlo etc) but please note that the
+  integration accuracy for the Coulomb singularity near the nuclei must be
+  higher than in our standard calculations (where the singularity is cancelled
+  by the kinetic energy), so increasing
+  \subkeyword{species}{radial\_multiplier} is in order.
+
+\subkeydefinition{output}{onsite\_integrands}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{onsite\_integrands} \\[1.0ex]
+  Purpose: Writes out onsite integrands for all radial functions on
+           the code's internal 'radial' and 'logarithmic' grids. \\[1.0ex]
+}
+Since August 2013, FHI-aims verifies the accuracy of its 'radial' integration
+grid (the sparse grid of atom-centered radial shells around each atom which
+is part of the definition of its three-dimensional, overlapping atom-centered
+integration grids) in comparison to integrals on the dense 'logarithmic' grid
+which is used to set up the spherical free atom, all radial functions etc. in
+one dimension.
+
+These integrals take the form
+\begin{equation}
+ \int d^3r \phi_{i}(\boldr) \hat{H} \phi_{i}(\boldr) = \int dr
+ \left[ f(r) \right] \times \text{angular integral} .
+\end{equation}
+With our usual definition of basis functions,
+\begin{equation}
+  \phi_i(r) = \frac{u_i(r)}{r} Y_{lm}(\Omega) \quad ,
+\end{equation}
+we get:
+\begin{equation}
+  f(r) = u_i(r) \cdot \left[ -\frac{1}{2} u_i^{\prime\prime}(r) +
+    \frac{1}{2} \frac{l(l+1)}{r^2} u_i(r) + v(r)u_i(r) \right]
+\end{equation}
+in the non-relativistic case. In the case of scaled ZORA or atomic
+ZORA scalar relativity, the kinetic energy part is modified and the
+integrand reads:
+\begin{eqnarray}
+  f(r) = u_i(r) & \cdot & \left [
+     \frac{2 c^2}{2
+      c^2 - v(r)} \cdot \left( -\frac{1}{2} u_i^{\prime\prime}(r) +
+    \frac{1}{2} \frac{l(l+1)}{r^2} u_i(r) \right)  \right. \\ \nonumber
+    & \, & \left. - \frac{c^2}{(2 c^2 - v(r))^2} \cdot v^\prime(r)
+    \cdot \left(u_i^\prime(r) - \frac{u_i(r)}{r} \right) + v(r)u_i(r) \right] \, .
+\end{eqnarray}
+These are the integrands to test both the 'logarithmic' grid and the
+'radial' grid around each atom, where $v(r)$ is set to be the
+one-dimensional potential of a spherical free atom as calculated at
+the outset of each run.
+
+If \keyword{output} \subkeyword{output}{onsite\_integrands} is set to
+be true, the actual integrands $f(r)$ and various of their parts are
+printed for each radial function. This is mainly useful for debugging
+purposes, to understand what we are integrating for a given basis
+function choice. Especially for contracted Gaussian basis functions,
+$f(r)$ can look quite ugly near the nucleus.
+
+The files that contain the actual integrand $f(r)$ defined above are
+called \\
+\texttt{Onsite\_r2\_phi\_h\_phi\_log.(function).dat} and \\
+\texttt{Onsite\_r2\_phi\_h\_phi\_rad.(function).dat} for the logarithmic and
+radial grids, respectively, with ``(function)'' indicating the element
+and the radial function number in the order used by FHI-aims (for
+instance, the \keyword{output} \subkeyword{output}{basis} keyword uses
+the same order to output the radial functions used in the code). Units
+are {\AA} for the radial coordinate, but atomic units (Ha/bohr$^3$)
+for the integrand itself.
+
+\subkeydefinition{output}{overlap\_matrix}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{overlap\_matrix} \\[1.0ex]
+  Purpose: Writes out the k-point dependent complex overlap matrices
+    for a periodic system for those k-points for which band structure
+    output was requested. \\[1.0ex]
+  Restriction: For periodic systems only, and scalapack is not
+  supported. Specific band structure output must be requested through
+  \keyword{output} \subkeyword{output}{band}. \\[1.0ex]
+}
+For \emph{periodic} systems, this option allows to write out the
+k-dependent (Bloch) overlap matrices that correspond to the set of
+k-points requested with the \keyword{output} \subkeyword{output}{band}
+keyword. If \keyword{output} \subkeyword{output}{eigenvectors} is set in
+addition, the Kohn-Sham eigenvectors $c_{il}(\mbox{\boldmath$k$})$ will be
+written into separate files for each spin channel, \emph{only} for each
+$k$-point for which band output was requested.
+
+\subkeydefinition{output}{ovlp\_spectrum}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{ovlp\_spectrum} \\[1.0ex]
+  Purpose: Writes the non-singular part of the eigenvalue spectrum of
+    the overlap matrix to the FHI-aims standard output. \\[1.0ex]
+  Restriction: Works only for the cluster case, and only for
+    \keyword{KS\_method} \texttt{lapack}. \\[1.0ex]
+}
+This option can help show if (or if not) the chosen basis set for the full
+system is close to ill-conditioning (see the comments for keyword
+\keyword{basis\_threshold}).
+
+\subkeydefinition{output}{postscf\_eigenvalues}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{postscf\_eigenvalues} \\[1.0ex]
+  Purpose: For periodic systems, writes all Kohn-Sham eigenvalues on a
+    potentially dense k-space grid to an ASCII file 'Final\_KS\_eigenvalues.dat'. \\[1.0ex]
+  Restriction: Works only for periodic systems. Does not work when keyword
+    \keyword{use\_local\_index} is set. \\[1.0ex]
+}
+If this keyword is set, the eigenvalues and occupation numbers for a periodic system are
+recomputed and written to a file 'Final\_KS\_eigenvalues.dat' after the s.c.f. calculation
+(and, possibly, relaxation, dynamics etc.) is complete. A denser $k$-space grid than during
+the original s.c.f. calculation can be specified using the \keyword{dos\_kgrid\_factors} keyword.
+
+Note that the resulting output file can become very large. See the header of the
+'Final\_KS\_eigenvalues.dat' for details and for units used.
+
+Note that this additional calculation is done using serial lapack solutions
+of the eigenvalue problems for individual k-points on individual CPU cores.
+This always works but will create memory problems as the system size increases,
+simply because local copies of all matrices are kept on single CPUs. For large
+systems, our usual, more sophisticated parallelization strategies have not yet
+been copied over to this routine.
+
+Finally, note that an externally generated k-point list
+\texttt{k\_list.in} (see keyword \\ \keyword{k\_points\_external}) is not
+supported by \keyword{output}
+\subkeyword{output}{postscf\_eigenvalues} and an internally generated,
+even-spaced k-point grid (also defined in \texttt{k\_list.in}) is used instead.
+
+\subkeydefinition{output}{quadrupole}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{quadrupole} \\[1.0ex]
+  Purpose: Calculates and writes the electrical quadrupole moment of the
+    structure to the FHI-aims standard output as a post-processing step. \\[1.0ex]
+}
+
+\subkeydefinition{output}{rho\_multipole}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{rho\_multipole} \\[1.0ex]
+  Purpose: Writes the partitioned atom-centered charge multipole
+    components $\delta\tilde{n}_{\text{at},lm}(r)$ to individual files
+    for each atom, $l$, and $m$ (see Eq. \ref{Eq:mp}). \\[1.0ex]
+}
+
+\subkeydefinition{output}{soc\_eigenvalues}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{soc\_eigenvalues} \\[1.0ex]
+  Purpose:  Writes the SOC-perturbed eigenvalues at every k-point of the SCF k-grid
+    to an output file named \texttt{SOC\_eigenvalues.dat}.  This keyword will not enable
+    spin-orbit coupling;  if spin-orbit coupling is not enabled via the
+    \keyword{include\_spin\_orbit} keyword, this keyword will be ignored.  \\[1.0ex]
+}
+
+\subkeydefinition{output}{species\_proj\_dos}{control.in}
+{
+  Usage: \keyword{output} \subkeyword{output}{species\_proj\_dos} \option{Estart Eend
+    n\_points broadening} \\[1.0ex]
+  Purpose: Writes an projected, angular-momentum resolved partial
+    density of states (pDOS) averaged over all atoms of each
+    \keyword{species}. \\[1.0ex]
+  \option{Estart} : Lower bound of the single-particle energy range
+    for which the pDOS are given. \\
+  \option{Eend} : Upper bound of the single-particle energy range
+    for which the pDOS are given. \\
+  \option{n\_points} : Number of energy data points for which the
+    pDOS are given. \\
+  \option{broadening} : Gaussian broadening applied to obtain a smooth
+    partial density of states based on the peaks produced by
+    individual states. \\
+}
+This option is based on a Mulliken Analysis and shares its syntax with
+\keyword{output} \subkeyword{output}{dos} and \keyword{output}
+\subkeyword{output}{atom\_proj\_dos}. See also section \ref{band
+and dos plotting} for more details.
+
+Different from the
+\subkeyword{output}{atom\_proj\_dos} option, this option writes its
+output averaged over all atoms of each \keyword{species} defined in
+\texttt{control.in} and used in \texttt{geometry.in}. This provides a
+quick handle to obtain averaged pDOS's for well-defined subgroups of
+individual atoms, e.g., those of a given layer of a slab, by simply
+defining a separate \keyword{species} for the desired atoms in
+\texttt{control.in}.
+
+There are two types of output files for each atom:
+\begin{itemize}
+  \item \texttt{\emph{species}\_l\_proj\_dos\_raw.dat}, where \emph{species}
+    denotes the \keyword{species} name used in \texttt{geometry.in} and
+    \texttt{control.in}. This file
+    contains the total and angular-momentum resolved DOS components as a
+    function of eigenvalue energy (first column) as used internally in
+    FHI-aims. The energy zero is then given by the vacuum level (non-periodic
+    systems) or by the $\boldG$=0 component of the long-range Hartree
+    potential (periodic systems).
+  \item \texttt{\emph{species}\_l\_proj\_dos.dat}, which gives the same
+    information, except that the energy zero is shifted to the Fermi energy
+    (metallic systems) or valence band maximum (insulators), respectively.
+\end{itemize}
+Note that projected densities of states such as given here must be
+based on some kind of projection orbitals, the choice of which is
+somewhat arbitrary by necessity. This is thus a tool for
+\emph{qualitative} analyses.
+
+In FHI-aims, we project directly on
+the atom-centered angular-momentum components as defined by the
+\emph{overlapping} basis set. This definition becomes the more arbitrary te
+larger the basis set, just like a \subkeyword{output}{mulliken}
+analysis. The closer the full basis comes to completeness, the
+more ambiguous will a \subkeyword{output}{mulliken}-like analysis become,
+since it may not be \emph{a priori} clear which electrons should be counted
+towards the basis functions of one atom vs. those of another atom. Thus, do
+\emph{not} expect a pDOS to simply converge as the basis set size is
+increased; use it as a qualitative indicator of trends, but nothing more.
+
+
+This keyword supports spin-orbit coupling.  When spin-orbit coupling is
+enabled, the file(s) containing the spin-orbit-coupled DOS will have the
+default filename(s) and the file(s) containing the scalar-relativistic
+(i.e. no SOC) DOS will have an additional suffix ".no\_soc".
+
+\subkeydefinition{output}{v\_eff}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{v\_eff} \\[1.0ex]
+  Purpose: Writes the local effective potential $v_\text{eff}(\boldr)$
+    at each integration grid point $\boldr$ to a file
+    \texttt{v\_eff.dat}. \\[1.0ex]
+}
+Note that the meaning of this effective potential depends on the
+\keyword{xc} option used. For DFT-LDA, this is simply the full local
+potential. For gradient-corrected (GGA) functionals, the gradient
+partial derivatives of the exchange-correlation functional are
+\emph{not} included in the potential, as they are treated separately
+by integration by parts (see Ref. \cite{Blum08}). For hybrid
+functionals or Hartree-Fock, the exchange part of the potential is of
+course not included.
+
+Note also that this output does \emph{not} happen on a uniform
+grid. For further processing, a proper visualization tool is needed,
+and/or an interpolation onto a uniform grid must be done.
+
+\subkeydefinition{output}{v\_hartree}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{v\_hartree} \\[1.0ex]
+  Purpose: Writes the electrostatic (Hartree) potential multipole
+    components $\delta\tilde{v}_{\text{at},lm}(r)$ to individual files
+    for each atom, $l$, and $m$. \\[1.0ex]
+}
+
+%\subkeydefinition{output}{vacuum\_potential}{control.in}
+%{
+%  \noindent
+%  Usage: \keyword{output} \subkeyword{output}{vacuum\_potential}
+%    \option{z} \option{Nx} \option{Ny} \\[1.0ex]
+%  Purpose: For the purpose of defining the work function of a periodic
+%    slab, requests the $x$-$y$ averaged value of the electrostatic
+%    potential (reciprocal-space part of the Ewald method only!) at a
+%    fixed $z$ value. \\[1.0ex]
+%  \option{z} is the requested $z$ value (in {\AA}). \\
+%  \option{Nx} is the number of $x$ divisions of the projected unit
+%    cell at $z$ for the averaging. \\
+%  \option{Ny} is the number of $y$ divisions of the projected unit
+%    cell at $z$ for the averaging. \\
+%}
+%In a surface (or slab) calculation, knowing the ``vacuum''
+%electrostatic potential far away from the slab is useful since this
+%can be used to determine the work function with respect to the Fermi
+%level of the slab. Internally, FHI-aims only determines the
+%electrostatic potential $v_\text{es}(\boldr)$  at the points of the
+%overlapping, atom-centered integration grid, which yields
+%electrostatic potential values at somewhat arbitrary coordinate
+%values in the vacuum of a slab.
+
+%Ideally, what one would like (in the absence of any dipolar fields
+%between slab surfaces) is the value of the electrostatic potential far
+%into the vacuum, at a point where the real-space part of the (Ewald)
+%electrostatic potential has already died down. This can be found by
+%the present option, in the following way:
+%\begin{itemize}
+%  \item Define a slab geometry with a sufficiently large vacuum, so
+%    that the (exponentially damped) real-space part of the Hartree
+%    potential safely does not extend all the way through.
+%  \item The slab surface must be periodic in the $x$-$y$ direction.
+%  \item Choose a \option{z} value safely in the far-field limit of the
+%    vacuum, e.g., at the center.
+%  \item Choose \option{Nx} and \option{Ny} values that are
+%    sufficiently large to define a grid at $z$ that safely averages
+%    out any residual fluctuations of the electrostatic potential at
+%    \option{z}
+%  \item The code then produces \emph{only} the $x$-$y$-averaged
+%    reciprocal-space part of the electrostatic potential at
+%    the coordinate $z$ in the vacuum.
+%\end{itemize}
+
+
+
+\subkeydefinition{output}{zero\_multipoles}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{zero\_multipoles} \\[1.0ex]
+  Purpose: Prints out the partial charges associated with the
+    multipole electrostatic potential of each atoms in each
+    s.c.f. iteration. \\[1.0ex]
+}
+The resulting values are ``atoms-in-molecules'' like partial charges
+assigned to each atom, similar to a \subkeyword{output}{hirshfeld}
+partitioning (but not identical because a different partitioning
+function may be used as the \keyword{hartree\_partition\_type}).
+
+
+\subkeydefinition{output}{dgrid}{control.in}
+{
+  \noindent
+  Usage: \keyword{output} \subkeyword{output}{dgrid} \\[1.0ex]
+  Purpose: Dumps the Wave function of the final s.c.f. cycle on
+  disk into the file \emph{dgrid\_aims.dat}. This files serves
+  as an interface to the DGrid program.\\[1.0ex]
+}
+This option serves as interface to the DGrid program (written by Miroslav Kohout),
+which is available free of charge at \url{https://www2.cpfs.mpg.de/~kohout/dgrid.html}.
+DGrid allows to employ various electronic structure and chemical bonding analysis
+alogorithms in real space,~e.g.,~the QTAIM (Quantum Theory of Atoms in Molecules
+of R.F.W. Bader) or the ELI-D/ELF method. After installation of DGrid (Version $\ge 5.0$)
+the command \emph{dgrid dgrid\_aims.dat} converts the interface wave function file
+\emph{dgrid\_aims.dat} into a new file \emph{dgrid\_aims.fhi} with native DGrid file
+format. This file provides the basis to all capabilities of the DGrid program
+described in detail in its manual at \url{https://www2.cpfs.mpg.de/~kohout/Documents/dgrid-html/dgrid.html}.
+
+

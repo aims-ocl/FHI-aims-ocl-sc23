@@ -1,0 +1,169 @@
+\chapter{More on CMake}
+\label{Sec:cmake}
+
+\section{\label{sec:CMake_build_process}The build process}
+
+CMake itself is usually obtained from an official repository of a Linux distribution or built from source. When building from source, the only prerequisite is a C++ compiler.
+
+The build process with CMake consists of two steps: the configuration stage, which generates the platform's native build files, and the compilation stage. (This is vaguely similar to the standard \texttt{configure} and \texttt{make} steps associated with Autotools.)
+
+The configuration stage creates a set of persistent variables, which are contained in a file called CMakeCache.txt in the build directory. These are referred to as cache variables and they are the user-configurable settings for the project. All the important decisions such as which compiler to use, which libraries to link against, etc., are stored as cache variables. There are three main ways to perform the configuration stage (or set the contents of the CMake cache):
+\begin{itemize}
+\item Running \texttt{cmake} and specifying all the configuration variables on the command line. For example, running
+\begin{verbatim}
+cmake -D CMAKE_Fortran_COMPILER=mpif90 ~aims
+\end{verbatim}
+  from within the build directory, where $\sim$\texttt{aims} is the root source directory, sets mpif90 as the Fortran compiler. This approach is good for debugging and quick testing purposes but if a large number of variables is to be specified, it might not be very convenient. Also, no logic can be included this way.
+\item A better way is to keep the configuration variables in a separate file, an example of which is \texttt{initial\_cache.example.cmake} in the root source directory of FHI-aims. It contains example initial values for some configuration variables, which you can edit to reflect your environment. Make a copy of it first, for example \texttt{initial\_cache.cmake}. When done editing, run
+\begin{verbatim}
+cmake -C ~aims/initial_cache.cmake ~aims
+\end{verbatim}
+  from the build directory. The \texttt{-C} option tells CMake to load a script, in this case \texttt{initial\_cache.cmake}, which populates the initial cache. The loaded entries take priority over the project's default values. \textbf{A change of the content of the initial cache file has no effect after the first configuring.} Instead, it would be necessary to empty the build directory before using the cache file again. Alternatively, one could use a cache editor like \texttt{ccmake} to modify the configuration variables without emptying the whole build directory, as explained next.
+\item Run  \texttt{cmake} first and then configure using a CMake GUI. In the case of FHI-aims, a bare \texttt{cmake} run is disallowed, since specifying at the least the Fortran compiler is required. In general, this is not a requirement for CMake projects. Two commonly used graphical front ends (or cache editors) are the \texttt{curses} based \texttt{ccmake} and the Qt-based \texttt{cmake-gui}. When using \texttt{ccmake}, issue
+\begin{verbatim}
+cmake -D CMAKE_Fortran_COMPILER=mpif90 ~aims
+ccmake .
+\end{verbatim}
+  from the build directory. Some CMake variables and options appear with a short help text to each variable displayed at the bottom in a status bar. Pressing 't' reveals all options. When done editing, press 'c' to reconfigure and 'g' to generate the native build scripts (e.g., makefiles). Pay attention when \texttt{ccmake} warns you that the cache variables have been reset. This will happen, for example, when changing the compiler, and will necessitate the reconfiguring of some variables. After configuring, it is a good idea to go through all the variables once more to check that everything is correct. Using \texttt{cmake-gui} is similar to \texttt{ccmake}:
+\begin{verbatim}
+cmake -D CMAKE_Fortran_COMPILER=mpif90 ~aims
+cmake-gui .
+\end{verbatim}
+  Besides a graphical window that opens, the usage of \texttt{cmake-gui} is analogous to \texttt{ccmake}.
+\end{itemize}
+When done configuring, FHI-aims can be compiled by issuing a compile command depending on the CMake generator used. A CMake generator is the function that writes the build files. The default behavior is to generate makefiles for Make, in which case the compile command is \texttt{make}. When using another generator such as Ninja (which coincides with the name of the actual build system, Ninja), the compile command is \texttt{ninja}. See \texttt{cmake --help} for which generators are available. It is actually unnecessary to think about generators at all when you run
+\begin{verbatim}
+cmake --build .
+\end{verbatim}
+which is a generic command that always uses the correct compile command. When done compiling, an executable called \texttt{aims<...>} is produced in the root build directory. The default base name of the final target is \texttt{aims} and the \texttt{<...>} part depends on details such as the FHI-aims version number. An executable is not the only supported target. For instance, when building a shared library in a Linux environment, a library called \texttt{libaims<...>.so} is produced instead.
+
+Note that in general, CMake can also run from the source directory, but this is not allowed in FHI-aims due to certain conflicts. It is a good practice anyway to compile in a separate build directory in order to support multiple build configurations simultaneously and to keep the source directory clean.
+
+\section{\label{sec:CMake_variables}All CMake variables}
+
+The following variables and options should be sufficient to build a well optimized FHI-aims binary. In order to see all the CMake cache variables that the user has control over, open a CMake GUI and toggle the \textit{advanced} mode (many of those will have little or no effect).
+
+\textbf{Attention!} Take special care when setting the Fortran compiler, the compiler flags, and any libraries, especially the linear algebra libraries. A nonoptimal choice here could easily cost you a significant amount of computer time.
+
+\begin{itemize}
+\item \texttt{CMAKE\_Fortran\_COMPILER} --- Name of the Fortran compiler executable. Use a full path if location not automatically detected.
+\item \texttt{CMAKE\_Fortran\_FLAGS} ---  Compilation flags that control the optimization level and other features that the compiler will use.
+\item \texttt{CMAKE\_EXE\_LINKER\_FLAGS} --- These flags will be used by the linker when creating an executable.
+\item \texttt{LIB\_PATHS} --- List of directories to search in when linking against external libraries (e.g., ``/opt/intel/mkl/lib/intel64'')
+\item \texttt{LIBS} --- List of libraries to link against (e.g., ``mkl\_blacs\_intelmpi\_lp64 mkl\_scalapack\_lp64'')
+\item \texttt{INC\_PATHS} --- Additional directories containing header files.
+\item \texttt{USE\_MPI} ---  Whether to use MPI parallelization when building FHI-aims. This should always be enabled except for rare debugging purposes. (Default: automatically determined by the compiler)
+\item \texttt{USE\_SCALAPACK} --- Whether to use Scalapack's parallel linear algebra subroutines and the basic linear algebra communications (BLACS) subroutines. It is recommended to always use this option. In particular, large production runs are not possible without it. The Scalapack libraries themselves should be set in \texttt{LIB\_PATHS} and \texttt{LIBS}. (Default: automatically determined by \texttt{LIBS})
+\item \texttt{ARCHITECTURE} --- Can have multiple meanings, including specific handling of a few compilers' quirks (the PGI compiler, for example, needs a different call to \texttt{erf()}) and potentially optimization levels for CPU-specific extensions such as AVX. For many purposes, leaving this variable empty (using the so-called generic architecture) is good enough but do take the time to look into CPU-specific optimizations if you intend to run very large, demanding calculations.
+\item \texttt{BUILD\_LIBRARY} --- Whether to build FHI-aims as a library or as an executable. (Default: OFF, i.e. an executable)
+\item \texttt{BUILD\_SHARED\_LIBS} --- If \texttt{BUILD\_LIBRARY} is enabled, whether to build shared or static libraries. This propagates to subprojects like ELSI unless overridden. (Default: OFF, i.e. static libraries)
+\item \texttt{CMAKE\_BUILD\_TYPE} --- If set to ``Release'', any flags defined in \\
+  \texttt{CMAKE\_Fortran\_FLAGS\_RELEASE} are appended to \texttt{CMAKE\_Fortran\_FLAGS}. If set to ``Debug'', any flags defined in \texttt{CMAKE\_Fortran\_FLAGS\_DEBUG} are appended instead.
+\item \texttt{USE\_C\_FILES} ---  Whether source files written in C should be compiled into FHI-aims. Most of these routines are not performance-critical but can access environment variables. They can thus provide useful additional output about the computer system environment used and also make a few other useful libraries accessible (like Spglib for symmetry handling). If not enabled, appropriate stub files are compiled instead. (Default: ON, i.e. C files will be compiled)
+\item \texttt{CMAKE\_C\_COMPILER} --- C compiler. Usually gcc is fine here.
+\item \texttt{CMAKE\_C\_FLAGS} --- C compiler flags.
+\item \texttt{USE\_CXX\_FILES} --- Like \texttt{USE\_C\_FILES}, except applies to any C++ source files used in the code. (Default: OFF)
+\item \texttt{CMAKE\_CXX\_COMPILER} --- C++ compiler.
+\item \texttt{CMAKE\_CXX\_FLAGS} --- C++ compiler flags.
+\item \texttt{CMAKE\_ASM\_COMPILER} --- Assembler. Usually not needed.
+\item \texttt{EXTERNAL\_ELSI\_PATH} --- Path to the external ELSI installation. If empty, internal ELSI is used instead. See also external ELSI notes below.
+\item \texttt{ENABLE\_PEXSI} --- Enable the PEXSI (pole expansion and selected inversion) density matrix solver. C and CXX compilers are mandatory for this purpose. PEXSI relies on the SuperLU\_DIST and PT-SCOTCH libraries. By default, redistributed versions will be used. This option is ignored when an external ELSI installation is in use. (Default: OFF)
+\item \texttt{ENABLE\_EIGENEXA} --- Enable the EigenExa eigensolver. Requires an externally compiled EigenExa library. This option is ignored when an external ELSI installation is in use. (Default: OFF)
+\item \texttt{ENABLE\_MAGMA} --- Enable GPU-accelerated eigensolvers in the MAGMA library. Requires an externally compiled MAGMA library. This option is ignored when an external ELSI installation is in use. (Default: OFF)
+\item \texttt{ENABLE\_SIPS} --- Enable the SLEPc-SIPs eigensolver. Requires externally compiled SLEPc and PETSc libraries. This option is ignored when an external ELSI installation is in use. (Default: OFF)
+\item \texttt{ADD\_UNDERSCORE} --- In the redistributed PEXSI and SuperLU\_DIST code (written in C and C++), there are calls to basic linear algebra routines such as \texttt{dgemm}. When \texttt{ADD\_UNDERSCORE} is enabled, which is the default behavior, the C/C++ code will call \texttt{dgemm\_} instead of \texttt{dgemm}. Therefore, turn this option off if you know routine names in your linear algebra library are not suffixed with an underscore. This option takes no effect if PEXSI is not enabled. It is ignored when an external ELSI installation is in use. (Default: ON)
+\item \texttt{ELPA2\_KERNEL} --- The ELPA eigensolver comes with a number of linear algebra ``kernels'' specifically optimized for some certain processor architectures. By default, FHI-aims uses a generic kernel which will compile with any Fortran compiler and will give reasonable speed. However, if one knows which specific computer chip one is using, it is possible to substitute this kernel with an architecture specific kernel and compile a faster version of ELPA. When using the internal version of ELSI/ELPA, available ``kernels'' other than the generic one may be selected by setting the \texttt{ELPA2\_KERNEL} option to one of the following: ``BGQ'' (IBM Blue Gene Q), ``AVX'' (Intel AVX), ``AVX2'' (Intel AVX2), and ``AVX512'' (Intel AVX512). The AVX, AVX2, and AVX512 kernels are written in C, thus requiring a C compiler. This option is ignored when an external version of ELSI and/or ELPA is in use. (Default: a generic Fortran kernel will be used)
+\item \texttt{USE\_EXTERNAL\_ELPA} --- Use an externally compiled ELPA library. Relevant libraries and include paths must be present in \texttt{LIBS}, \texttt{LIB\_PATHS}, and \texttt{INC\_PATHS}. This option is ignored when an external ELSI installation is in use. (Default: OFF)
+\item \texttt{USE\_EXTERNAL\_PEXSI} --- When PEXSI is enabled, use an externally compiled PEXSI library. Relevant libraries and include paths must be present in \texttt{LIBS}, \texttt{LIB\_PATHS}, and \texttt{INC\_PATHS}. This option takes no effect if PEXSI is not enabled. It is ignored when an external ELSI installation is in use. (Default: OFF)
+\item \texttt{USE\_CUDA} --- Whether to use GPU acceleration in certain subroutines. See also appendix \ref{Sec:appendix_gpu_acceleration}. (Default: OFF)
+  \begin{itemize}
+  \item \texttt{CMAKE\_CUDA\_COMPILER} --- CUDA compiler. Automatically detected with CMake version $\ge3.8$.
+  \item \texttt{CMAKE\_CUDA\_FLAGS} --- Flags for the CUDA compiler. One of them should be ``-lcublas''. Example: ``-O3 -m64 -DAdd\_ -arch=sm\_52 -lcublas''
+  \end{itemize}
+\item \texttt{USE\_LIBXC} --- Whether additional subroutines for exchange correlation functionals, provided in the LibXC library, should be used. It is advised to always use this. Please respect the open-source license of this tool and cite the authors if you use it. (Default: ON, i.e. LibXC will be compiled if \texttt{USE\_C\_FILES} is ON)
+\item \texttt{LIBXC\_VERSION} --- If given, this version of LibXC will be downloaded and compiled into FHI-aims. This variable is meant for developers for testing new features of LibXC. (Default: ````, i.e. the shipped version is used)
+\item \texttt{USE\_SPGLIB} ---  Whether the Spglib library for symmetry handling will be used. Please respect the open-source license of this tool and cite the authors if you use it. (Default: ON, i.e. Spglib will be compiled if \texttt{USE\_C\_FILES} is ON)
+\item \texttt{USE\_CFFI} --- Whether to provide a Python 2 or 3 interface to FHI-aims. (Default: OFF)
+\item \texttt{ELPA\_MT} --- Whether the hybrid MPI OpenMP version of ELPA is used. (Default: OFF)
+\item \texttt{USE\_IPC} --- Whether to support inter-process communication. (Default: OFF)
+\item \texttt{USE\_iPI} --- Whether to support path integral molecular dynamics through the i-PI python wrapper. (Default: ON, i.e. i-PI support is supported if \texttt{USE\_C\_FILES} is ON)
+\item \texttt{USE\_HDF5} --- Whether to enable HDF5 support. If enabled, also set \texttt{INC\_PATHS}, \texttt{LIB\_PATHS}, and \texttt{LIBS} accordingly. (Default: OFF)
+\item \texttt{Fortran\_MIN\_FLAGS} --- Minimal flags to be used instead of the primary flags to speed up compilation. (Default set by the current Fortran flags and the build type)
+\item \texttt{KNOWN\_COMPILER\_BUGS} --- If set, reduced compiler flags are used instead of the primary flags. Options: ``ifort-14.0.1-O3'', ``ifort-17.0.0-O3''. (Default: none)
+\item \texttt{FFLAGS} --- Flags used for compiling .f files. (Default: same as for .f90 files)
+\item \texttt{SERIAL\_Fortran\_COMPILER} --- Deprecated. No effect.
+\end{itemize}
+\paragraph{These variables do not affect performance in any way:}
+\begin{itemize}
+\item \texttt{TARGET\_NAME} --- Base name for the primary target. Use this if you do not want the FHI-aims target name to be affected by things like the version number.
+\item \texttt{DEV} --- Ignore the Fortran compiler check when running CMake in an empty build directory without initializing any cache variables.
+\end{itemize}
+
+\paragraph{External ELSI notes}
+
+\begin{itemize}
+\item How to link to external ELSI built with external dependencies? For example, ELSI could have been built with external ELPA. In such a scenario, the FHI-aims variables \texttt{INC\_PATHS}, \texttt{LIB\_PATHS}, and \texttt{LIBS} need to point to the ELPA header files and libraries. If ELSI has no external dependencies, it is sufficient to only set \texttt{EXTERNAL\_ELSI\_PATH} in order to use that version of ELSI.
+\item When using CMake version less than 3.5.2, it is necessary to additionally point \texttt{LIB\_PATHS} and \texttt{LIBS} to the external ELSI libraries. See \\
+  \texttt{cmake/toolchains/ext\_elsi.intel.cmake} as an example.
+\end{itemize}
+
+\section{CMake for developers}
+
+The following is a very short overview of some of the more commonly used commands to give you a rough idea of the CMake syntax. This is, however, but not a substitute for a full tutorial, which you should work through yourself before contributing.
+
+CMake support in FHI-aims is organized in files called CMakeLists.txt. There is one CMakeLists.txt in the root directory, which contains most of the functionality, and one in every subdirectory, containing primarily a list of source files.
+
+In any CMake project, the first command in the topmost CMakeLists.txt is usually
+\begin{verbatim}
+cmake_minimum_required(VERSION x.x.x)
+\end{verbatim}
+which sets the minimum required version of CMake for the project and ensures compatibility with that version or higher. This is followed by
+\begin{verbatim}
+project(MyProject VERSION 1.0.0 LANGUAGES C)
+\end{verbatim}
+which sets the project name, version, and any languages used in the project (more languages can be enabled later). The basic syntax for setting a variable is \texttt{set(<var> <value>)}, like this:
+\begin{verbatim}
+set(LIBS mkl_sequential)
+\end{verbatim}
+Variables can be referenced with the \$\{\ldots\} construct. For example,
+\begin{verbatim}
+set(LIBS ${LIBS} mkl_core)
+message(${LIBS})
+\end{verbatim}
+prints ``mkl\_sequential mkl\_core'' to the screen. This is a very basic usage of \texttt{set}, which can actually take several more arguments. The full functionality of the \texttt{set} or any other CMake command can be seen by either viewing the online CMake manual or using the \texttt{--help} argument to \texttt{cmake}:
+\begin{verbatim}
+cmake --help set
+\end{verbatim}
+
+There is only one variable type in the CMake language, which is the string type. Even if some variables may be treated as numbers or booleans, they are still stored as strings.
+
+Every statement is a command that takes a list of string arguments and has no return value. Thus, all CMake commands are of the form \texttt{command\_name(arg1 ...)}. No command can be used directly as input for another command. Even control flow statements are commands:
+\begin{verbatim}
+if (USE_MPI)
+  message("MPI parallelism enabled")
+endif() # This is also a command. It takes no arguments.
+\end{verbatim}
+
+A CMake-based buildsystem is organized as a set of high-level logical targets. Each target corresponds to an executable or library, or is a custom target containing custom commands. Dependencies between the targets are expressed in the buildsystem to determine the build order and the rules for regeneration in response to change. Executables and libraries are defined using the \verb+add_executable+ and \verb+add_library+ commands. Linking against libraries takes place via the \verb+target_link_libraries+ command:
+\begin{verbatim}
+add_library(mylib func_info.c mgga_c_scan.c xc_f03_lib_m.f90)
+add_executable(myexe main.f90)
+target_link_libraries(myexe mkl_intel_lp64 mkl_sequential mkl_core)
+\end{verbatim}
+A library may be given by its full path, which is the standard practice, or by just the base name where the ``-l'' part is optional (both ``\texttt{-lmkl\_core}'' and ``\texttt{mkl\_core}'' are fine). In the latter case, directories to be linked against must be specified elsewhere. In addition to the standard locations, additional header directories may be specified using
+\begin{verbatim}
+include_directories(...)
+\end{verbatim}
+\texttt{include\_directories} accepts an additional \texttt{[AFTER|BEFORE]} argument, which determines whether to append or prepend to the current list of directories.
+
+\paragraph{When do I need to reconfigure the build files?}
+
+If a cache variable is modified, for example by using a cache editor, or if there are any other changes to the build settings, like when adding/removing a source file, the build files need to be regenerated. Fortunately, CMake can detect this and regenerate the build files automatically whenever the build command is issued. Thus, there is never a need to manually run \texttt{cmake} on the build directory except for the very first time. Note that there is no \texttt{cmake clean} command. If you need to reset the build configuration, simply run \texttt{rm -rf} on the build directory.
+
+\paragraph{Why is my compilation taking so long?}
+
+CMake uses Make recursively when generating the build files, which has an adverse effect for large projects. There is no way around it, except to switch to a different build system. When using a different generator (that generates build files for a different build system), the only change is in the initial CMake call. For example,
+\begin{verbatim}
+cmake -G Ninja -C initial_cache.cmake ~aims
+\end{verbatim}
+chooses Ninja as the build system (default is Make in Linux), initializes the cache using \texttt{initial\_cache.cmake}, and specifies $\sim$\texttt{aims} as the source directory. The generator cannot be changed without emptying the build directory first. For users, it does not make a major difference which generator is used, but for developers it is advisable to use Ninja instead of Make as it is faster, especially for small incremental builds. That being said, upstream Ninja does not currently have the necessary Fortran support. Instead, a Fortran compatible version of Ninja is maintained by Kitware and is available at github.com/Kitware/ninja.

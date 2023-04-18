@@ -1,0 +1,306 @@
+\section{Deprecated keywords}
+
+The following section lists a number of keywords in FHI-aims which
+exist, but which may go away in future versions of FHI-aims. In some
+cases, this is because the relevant modifications proved successful,
+and there is no sense in maintaining some old, obsolete extra
+functionality without any use in production settings. In other cases,
+the relevant keywords were experiments that did not yield the
+anticipated success, and / or functionality that may be superseded in
+a different, more comprehensive way in the future.
+
+\newpage
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{Adams\_Moulton\_integrator}{control.in}
+{
+  \noindent
+  Usage: \keyword{Adams\_Moulton\_integrator} \option{flag} \\[1.0ex]
+  Purpose: Allows to switch between a simple integrator and the
+    higher-order Adams-Moulton integration scheme to determine the
+    Hartree potential components from classical
+    electrostatics. \\[1.0ex] 
+  \option{flag} is a logical string, either \texttt{.false.} or
+    \texttt{.true.} Default: \texttt{.true.} \\
+}
+
+\keydefinition{batch\_distribution\_method}{control.in}
+{
+  \noindent
+  Usage: \keyword{batch\_distribution\_method} \option{method} \\[1.0ex]
+  Purpose: Parallel distribution of integration grid batches
+    \emph{only} in the case that the external qhull and METIS
+    libraries are configured. \\[1.0ex]
+  \option{method} is a string, the only possible value being
+    \texttt{qhull+metis} at this point. \\
+}
+Outsources the distribution of integration grid batches to the
+external qhull and METIS libraries. Only relevant if these libraries
+are compiled into the code. However, the associated
+\keyword{grid\_partitioning\_method}s are less useful than the
+default \texttt{maxmin} algorithm, and the internal work distribution
+method of FHI-aims usually performs rather well. Therefore, this
+option is deprecated and kept only for experimental purposes, for
+now. 
+
+
+\keydefinition{communication\_type}{control.in}
+{
+  \noindent
+  Usage: \keyword{communication\_type} \option{type} \\[1.0ex]
+  Purpose: Determines the type of calculation / storage of
+    per-atom spline arrays of the Hartree potential for a parallel
+  run. \\[1.0ex] 
+  \option{type} is a string, see below. Default: \option{calc\_hartree} . \\
+}
+In a parallel run of FHI-aims, each processor holds a certain part of the
+real-space integration grid, which in turn are each touched by all
+atom-centered multipole components (splined) of the real-space Hartree
+potential. So, to construct the electrostatic (Hartree) potential on each grid
+point, an array of splined atom-centered multipole components
+$\delta\tilde{v}_{\text{at},lm}(r)$ must be available on every MPI sub-process
+(see Sec. \ref{Sec:Hartree} for details regarding the electrostatic
+potential). The memory use to store these components grows rapidly and with a
+large prefactor with system size. Thus, keeping a local copy of all the
+splined multipole components of the Hartree potential on each CPU is not
+advisable.
+
+The actual handling of these components is instead controlled
+by keyword \keyword{communication\_type}. The following choices for
+  \texttt{option} are possible: \\
+\texttt{calc\_hartree} : The default, and usually very efficient. Hartree
+  potential components for each atom are integrated on the fly on each CPU when
+  needed (usually less CPU time than communication time). \\
+\texttt{shmem} : If compiled with shared memory support (see Section
+  \ref{Sec:Makefiles}), each compute node of a parallel run keeps the
+  components of the Hartree potential in a separate shared memory segment,
+  only internode communication is needed.  Performance test show hardly any
+  benefet over \texttt{calc\_hartree}.
+Note that the (legacy) keyword \keyword{distributed\_spline\_storage} should
+be false for \texttt{shmem}, at least.
+
+\keydefinition{distribute\_leftover\_charge}{control.in}
+{
+	\noindent
+	Usage: \keyword{distribute\_leftover\_charge} \option{.true./.false.}
+%	Mostly relevant for surfaces, in particular when calculating
+%	electrostatic potentials, interface dipoles, or work functions.
+%	Due to the finite summation in the multipole expansion, the electronic and the
+%	nuclear charge may not cancel each other exaclty. The remaining, apparent charge
+%	of the system is plotted in the output as
+%	\textit{RMS charge density error from multipole expansion: (value)}
+%	and causes a slightly curved potential in vacuum region. As a result, e.g., the
+%	energy of the vacuum level depends on its positon (which can be changed using the tag
+%	\keyword{set\_vacuum\_level}). If set to .true., this keyword distributes the apparent charge
+%	evenly among all atoms in the system, causing a perfectly flat potential in the vacuum region.
+}
+This keyword is superseded by the \keyword{compensate\_multipole\_errors} keyword which
+solves the problem of small residual charge integration errors in slab calculations much
+better than \keyword{distribute\_leftover\_charge} .
+
+Keyword \keyword{distribute\_leftover\_charge} could introduce noticeable total energy 
+inaccuracies especially for ``light'' integration grid settings.
+
+
+\keydefinition{force\_new\_functional}{control.in}
+{
+  \noindent
+  Usage: \keyword{force\_new\_functional} \option{flag} \\[1.0ex]
+  Purpose: For test purposes, allows to switch to an energy functional
+    form that treats the electronic and nuclear electrostatic energy
+    terms separately. \\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.false.} or
+    \texttt{.true.} Default: \texttt{.true.} \\
+}
+See Ref. \cite{Blum08} regarding the correct shape of the energy
+functional that treats the nuclear and electronic parts of the
+electrostatic energy together on a per-atom basis.
+
+\keydefinition{force\_smooth\_cutoff}{control.in}
+{
+  \noindent
+  Usage: \keyword{force\_smooth\_cutoff} \option{tolerance} \\[1.0ex]
+  Purpose: Optionally, enforces smoothness of all basis functions near
+    the cutoff radius. \\[1.0ex]
+  \option{tolerance} is a small positive real number. Default: No
+    check. \\
+}
+If requested, keyword \keyword{force\_smooth\_cutoff} ensures that the
+radial function $u(r)$ and its first and second derivatives remain
+below \option{tolerance} at the outermost point of the logarithmic
+grid where any of them is non-zero at all. The code stops if the onset
+of the radial function is too abrupt. 
+
+It would be a good idea to switch this option on if reducing the 
+\texttt{width} parameter of keyword \subkeyword{species}{cut\_pot} to a very low
+value (say, below 1 {\AA}).
+
+\keydefinition{grouping\_factor}{control.in}
+{
+  \noindent
+  Usage: \keyword{grouping\_factor} \option{factor} \\[1.0ex]
+  Purpose: Grouping factor for the (experimental, and not recommended!) 
+    \texttt{group} \keyword{grid\_partitioning\_method}. \\[1.0ex]
+  \option{factor} is an integer number, describing how close-by grid
+    points are grouped together. Default: 2. \\
+}
+This keyword is retained for experimental purposes only, for the
+moment. Since the related \keyword{grid\_partitioning\_method}
+\texttt{group} was a proof-of-concept to show that the default
+\texttt{maxmin} performs better, this keyword is now deprecated. See
+Ref. \cite{Havu08} for more details if interested.
+
+\keydefinition{hartree\_worksize}{control.in}
+{
+  \noindent
+  Usage: \keyword{hartree\_worksize} \option{megabytes} \\[1.0ex]
+  Purpose: Limits the size of workspace arrays used to construct the
+    Hartree potential on each CPU. \\[1.0ex]
+  \option{megabytes} : The maximum allowed work space size to
+    construct the Hartree potential, in megabytes. Default: 200
+  MB. \\
+}
+Several large work space arrays across the integration grid are used
+in the construction of the Hartree potential. Their size can grow
+quite large, especially when forces are computed for large structures
+(then, three arrays per atom are required for all atoms).
+
+FHI-aims can circumvent this by computing the final output (integrated
+energies and forces) in ``chunks'' of the whole integration grid,
+limiting the work space used for each chunk. This modification is
+especially important on low-memory-per-processor architectures such as
+the BlueGene.
+
+\keydefinition{KH\_post\_correction}{control.in}
+{
+  \noindent
+  Usage: \keyword{KH\_post\_correction} \option{flag} \\[1.0ex]
+  Purpose: \emph{Under construction -- do not use} A way to replace
+    the scaled ZORA post-processing correction for scalar relativity
+    by a Koelling-Harmon type scalar-relativistic
+    correction. \\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.false.} or
+    \texttt{.true.} Default: \texttt{.false.} \\
+}
+This keyword is no longer supported, do not use it. It will be
+superseded by an improved handling of scalar relativity during the
+s.c.f. cycle in the future. 
+
+\keydefinition{mixer\_swap\_boundary}{control.in}
+{
+  Usage: \keyword{mixer\_swap\_boundary} \option{bytes} \\[1.0ex]
+  Purpose: Ignored; never swap.
+  Used to allow to swap the stored density components
+  for Pulay mixing to disk if they exceed a certain memory boundary. \\[1.0ex] 
+}
+On few-CPU systems and for mid-sized systems (several hundred atoms),
+the stored electron density components from past iterations are a 
+large part of the memory used. 
+If this becomes a bottleneck, the stored Pulay arrays can in principle be
+swapped to disk, instead, to be read only during Pulay mixing.
+
+\emph{If anyone has a strong need for this currently unsupported
+  feature, please contact us.}
+
+
+\keydefinition{multiplicity}{control.in}
+{
+ \noindent
+ Usage: \keyword{multiplicity} \option{value} \\[1.0ex]
+ Purpose: If set, specifies the multiplicity of the system. \\[1.0ex]
+ Restriction: Currently available for non-periodic geometries
+   only. Use \keyword{fixed\_spin\_moment} instead. \\[1.0ex] 
+  \option{value} : integer number, sets the overall multiplicity as
+ $2S+1$. \\ 
+} 
+Meaningful only in the spin-polarized case (\texttt{spin collinear} in
+\texttt{control.in}). On a technical level, this is a special case of
+the more general, locally spin-constrained DFT formalism available
+within FHI-aims (see Sec. \ref{Sec:constraint}). Note that the underlying
+\keyword{constraint\_electrons} keyword can be used to enforce a
+\emph{non-integer} fixed spin moment, in addition to allowing to fix
+electron or spin numbers in given subsystems  
+
+Also, be sure to check what the Kohn-Sham eigenvalues mean if you need
+them, do not use them blindly. \keyword{multiplicity} shifts the
+eigenvalues! 
+
+\keydefinition{occupation\_thr}{control.in}
+{
+  \noindent
+  Usage: \keyword{occupation\_thr} \option{value} \\[1.0ex]
+  Purpose: Any occupation numbers below \option{value} will be treated
+    as zero.  
+  \option{value} is a small positive real number. Default: 0.d0 .
+}
+
+\keydefinition{recompute\_batches\_in\_relaxation}{control.in}
+{
+  \noindent
+  Usage: \keyword{recompute\_batches\_in\_relaxation} \option{flag}
+    \\[1.0ex]
+  Purpose: Allows to switch off the redistribution of atom-centered
+    grid points into new integration batches after a relaxaton
+    step. \\[1.0ex] 
+  \option{flag} is a logical string, either \texttt{.false.} or
+    \texttt{.true.} Default: \texttt{.true.} \\
+}
+For practical purposes, the integration grid should always be
+repartitioned after a relaxation step; the associated overhead is low,
+and the shape of the batches will remain optimal in the face of
+individual points that ``move'' with different atoms. 
+
+\keydefinition{squeeze\_memory}{control.in}
+{
+  \noindent
+  Usage: \keyword{squeeze\_memory} \option{flag} \\[1.0ex]
+  Purpose: Used to allow one combined workspace for three different
+    purposes. \\[1.0ex]
+  This option is no longer necessary due to optimizations by Rainer
+  Johanni.
+  \option{flag} is a logical string, either \texttt{.false.} or
+  \texttt{.true.} Default: \texttt{.false.} \\  
+}
+
+
+\keydefinition{use\_angular\_division}{control.in}
+{
+  \noindent
+  Usage: \keyword{use\_angular\_division} \option{flag} \\[1.0ex]
+  Purpose: If radial grid shells are used as integration batches,
+    allows to switch off their subdivision into ``octant''
+    batches. \\[1.0ex] 
+  \option{flag} is a logical string, either \texttt{.false.} or
+    \texttt{.true.} Default: \texttt{.true.} \\
+}
+This flag currently only applies to the initialization iteration, in
+case that self-adapting angular grids are used (not recommended; see
+keyword \subkeyword{species}{angular\_acc} if interested). Even then, switching
+off the subdivision of radial shells can only decrease the
+performance. 
+
+
+\newpage
+
+\subsection*{Subtags for \emph{species} tag in \texttt{control.in}:}
+
+\subkeydefinition{species}{cut\_core}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{cut\_core} \option{type} [\option{radius}] \\[1.0ex]
+  Purpose: Can be used to define a separate (tighter) onset of the
+    cutoff potential for all \subkeyword{species}{core} radial functions. \\[1.0ex]  
+  \option{type} : A string, either \texttt{finite} or
+    \texttt{infinite}. Default: \texttt{finite} . \\
+  \option{radius} : A real number, in {\AA}: Onset radius for the
+    cutoff potential, as defined in the \subkeyword{species}{cut\_pot}
+    tag. Default: same as \texttt{onset} in \subkeyword{species}{cut\_pot}.\\ 
+}
+Deprecated flag because \subkeyword{species}{basis\_dep\_cutoff} should
+supersede this functionality in a more organized way. Having a
+separate, tighter cutoff for core radial functions sounds like a good
+idea, but core radial functions are already rather localized
+anyway. Our experience is that the separate core setting either does
+not matter for CPU time, or already introduces noticeable total energy
+changes when it matters.

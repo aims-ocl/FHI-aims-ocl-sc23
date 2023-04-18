@@ -1,0 +1,57 @@
+####################################################
+##environment setting
+####################################################
+#specify the command used for single point calculation
+run_aims mpiexec -ppn 8 -n $NSLOTS /u/yyao/bin/aims.020213.scalapack.mpi.x
+#initial geometry
+initial_file ini.in
+#final geometry
+final_file fin.in
+
+####################################################
+##General settings for task
+####################################################
+#Method to use, neb/string
+method string
+#number of images to use
+n_images 10
+#convergence criterion for forces, in eV/A
+force_thres 0.1
+#optimizer for neb/string method
+optimizer dampedBFGS
+
+
+####################################################
+##External starting geometries
+####################################################
+#list of external geometries
+#external_geometry extgeo.lst
+#whether to resample the external geometry
+#resample true
+
+
+####################################################
+##Climbing image setting
+####################################################
+#turn climbing image on/off
+use_climb true
+#convergence criterion for climbing image, in eV/A
+climb_thres 0.03
+
+####################################################
+##Growing string method
+####################################################
+#whether to use GS method or not
+use_gs_method true
+#number of images for GS method
+#gs_n_images 10
+#threshold for GS method
+#gs_thres 0.3
+
+####################################################
+##Periodic system setting
+####################################################
+#interpolate across periodic boundary
+periodic_interpolation false
+
+

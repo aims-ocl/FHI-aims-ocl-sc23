@@ -1,0 +1,60 @@
+\section{Electron density update}
+\label{Sec:density_update}
+
+In FHI-aims, the first step of a new iteration is the update of the
+electron density based on the output Kohn-Sham orbitals produced by a
+previous step. 
+
+The present section covers only the \emph{actual}
+density update. Techniques relevant for the self-consistent
+\emph{convergence} of the whole calculation (electron density mixing,
+preconditioning, etc.) are covered separately in Sec. \ref{Sec:scf}.
+
+\newpage
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{density\_update\_method}{control.in}
+{
+  \noindent
+  Usage: \keyword{density\_update\_method} \option{type} \\[1.0ex]
+  Purpose: Governs the selection of the density update
+  type.\\[1.0ex]
+  Restriction: For periodic boundary conditions, only the density-matrix 
+    based electron density update is supported. \\[1.0ex] 
+  Default: Cluster case: \texttt{automatic}. 
+    Periodic case: \texttt{density\_matrix} \\ 
+}
+
+Choices for \option{type}:
+\begin{itemize}
+  \item \texttt{orbital} : Use Kohn-Sham orbitals based update
+  \item \texttt{density\_matrix} : Use density-matrix based update
+    method. Required for periodic systems. 
+  \item \texttt{automatic} : Selects the best
+    update method automatically, based on the expected amount of
+    work. 
+  \item \texttt{split\_update\_methods} : Charge density is
+     updated via Kohn-Sham orbitals and force is updated via density-matrix
+\end{itemize} 
+If not specified, default for cluster geometries is the automatic selection of the
+density update method.
+
+See Ref. \cite{Blum08} for details regarding density update
+mechanisms. In general, FHI-aims offers an electron density update
+based on Kohn-Sham orbitals [$O(N^2)$ with system size, but faster for
+finite systems up to $\approx$100-500 atoms depending on basis
+size], and an $O(N)$ rewrite based on the density matrix. This should
+be used for large systems, and is the default for periodic systems.
+
+For the non-periodic case, the current code version determines the
+switching point between the orbital-based update and the
+density-matrix based update automatically through some
+heuristics. This procedure guarantees that accidental $O(N^2)$
+calculations will not happen for very large systems, but the
+optimum cross-over point may not always be exactly found. If you are
+planning long runs of essentially the same geometry (molecular
+dynamics trajectories are a good example), you may save some time by
+performing some explicit benchmarks first. You can then specify the
+optimum density update method for \emph{your} own case, instead of
+relying on our heuristics.

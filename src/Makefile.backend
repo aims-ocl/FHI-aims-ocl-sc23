@@ -1,0 +1,3400 @@
+#  Emacs, this is: -*- mode: makefile -*-
+#
+#  VB, FHI-aims team 2008-2018:
+#  Backend for Makefile, containing a complete list of all make targets
+#  (subroutines and modules)
+#
+
+-include make.sys # override settings by a sole option file (if it exists). will just carry on if make.sys does not exist
+
+# Version stamp for aims binary has been moved to the topmost
+# CMakeLists.txt. Please update this version stamp if you make changes
+# to the code.
+# Format:     YYMMDD     (well, usually ...)
+AIMSVERSION = $(shell grep AIMSVERSION version_stamp.txt | awk '{print $$3}')
+
+# Do not do any work before the following line!! (the "all" target)
+# We must first ensure that a make target was actually specified.
+# Dummy target to catch make invocations without a target:
+all:
+	cat make_error.msg
+
+# Variables that could be set at the command line (default behaviour is well defined as well)
+
+BINDIR ?= ../bin
+LIBDIR ?= ../lib
+BUILDDIR ?= .
+#BINDIR ?= ${SYS}
+#BUILDDIR ?= ${SYS}
+OBJDIR ?= $(BUILDDIR)
+MODDIR ?= $(BUILDDIR)
+
+USE_C_FILES ?= yes
+USE_SPGLIB ?= ${USE_C_FILES}
+USE_LIBXC ?= ${USE_C_FILES}
+
+#************************************************************************
+#
+# Postprocess configuration
+#
+#************************************************************************
+# Check if some non-trivial target is to be built:
+ifneq ($(strip $(MAKECMDGOALS)),)
+  NONTRIVIALGOALS=$(filter-out %clean depend ,$(MAKECMDGOALS))
+  ifeq ($(strip $(NONTRIVIALGOALS)),)
+    TRIVIALGOALS = yes
+  endif
+endif
+
+# CHECK IF MINIMUM (NON-OPT) FLAGS FOR F90 EXIST TO SPEED UP COMPILATION
+F90MINFLAGS ?= $(F90FLAGS)
+
+# CHECK IF REDUCED (REDUCED-OPT-LEVEL) FLAGS FOR F90 EXIST TO AVOID COMPILER
+# PROBLEMS WITH KNOWN BUGGY COMPILERS
+
+#  F90REDUCEDFLAGS ARE SET RIGHT HERE, AND ONLY FOR SPECIFIC COMPILER VERSIONS.
+#  THEY SHOULD NEVER BE USED WITHOUT AN IF THAT RESTRICTS THEM TO A SPECIFIC COMPILER.
+#
+#  F90REDUCEDFLAGS IS ONLY INTENDED FOR USE WITH THE KNOWN_COMPILER_BUGS KEYWORD.
+#  IF KNOWN_COMPILER_BUGS IS NOT SET, F90REDUCEDFLAGS IS NOT SUPPOSED TO BE USED.
+#
+
+ifeq ($(KNOWN_COMPILER_BUGS),ifort-13.1-O3)
+  ifeq ($(strip $(F90REDUCEDFLAGS)),)
+    F90REDUCEDFLAGS = -O1 -module $(MODDIR)
+  endif
+endif
+
+ifeq ($(KNOWN_COMPILER_BUGS),ifort-14.0.1-O3)
+  ifeq ($(strip $(F90REDUCEDFLAGS)),)
+    F90REDUCEDFLAGS = -O1 -module $(MODDIR)
+  endif
+endif
+
+ifeq ($(KNOWN_COMPILER_BUGS),ifort-17.0.0-O3)
+  ifeq ($(strip $(F90REDUCEDFLAGS)),)
+    F90REDUCEDFLAGS = -O2 -module $(MODDIR)
+  endif
+endif
+
+ifeq ($(strip $(F90REDUCEDFLAGS)),)
+  F90REDUCEDFLAGS = $(F90FLAGS)
+else
+  ifeq ($(strip $(KNOWN_COMPILER_BUGS)),)
+    # Create warning message to indicate that the "reduced flags"
+    # are now only applied if the compiler bugs for a known buggy
+    # compiler version are to be addressed.
+    #
+    # See below in this file for valid settings of KNOWN_COMPILER_BUGS.
+    #
+    # At the time of writing, these are:
+   $(warning * Warning. The behavior of Makefile.backend has been changed in response to)
+   $(warning * too many recent, buggy versions of Intel Fortran.)
+   $(warning * You appear to have set the F90REDUCEDFLAGS variable explicitly.)
+   $(warning * This flag is now no longer applied automatically, but only)
+   $(warning * when combined with a new keyword called)
+   $(warning * KNOWN_COMPILER_BUGS .)
+   $(warning * Allowed values for this keyword are: )
+   $(warning *   KNOWN_COMPILER_BUGS = ifort-13.1-O3 )
+   $(warning *   KNOWN_COMPILER_BUGS = ifort-14.0.1-O3 )
+   $(warning *   KNOWN_COMPILER_BUGS = ifort-17.0.0-O3 )
+   $(warning * If you wish to apply F90REDUCEDFLAGS to another case, please create a new keyword.)
+  endif
+endif
+
+# check if the user requested to print stacktraces in case of abnormal program
+# termination (Ifort only!)
+ifeq ($(PRINT_STACKTRACES),yes)
+    F90FLAGS += -traceback
+    MPI_TASKS ?= mpi_tasks_tracing.f90
+else
+    MPI_TASKS ?= mpi_tasks.f90
+endif
+
+TOUCH_MODS=$(if $(PROVIDED_MODFILES_$*),&& touch -c $(PROVIDED_MODFILES_$*))
+TOUCH_MOD_SIBLINGS=$(if $(PROVIDED_MODFILES_$(OBJECT_FILE_OF_$(@F))), && touch -c $(PROVIDED_MODFILES_$(OBJECT_FILE_OF_$(@F))))
+
+F90COMPILE = $(FC) $(F90FLAGS) $(CBFLAGS) -o $@ -c $< $(TOUCH_MODS)
+F90REDUCEDCOMPILE = $(FC) $(F90REDUCEDFLAGS) $(CBFLAGS) -o $@ -c $< $(TOUCH_MODS)
+F90MINIMALCOMPILE = $(FC) $(F90MINFLAGS) $(CBFLAGS) -o $@ -c $< $(TOUCH_MODS)
+
+################################ Do not touch F90REDUCEDFLAGS further down.
+
+# Check required variables and set sensible defaults if needed.
+# The construct ifeq ($(strip $(VAR)),) is true if $(VAR) is empty or
+# whitespace only.
+
+ifneq ($(strip $(TRIVIALGOALS)),yes)
+  ifeq ($(strip $(FC)),)
+    $(info Variable FC is not set.  Please make sure that you)
+    $(info have set the configuration variables in Makefile.)
+    $(error Variable FC needs to be set)
+  endif
+
+  ifeq ($(strip $(LAPACKBLAS)),)
+    # Some compilers link lapack and blas automatically.
+    $(warning Warning: Variable LAPACKBLAS is not set.)
+  endif
+
+  # If USE_MPI is not set (deprecated), deduce it from MPIF.
+  ifeq ($(strip $(USE_MPI)),)
+    $(warning Warning: Variable USE_MPI not set.)
+    ifeq ($(strip $(MPIF)),)
+      USE_MPI = yes
+      $(warning However, the variable MPIF is empty - assuming USE_MPI = yes.)
+      $(warning The question whether or not a parallel build is desired was)
+      $(warning handled by explicit variables such as MPIF in earlier FHI-aims)
+      $(warning versions. However, the Makefile infrastructure is now updated)
+      $(warning to rely on USE_MPI instead. We recommend to update your)
+      $(warning own Makefile accordingly.)
+    endif
+    ifeq ($(strip $(MPIF)),-I./external)
+      USE_MPI = no
+      $(warning However, the variable MPIF is set to -I./external .)
+      $(warning Assuming USE_MPI = no as a result.)
+      $(warning The question whether or not a parallel build is desired was)
+      $(warning handled by explicit variables such as MPIF in earlier FHI-aims)
+      $(warning versions. However, the Makefile infrastructure is now updated)
+      $(warning to rely on USE_MPI instead. We recommend to update your)
+      $(warning own Makefile accordingly.)
+    endif
+  endif
+  # Deduce MPIF, MPIFC from USE_MPI setting.
+  ifeq ($(strip $(USE_MPI)),yes)
+    ifeq ($(strip $(MPIFC)),)
+      $(error Variable MPIFC needs to be set)
+    endif
+  else
+    ifeq ($(strip $(USE_MPI)),no)
+      MPIF ?= -I./external
+      MPIFC ?= $(FC)
+      ifneq ($(strip $(SCALAPACK)),)
+        $(error Need MPI for ScaLAPACK)
+      endif
+    else
+      $(error Variable USE_MPI needs to either yes or no, not "$(USE_MPI)")
+    endif
+  endif
+
+  # Settle the behaviour of architecture-specific choices here:
+
+  # Fall back to "Generic" if no choice was made
+  ifeq ($(strip $(ARCHITECTURE)),)
+
+    ARCHITECTURE = Generic
+
+    # The next choice patches the behaviour if the older "ARCH" variable was used and set
+    ifeq ($(ARCH),arch_pgi.f90)
+      ARCHITECTURE = PGI
+    endif
+    ifeq ($(ARCH),arch_aix_power6.f90)
+      ARCHITECTURE = AIX_POWER6
+    endif
+    # End trap for legacy "ARCH" settings
+
+    $(warning Variable ARCHITECTURE not set.  Using: $(ARCHITECTURE).)
+
+  endif
+
+  # Set ARCHITECTURE dependent defaults for ARCH_MODULE.
+  ifeq ($(ARCHITECTURE),Generic)
+    ARCH_MODULE ?= arch_generic.f90
+  endif
+  ifeq ($(ARCHITECTURE),PGI)
+    ARCH_MODULE ?= arch_pgi.f90
+  endif
+  ifeq ($(ARCHITECTURE),BlueGene_P)
+    ARCH_MODULE ?= arch_generic.f90
+  endif
+  ifeq ($(ARCHITECTURE),BlueGene_Q)
+    ARCH_MODULE ?= arch_generic.f90
+  endif
+  ifeq ($(ARCHITECTURE),AIX_POWER6)
+    ARCH_MODULE ?= arch_aix_power6.f90
+  endif
+  ifeq ($(ARCHITECTURE),AMD64_AVX)
+    ARCH_MODULE ?= arch_generic.f90
+  endif
+  ifeq ($(ARCHITECTURE),AMD64_SSE)
+    ARCH_MODULE ?= arch_generic.f90
+  endif
+
+  #now for ELPA KERNEL
+  ifeq ($(ARCHITECTURE),Generic)
+    ELPA_KERNEL_REAL ?= elpa/elpa2_kernels_real.f90
+    ELPA_KERNEL_COMPLEX ?= elpa/elpa2_kernels_complex.f90
+
+  endif
+  ifeq ($(ARCHITECTURE),PGI)
+    ELPA_KERNEL_REAL ?= elpa/elpa2_kernels_real.f90
+    ELPA_KERNEL_COMPLEX ?= elpa/elpa2_kernels_complex.f90
+
+  endif
+  ifeq ($(ARCHITECTURE),BlueGene_P)
+    ELPA_KERNEL_REAL ?= elpa/elpa2_kernels_bgp.f90
+    ELPA_KERNEL_COMPLEX ?= elpa/elpa2_kernels_complex.f90
+
+  endif
+  ifeq ($(ARCHITECTURE),BlueGene_Q)
+    ELPA_KERNEL_REAL ?= elpa/elpa2_kernels_bgq.f90
+    ELPA_KERNEL_COMPLEX ?= elpa/elpa2_kernels_complex.f90
+  endif
+  ifeq ($(ARCHITECTURE),AIX_POWER6)
+    ELPA_KERNEL_REAL ?= elpa/elpa2_kernels_bgp.f90
+    ELPA_KERNEL_COMPLEX ?= elpa/elpa2_kernels_complex.f90
+
+  endif
+  ifeq ($(ARCHITECTURE),AMD64_AVX)
+    ELPA_KERNEL_REAL ?= elpa/elpa2_kernels_real_stub.f90
+    ELPA_KERNEL_COMPLEX ?= elpa/elpa2_kernels_complex_stub.f90
+  endif
+  ifeq ($(ARCHITECTURE),AMD64_SSE)
+    ELPA_KERNEL_REAL ?= elpa/elpa2_kernels_asm_x86_64.s
+    ELPA_KERNEL_COMPLEX ?= elpa/elpa2_kernels_asm_x86_64.s
+  endif
+  ifeq ($(strip $(ELPA_KERNEL_REAL)),)
+    $(error Invalid choice for ELPA_REAL_KERNEL: $(ELPA_KERNEL_REAL))
+  endif
+  ifeq ($(strip $(ELPA_KERNEL_COMPLEX)),)
+    $(error Invalid choice for ELPA_COMPLEX_KERNEL: $(ELPA_KERNEL_COMPLEX))
+  endif
+
+  ifeq ($(strip $(ARCH_MODULE)),)
+    $(error Invalid choice for ARCHITECTURE: $(ARCHITECTURE))
+  endif
+
+endif
+
+AUTODEPEND ?= yes
+
+
+#************************************************************************
+#
+# All platform-independent definitions, compilation etc follow here ...
+#     ifneq ($(strip $(ELPA2_KERNEL)),yes)
+#
+#
+#************************************************************************
+
+#  external is for stuff that we did not write, to keep track of where we had to check the license.
+
+EXTERNAL_U = \
+           basis_sets/external/Lebedev-Laikov.o \
+           basis_sets/external/HeoXu.o \
+           basis_sets/external/estd.o \
+           basis_sets/external/anginc.o \
+           external/ylm.o \
+           external/ylm_real.o \
+           basis_sets/external/atomini.o \
+           external/cepvwn-gauss-like.o \
+           external/cor_vwn_rpa_derivs.o \
+           external/relxc.o \
+           external/d1mach.o \
+           external/pbe_partial_derivs.o \
+           external/xpbe_partial_derivs.o \
+           external/am05_partial_derivs.o \
+           external/stvxc_spin.o \
+           external/HSEFx_partial.o \
+           external/lyp_part_derivs.o \
+           external/b88_partial_derivs.o \
+           external/rpbe_x_partial_derivs.o \
+           external/VS98c_mod.o \
+           external/VS98x_mod.o \
+           external/M06c_mod.o \
+           external/M06x_mod.o \
+           external/M08M11c_mod.o \
+           external/M08M11x_mod.o \
+           external/cor_pbeh0_mod.o \
+           external/LRCLSDA.o \
+           external/revpbe_x_partial_derivs.o \
+           external/ei.o \
+           external/dfftb.o \
+           external/dfftf.o \
+           external/dffti.o \
+           external/drc3jj.o \
+           external/drc3jm.o \
+           external/cdgamma.o \
+           external/pbeint_derivs.o \
+           external/pw91_partial_derivs.o \
+           external/pz_lda.o \
+           external/pw_lda.o \
+           external/boys.o \
+           external/tpss.o \
+           xc_dfauto/xc_func.o \
+           external/meta_scan.o \
+           external/density_functional_repository/f77_x_lda.o \
+           external/density_functional_repository/f77_x_b3.o \
+           external/density_functional_repository/f77_x_b88.o  \
+           external/density_functional_repository/f77_x_pbe.o \
+           external/density_functional_repository/f77_x_pw91.o \
+           external/density_functional_repository/f77_c_lyp.o \
+           external/density_functional_repository/f77_c_p86.o \
+           external/density_functional_repository/f77_c_pbe.o \
+           external/density_functional_repository/f77_c_pw91.o \
+           external/density_functional_repository/f77_c_pw92.o \
+           external/density_functional_repository/f77_c_pz81.o \
+           external/density_functional_repository/f77_c_vwn5.o \
+           external/density_functional_repository/f77_c_vwn5rpa.o \
+           external/density_functional_repository/f77_xc_b3lyp.o \
+           external/density_functional_repository/f77_xc_b97_1.o \
+           external/density_functional_repository/f77_xc_b97_2.o \
+           external/density_functional_repository/f77_xc_b97.o \
+           external/density_functional_repository/f77_xc_edf1.o \
+           external/density_functional_repository/f77_xc_ft97.o \
+           external/density_functional_repository/f77_xc_hcth120.o \
+           external/density_functional_repository/f77_xc_hcth147.o \
+           external/density_functional_repository/f77_xc_hcth407.o \
+           external/density_functional_repository/f77_xc_hcth.o \
+           external/density_functional_repository/f77_xc_pbe.o \
+           external/density_functional_repository/f77_xc_pw91.o \
+           basis_sets/atom_sphere/allcommon.o \
+           basis_sets/atom_sphere/atomsolver.o \
+           basis_sets/atom_sphere/zorasolver.o \
+           basis_sets/atom_sphere/driveXC.o \
+           basis_sets/rdirac/fderiv.o \
+           basis_sets/rdirac/polynom.o \
+           basis_sets/rdirac/rdirac.o \
+           basis_sets/rdirac/rdiracdme.o \
+           basis_sets/rdirac/rdiracint.o \
+           basis_sets/rdirac/spline.o \
+           basis_sets/sratom/anderson.o \
+           basis_sets/sratom/atoaux.o \
+           basis_sets/sratom/bpgcxc.o \
+           basis_sets/sratom/cepvwn.o \
+           basis_sets/sratom/corlyp.o \
+           basis_sets/sratom/dcpv.o \
+           basis_sets/sratom/dftseq.o \
+           basis_sets/sratom/fxc_mgga_pk.o \
+           basis_sets/sratom/gga91_sr.o \
+           basis_sets/sratom/ggarad.o \
+           basis_sets/sratom/ldaxc.o \
+           basis_sets/sratom/moment.o \
+           basis_sets/sratom/pbe.o \
+           basis_sets/sratom/pberev.o \
+           basis_sets/sratom/sratom_n.o \
+           basis_sets/sratom/vestat.o \
+           basis_sets/sratom/vexcor.o \
+           basis_sets/sratom/vexcos.o \
+           external/libmbd/src/mbd.o \
+           external/libmbd/src/mbd_blacs.o \
+           external/libmbd/src/mbd_constants.o \
+           external/libmbd/src/mbd_damping.o \
+           external/libmbd/src/mbd_dipole.o \
+           external/libmbd/src/mbd_elsi.o \
+           external/libmbd/src/mbd_formulas.o \
+           external/libmbd/src/mbd_geom.o \
+           external/libmbd/src/mbd_gradients.o \
+           external/libmbd/src/mbd_hamiltonian.o \
+           external/libmbd/src/mbd_lapack.o \
+           external/libmbd/src/mbd_linalg.o \
+           external/libmbd/src/mbd_matrix.o \
+           external/libmbd/src/mbd_methods.o \
+           external/libmbd/src/mbd_mpi.o \
+           external/libmbd/src/mbd_rpa.o \
+           external/libmbd/src/mbd_scalapack.o \
+           external/libmbd/src/mbd_scs.o \
+           external/libmbd/src/mbd_ts.o \
+           external/libmbd/src/mbd_utils.o \
+           external/libmbd/src/mbd_vdw_param.o
+
+EXTERNAL:=$(addprefix $(OBJDIR)/,$(EXTERNAL_U))
+
+#  subroutines include ... well, all subroutines of my own.
+#  in order of appearance in the code
+
+SUBROUTINES_U = \
+              read_input_data.o \
+              check_mpi_in_place.o \
+              prepare_scf.o \
+              check_consistency_of_keywords.o \
+              initialize_scf.o \
+              initialize_noscf.o \
+              classical_field.o \
+              predict_new_geometry.o \
+              check_cpu_consistency.o \
+              reinitialize_scf.o \
+              reinitialize_noscf.o \
+              check_geometry_convergence.o \
+              get_max_force.o \
+              integrate_ovlp_matrix_p1.o \
+              integrate_ovlp_matrix_p2.o \
+              integrate_v_external_matrix.o \
+              integrate_t_plus_v_matrix.o \
+              obtain_initial_dimensions.o \
+              read_control.o \
+              read_control_update.o \
+              read_multiaims.o \
+              read_species_data.o \
+              read_mpb_data.o \
+              read_specified_grid.o \
+              read_multipole_data.o \
+              verify_angular_grid.o \
+              convert_l_str.o \
+              read_geo.o \
+              get_machine_precision.o \
+              get_lda_free_atom_densities.o \
+              prepare_partition_tabs.o \
+              basis_sets/get_free_atoms.o \
+              basis_sets/free_atoms_out.o \
+              basis_sets/atom_out.o \
+              basis_sets/get_fixed_basis_fns.o \
+              basis_sets/get_free_ion.o \
+              basis_sets/get_ionic_basis_fns.o \
+              basis_sets/get_confined_basis_fns.o \
+              basis_sets/get_hydrogenic_basis_fns.o \
+              basis_sets/get_dirac_hydrogenic_basis_fns.o \
+              basis_sets/get_gaussian_basis_fns.o \
+              basis_sets/get_sto_basis_fns.o \
+              basis_sets/ion_out.o \
+              basis_sets/confined_out.o \
+              basis_sets/hydrogenic_out.o \
+              basis_sets/gaussian_out.o \
+              basis_sets/atomic_out.o \
+              basis_sets/fixed_basis_potential.o \
+              basis_sets/get_species_basis_fns.o \
+              basis_sets/use_atomic_solver_basis_fns_as_species_basis_fns.o \
+              basis_sets/shrink_fixed_basis_phi_thresh.o \
+              basis_sets/shrink_fixed_large_basis.o \
+              basis_sets/verify_onsite_integrals.o \
+              get_inner_max.o \
+              basis_sets/orthonormalize_basis_fn.o \
+              integrate_log_mesh.o \
+              integrate_log_coulomb_metric.o \
+              evaluate_free_atom_sums_p0.o \
+              evaluate_free_atom_sums_p2.o \
+              evaluate_free_rho_sums_p0.o \
+              evaluate_nuclear_potential.o \
+              basis_sets/get_angular_grid.o \
+              basis_sets/get_leb_grids.o \
+              tab_atom_centered_coords.o \
+              tab_atom_centered_coords_v2.o \
+              tab_atom_centered_coords_p0.o \
+              tab_atom_centered_coords_p1.o \
+              tab_single_atom_centered_coords_p0.o \
+              tab_interatomic_distances.o \
+              tab_trigonom.o \
+              tab_trigonom_v2.o \
+              tab_trigonom_p0.o \
+              tab_single_trigonom_p0.o \
+              evaluate_partition_tab_p0.o \
+              evaluate_partition_tab_p2.o \
+              stratmann_partition_weight.o \
+              stratmann_weight_restricted.o \
+              tab_wave_ylm.o \
+              tab_wave_ylm_v2.o \
+              tab_wave_ylm_p0.o \
+              tab_wave_ylm_p1.o \
+              tab_single_wave_ylm_p0.o \
+              tab_single_wave_ylm_p2.o \
+              TDI_change_schedule_step.o \
+              TDI_map_to_center_cell.o \
+              TDI_update_lambda.o \
+              evaluate_radial_functions_v2.o \
+              evaluate_radial_functions_p0.o \
+              basis_sets/increment_ylm.o \
+              increment_ylm_deriv.o \
+              increment_ylm_deriv_forvdw.o \
+              get_rlylm_and_derivs.o \
+              get_rlylm.o \
+              evaluate_ovlp_shell_p0.o \
+              evaluate_pot_superpos_p0.o \
+              evaluate_xc.o \
+              evaluate_xc_split.o \
+              get_rho_mp.o \
+              get_rho_mp_single_center.o \
+              nlcorr.o \
+              evaluate_hamiltonian_shell_p1.o \
+              tab_gradient_ylm.o \
+              tab_gradient_ylm_p0.o \
+              tab_single_gradient_ylm_p0.o \
+              tab_single_gradient_ylm_p2.o \
+              tab_single_gradient_ylm_p2_forvdw.o \
+              evaluate_waves_v2.o \
+              evaluate_waves_p0.o \
+              evaluate_waves_p2.o \
+              evaluate_wave_gradient_p0.o \
+              evaluate_wave_gradient_v1.o \
+              evaluate_wave_gradient_p2.o \
+              evaluate_wave_gradient_prodbas_v1.o \
+              evaluate_bare_ci.o \
+              add_zora_matrix_p1.o \
+              add_zora_gradient_part_p0.o \
+              get_free_superpos_energy_p1.o \
+              get_distance.o \
+              output_sorted_eigenvalues.o \
+              output_potential_p1.o \
+              output_potential_p1_new.o \
+              output_delta_v.o \
+              output_delta_v_step.o \
+              output_matrices.o \
+              output_matrices_aij.o \
+              output_ka_overlap.o \
+              output_v_external_matrix.o \
+              output_self_energy.o \
+              improve_eigenfunctions.o \
+              improve_complex_eigenfunctions.o \
+              packed_matrix_transform.o \
+              packed_matrix_transform_complex.o \
+              find_homo_lumo_gap.o \
+              output_eigenfunctions.o \
+              WannierCenters.o \
+              out_plot_band.o \
+              out_plot_band_mulliken.o \
+              out_plot_band_mulliken_scalapack.o \
+              out_plot_band_soc_mulliken.o \
+              out_plot_band_soc_mulliken_scalapack.o \
+              out_plot_band_hf_k_space.o \
+              out_plot_band_scalapack.o \
+              read_plot_band.o \
+              read_plot_dielectric.o \
+              read_plot_band_during_scf.o \
+              output_bands_during_scf.o \
+              get_occupation_numbers.o \
+              get_occupation_numbers_v2.o \
+              get_occupation_numbers_single_channel.o \
+              get_occupation_numbers_fsm.o \
+              get_occupation_numbers_p0.o \
+              check_n_states.o \
+              check_norm.o \
+              zeroin.o \
+              zeroin_p0.o \
+              check_norm_v2.o \
+              check_norm_periodic_v2.o \
+              check_norm_p0.o \
+              zeroin_v2.o \
+              zeroin_periodic_v2.o \
+              threshold_occ_numbers.o \
+              pulay_store.o \
+              pulay_grad_store.o \
+              initialize_pulay_matrix_p1.o \
+              pulay_mix_p1.o \
+              broyden_mix_p1.o \
+              limit_rho_change.o \
+              update_hartree_potential_p1.o \
+              integrate_hartree_log_grid.o \
+              output_hartree_pot.o \
+              output_rho_multipole.o \
+              evaluate_moment_p1.o \
+              evaluate_moment_p2.o \
+              hirshfeld_analysis.o \
+              hirshfeld_analysis_iterative.o \
+              mulliken_analysis.o \
+              cube_output.o \
+              dielectric_analysis.o \
+              lowdin_analysis.o \
+              output_lowdin.o \
+              output_periodic_dipole_moment.o \
+              output_density_p1.o \
+              get_ev_sum_p0.o \
+              embedding_potential.o \
+              run_newton_mpb.o \
+              run_mpb_solver.o \
+              sum_up_whole_potential_p1.o \
+              get_entropy_correction_p1.o \
+              get_total_energy.o \
+              integrate_nlcorr.o \
+              get_kinetic_energy.o \
+              output_ev_sum.o \
+              initialize_integrals_p0.o \
+              check_shell_convergence_p0.o \
+              prune_basis_v1.o \
+              prune_radial_basis_v2.o \
+              prune_radial_basis_p0.o \
+              prune_radial_basis_p2.o \
+              collect_batch_centers_p2.o \
+              prune_basis_v2.o \
+              prune_basis_p0.o \
+              prune_basis_p2.o \
+              prune_density_matrix.o \
+              prune_density_matrix_sparse.o \
+              unpack_matrices.o \
+              tab_local_geometry.o \
+              tab_local_geometry_p0.o \
+              tab_local_geometry_p2.o \
+              tab_global_geometry_p0.o \
+              evaluate_waves_v0.o \
+              evaluate_H_psi_p0.o \
+              evaluate_H_psi_p2.o \
+              evaluate_V_psi_p2.o \
+              evaluate_T_plus_V_psi_p2.o \
+              evaluate_T_psi.o \
+              evaluate_xc_psi_p2.o \
+              update_full_matrix_p0.o \
+              evaluate_zora_vector_p1.o \
+              add_gradient_part_to_H_p0.o \
+              evaluate_mgga_contribution_and_add_to_hamiltonian_shell.o \
+              integrate_hamiltonian_matrix_p2.o \
+              integrate_kinetic_matrix.o \
+              evaluate_KS_density_v2.o \
+              evaluate_KS_density_p0.o \
+              evaluate_KS_density_densmat.o \
+              evaluate_KS_density_complex_p0.o \
+              evaluate_KS_orbital_density.o \
+              evaluate_KS_orbital_density_p1.o \
+              evaluate_KS_orbital_density_complex_p0.o \
+              evaluate_density_kinetic_p1.o \
+              evaluate_density_kinetic_complex_p1.o \
+              basis_sets/divide_angular_grid.o \
+              basis_sets/divide_angular_grid_p0.o \
+              evaluate_scaled_KS_orbitals_v1.o \
+              tab_ylm.o \
+              basis_sets/tab_local_trigonom.o \
+              basis_sets/tab_local_ylm.o \
+              evaluate_partition_p2.o \
+              smooth_partition_edge.o \
+              basis_sets/insertionsort.o \
+              heapsort.o \
+              heapsort_general.o \
+              heapsort_index.o \
+              solve_KS_eigen.o \
+              stop_illconditioning.o \
+              get_constraint_fermi.o \
+              threshold_occ_numbers_constraint.o \
+              check_norm_constraint.o \
+              zeroin_constraint.o \
+              evaluate_xc_energy_shell.o \
+              f_external_constraint.o \
+              tab_trigonom2.o \
+              binomial_coefficient.o \
+              binomial_coefficient_neg.o \
+              factorial.o \
+              double_factorial.o \
+              tab_single_atom_centered_coords_radial_log_p0.o \
+              tab_single_radial_weights_v2.o \
+              compare_forces.o \
+              get_total_forces.o \
+              update_density_and_forces_orbital.o \
+              update_density_densmat.o \
+              update_missing_density_orbital.o \
+              update_missing_density_densmat.o \
+              evaluate_pulay_forces_p0.o \
+              evaluate_gga_forces_p0.o \
+              evaluate_rho_gradient.o \
+              evaluate_v_hartree_gradient.o \
+              evaluate_rho_multipole_gradient.o \
+              evaluate_v_hartree_and_rho_multipole_gradient.o \
+              evaluate_wave_hessian_cartesian_p0.o \
+              evaluate_wave_hessian_cartesian_p2.o \
+              evaluate_radial_functions_deriv_p0.o \
+              output_energy_and_forces.o \
+              prune_force_atoms_v1.o \
+              evaluate_h_minus_e_times_psi_v2.o \
+              evaluate_potential_cube.o \
+              evaluate_wave_psi.o \
+              evaluate_nuclear_gradients_p0.o \
+              evaluate_KS_orbital_gradients_p1.o \
+              evaluate_KS_orbital_gradients_complex_p1.o \
+              evaluate_density_gradient_p1.o \
+              evaluate_density_gradient_denmat.o \
+              evaluate_density_gradient_complex_p1.o \
+              evaluate_hellman_feynman_forces_p0.o \
+              evaluate_ext_charge_hellman_feynman_forces_p0.o \
+              evaluate_wave_gradient_cartesian_p1.o \
+              evaluate_wave_gradient_cartesian_p2.o \
+              evaluate_orb_hess_dot_rho_grad_p0.o \
+              evaluate_orb_grad_dot_rho_grad_p0.o \
+              construct_hamiltonian_and_ovl.o \
+              construct_hamiltonian.o \
+              lapack_solver.o \
+              condense_basis_pairs.o   \
+              initialize_hartree_fock.o   \
+              initialize_hartree_fock_p0.o   \
+              get_lvl_tricoeff_bravais.o \
+              get_lvl_tricoeff_recip.o \
+              get_lvl_tricoeff_recip_general.o \
+              determine_k_minus_q_list.o \
+              determine_k_minus_q_list_finemesh.o \
+              determine_irreducible_k_grid.o \
+              distribute_irreducible_eigenvectors.o \
+              get_coulomb_matr_recip.o \
+              get_coulomb_coeff_blacs.o \
+              evaluate_polarisability_kspace.o \
+              evaluate_crpa_energy_kspace.o \
+              evaluate_crpa_energy_kspace_restart.o \
+              rpa_calculation_p0.o \
+              post_scf_correlation_treatment_p0.o \
+              prepare_fine_k_quantities.o \
+              evaluate_loc_prod_waves_p0.o \
+              integrate_v_times_radialwaves_v2.o \
+              evaluate_partition_tab_2atoms_gen_p0.o \
+              shrink_opt_auxil_basis.o   \
+              shrink_full_auxil_basis.o   \
+              shrink_full_auxil_basis_aux.o   \
+              shrink_full_auxil_basis_v2.o   \
+              shrink_svd_auxil_basis.o   \
+              generate_basbasfn.o \
+              basis_sets/get_bas_dimensions.o \
+              basis_sets/generate_full_bas.o \
+              basis_sets/generate_bas_indexing.o \
+              basis_sets/generate_Lsp_indexing.o \
+              integrate_coulomb_matr_v0.o  \
+              integrate_coulomb_matr_p1.o  \
+              integrate_ovlp_prodbas.o  \
+              orthonormalize_prodbas_fn.o \
+              evaluate_partition_tab_3atoms.o \
+              evaluate_partition_tab_3atoms_p0.o \
+              evaluate_prod_waves.o  \
+              evaluate_prod_waves_p0.o \
+              evaluate_ovlp3fn_shell_v0.o \
+              evaluate_coulomb_matr_shell_v0.o \
+              evaluate_coulomb_matr_shell_p0.o \
+              evaluate_partition_tab_2atoms.o \
+              evaluate_partition_tab_2atoms_p0.o \
+              integrate_ovlp3fn.o \
+              integrate_v_times_radialwaves.o \
+              evaluate_v_times_waves.o  \
+              evaluate_v_times_waves_p0.o  \
+              density_matrix_mixing.o \
+              evaluate_exchange_matr_v0.o \
+              evaluate_exchange_matr_v1.o \
+              evaluate_exchange_matr_LVL_eigen.o \
+              evaluate_exchange_matr_kspace_p0.o \
+              evaluate_exchange_matr_kspace_single_kpoint_p0.o \
+              get_fnKSbb.o \
+              evaluate_screx_matrix.o \
+              evaluate_O_2bs1HF.o \
+              evaluate_O_bbbsKS_part.o \
+              get_hf_hamiltonian.o  \
+              get_hf_hamiltonian_real_p0.o \
+              get_hf_hamiltonian_complex_p0.o \
+              get_screx_hamiltonian.o  \
+              get_fock_energy.o  \
+              prune_prodbas_v1.o \
+              diagonalize_auxmat_lapack.o \
+              diagonalize_auxmat_scalapack_supercell.o \
+              diagonalize_auxmat_scalapack_complex.o \
+              get_aux_gaussian_basis_fns.o \
+              prepare_corr_energy_calc.o \
+              qpe_calculation.o \
+              mp2_calculation.o \
+              evaluate_mp2_correlation_energy.o \
+              evaluate_osmp2_correlation_energy.o \
+              evaluate_mp2_selfenergy.o \
+              evaluate_2ox_selfenergy.o \
+              evaluate_soxw_selfenergy.o \
+              evaluate_sosex_selfenergy.o \
+              evaluate_sosex_2w_selfenergy.o \
+              multi_ovlp3KS_sqrtw.o \
+              evaluate_ovlp_3MO.o \
+              evaluate_ovlp_3MO_EN.o \
+              get_projected_dos.o \
+              basis_sets/get_sph_gaussian_basis_fns.o \
+              transform_ovlp3fn.o \
+              integrate_xc_matrix.o \
+              integrate_xc_realspace_p2.o \
+              integrate_split_xc_matrix.o \
+              integrate_xc_energy.o \
+               dftpt2_dft_part_energy.o \
+              evaluate_single_excitation_correction.o \
+              evaluate_single_excitation_correction_p0.o \
+              evaluate_renormalized_single_excitation_correction.o \
+              crpapw.o \
+              evaluate_xc_matr_shell.o \
+              evaluate_KS_xc_matrix.o \
+              evaluate_KS_split_xc_matrix.o \
+              power_auxmat_lapack.o \
+              power_auxmat_lapack_supercell.o \
+              power_auxmat_scalapack.o \
+              power_auxmat_scalapack_supercell.o \
+              power_genmat_lapack.o \
+              evaluate_invs_times_sqrtv.o \
+              evaluate_invs_times_sqrtv_scalapack.o \
+              get_v_multi_ovlp3fn.o \
+              get_ovlp3fn_multi_sv.o \
+              auxiliary_matrix_multi.o \
+              scatter_auxmat.o \
+              gather_auxmat.o \
+              tf_ini.o \
+              evaluate_exchange_energy.o \
+              get_exchange_energy_p0.o \
+              evaluate_eex_energy.o \
+              evaluate_rpa_correlation_energy.o \
+              evaluate_rpa_integrand.o \
+              evaluate_rpa_integrand_along_ac_path.o \
+              qpe_osPT2/qpe_osPT2.o \
+              qpe_osPT2/evaluate_qpe_ospt2_energy.o \
+              qpe_osPT2/evaluate_qpe_osrpa_energy.o \
+              qpe_osPT2/evaluate_qpe_sicrpa_energy.o \
+              qpe_osPT2/evaluate_ospt2_integrand.o \
+              qpe_osPT2/evaluate_osrpa_integrand.o \
+              qpe_osPT2/evaluate_osrpa_integrand_2.o \
+              qpe_osPT2/evaluate_special_radius_x0.o \
+              qpe_osPT2/evaluate_special_radius_x2.o \
+              qpe_osPT2/diagonalize_auxmat_scalapack_real.o \
+              qpe_osPT2/evaluate_sicrpa_integrand.o \
+              qpe_osPT2/logarithmic_matrix_lapack.o \
+              evaluate_2oex_energy.o \
+              evaluate_sosex_energy.o \
+              evaluate_C6_coeff.o \
+              evaluate_dipole_polarisability.o \
+              integrate_dipmom_pairstates.o \
+              determine_center_of_molecule.o \
+              evaluate_periodic_gw_selfenergy.o \
+              get_gw_band_struct_info.o \
+              get_KS_orbitals_bandplot.o \
+              evaluate_gw_selfenergy_band_kpoint.o \
+              power_auxmat_complex.o \
+              power_auxmat_scalapack_complex.o \
+              compute_g_times_w_p0.o \
+              compute_g_times_w_single_kpoint.o \
+              evaluate_single_excitation_to_self_energy.o \
+              screened_coulomb_interaction.o \
+              integrate_coulombhole.o \
+              evaluate_coulombhole_shell.o \
+              analy_continue_self_energy.o \
+              analy_continue_self_energy_p0.o \
+              evaluate_ex_and_xc_matr_kspace.o \
+              evaluate_exx_matr_kspace.o \
+              evaluate_xc_matr_kspace.o \
+              construct_xc_matr_kspace.o \
+              quasi_particle_energy_p0.o \
+              quasi_particle_energy_multisolu.o \
+              mr_min_lsq.o \
+              initialize_fitting_parameter.o \
+              evaluate_fitting_function.o \
+              get_real_selfenergy.o \
+              get_pade_approx_para.o \
+              estimate_n_compute_maxes.o \
+              get_n_compute_maxes_p1.o \
+              get_n_max_for_densities.o \
+              get_relative_coords.o \
+              get_relative_lv.o \
+              get_net_force.o \
+              get_net_force_lv.o \
+              get_net_torque.o \
+              get_net_torque_lv.o \
+              map_to_center_cell.o \
+              map_to_first_octant.o \
+              partition_grid.o \
+              reset_grid_partitions.o \
+              reset_hamiltonian.o \
+              create_ini_type_lookup.o \
+              output_cube_files_p1.o \
+              output_cube_files_p2.o \
+              output_cube_files_p2_cpscf.o \
+              output_bxsf.o \
+              calculate_kinetic_density_on_arbitrary_points.o \
+              determine_vacuum_level.o \
+              initialize_cube_grid_storage.o \
+              output_whole_potential_on_arbitrary_points.o \
+              calculate_whole_potential_on_arbitrary_points.o \
+              aufbau_principle.o \
+              setup_cube_defaults.o \
+              write_cube_header.o \
+              scf_solver.o \
+              lpb_solver.o \
+              noscf_solver.o \
+              unshift_eigenvalues.o \
+              update_grid_coords.o \
+              basis_sets/get_free_atoms_polarized.o \
+              initialize_fixed_grids.o \
+              orthonormalize_eigenvectors.o \
+              construct_overlap.o \
+              integrate_errorfunction.o \
+              radial_fourier_hse.o \
+              hse_logsbt_integrator.o \
+              hse_logsbt_integrator_grid.o \
+              evaluate_quadrupole_moment.o \
+              output_quadrupole_moment.o \
+              soc/evaluate_soc_shell.o \
+              output_KS_dos.o \
+              output_KS_dos_pert.o \
+              output_KS_dos_tetrahedron.o \
+              integrate_v_psi.o \
+              k_point_symmetry_check.o \
+              check_occs.o \
+              final_deallocations.o \
+              final_energy_output.o \
+              basis_sets/rel_atoms.o \
+              gaussian_lattice_sum.o \
+              gaussian_lattice_gamma.o \
+              get_gaussian_Vq.o \
+              get_gaussian_Vq_coeff.o \
+              get_singularity_lifting_chi.o \
+              wf_save_overlap.o \
+              asym_inv_sqrt_of_auxmat_scalapack.o \
+              gen_inv_auxmat_scalapack_2d.o \
+              get_penalty_energy.o \
+              add_const_to_hamiltonian.o \
+              SCGW/get_polar.o \
+              SCGW/get_hartree_pot.o \
+              SCGW/scgw_densmat_analysis.o \
+              SCGW/read_and_write_G.o \
+              SCGW/get_real_space_density.o \
+              SCGW/compute_scgw_dipole.o \
+              SCGW/transform_and_interpolate_green_fn_to_time.o \
+              SCGW/evaluate_ovlp_NAO_KS.o \
+              SCGW/E_kin.o \
+              SCGW/self_consistent_gw.o \
+              SCGW/get_self_energy.o \
+              SCGW/invert_green.o \
+              SCGW/solve_dyson_equation.o \
+              SCGW/solve_dyson_equation_re.o \
+              SCGW/test_self_energy.o \
+              SCGW/check_the_error.o \
+              SCGW/transform_exchange_energy.o \
+              SCGW/get_exchange_self_energy.o \
+              SCGW/invert_overlap_matrix.o \
+              SCGW/test_exchange_self_energy.o \
+              SCGW/analy_continue_green_fn.o \
+              SCGW/get_spectrum.o \
+              SCGW/diagonalize_green_fn.o \
+              SCGW/diagonalize_self_en.o \
+              SCGW/single_particle_energy.o \
+              SCGW/total_energy_calculation.o \
+              SCGW/get_green_function_time.o \
+              SCGW/get_green_function_freq.o \
+              get_qp_spectrum.o \
+              SCGW/poles.o \
+              SCGW/spectrum.o \
+              read_MD_restart.o \
+              read_PIMD_restart.o \
+              get_coeff_3fn_svs.o \
+              get_coeff_3fn_v_2d.o \
+              get_coeff_3fn_v_1d.o \
+              get_coeff_3fn_lvl.o \
+              get_coeff_3fn_lvl_full.o \
+              get_pairwise_coeff_3fn.o \
+              ovlp3KS_lvl.o \
+              atom_bsse_results.o \
+              get_gw_tot_en.o \
+              report_out_of_walltime_error.o \
+              prepare_system.o \
+              test_pdtran.o \
+              hf_postproc.o \
+              evaluate_waves_mult_point_center_fn.o \
+              prune_general_basis.o \
+              spline_blender.o \
+              log_spline_blender.o \
+              evaluate_wavefunc.o \
+              evaluate_wavefunc_real.o \
+              evaluate_wavefunc_cmplx.o \
+              evaluate_wavefunc_and_grad.o \
+              evaluate_wavefunc_and_grad_real.o \
+              evaluate_wavefunc_and_grad_cmplx.o \
+              evaluate_rho_from_densmat.o \
+              evaluate_rho_gradient_from_densmat.o \
+              evaluate_all_basis_waves.o \
+              ball_touches_zero_cell.o \
+              baswave_pp_overlap.o \
+              add_nonlocal_pot.o \
+              get_system_symmetries.o \
+              symmetry_reduce_k_points.o \
+              look_at_rho.o \
+              renormalize_density.o \
+              get_atomic_charges.o \
+              baswave_pp_overlap2.o \
+              baswave_pp_overlap3.o \
+              ion_pseudopot_potential_v1.o \
+              ion_pseudopot_potential_v2.o \
+              evaluate_nonlocal_energy.o \
+              evaluate_pp_hellman_feynman_forces_p0.o \
+              evaluate_pp_nonlocal_forces.o \
+              evaluate_nlcc_forces.o \
+              evaluate_pp_nlcc_forces.o \
+              evaluate_nlcc_correction_energy.o \
+              prepare_embedding_grids.o \
+              optical_response/optical_response.o \
+              optical_response/integrate_fxc_matrix.o \
+              optical_response/libxc_functions.o \
+              bse/bse_serial_wrapper.o \
+              bse/bse_parallel_wrapper.o \
+              bse/bse.o \
+              bse/qpe_calculation_bse.o \
+              bse/screened_coulomb_abf.o \
+              bse/coulomb_4ks.o \
+              bse/screened_coulomb_4ks.o \
+              bse/construct_solve_bse_mat.o \
+              bse/bse_2d.o \
+              bse/output_coulomb_integrals_mo.o \
+              bse/output_coulomb_integrals_mo_2d.o \
+              soc/get_dipolematrix_soc.o \
+              calculate_dipolemat.o \
+              output_eigenvec_ovlp_p1.o \
+              partial_core_dens2grid_v2.o \
+              count_frozen_core_states.o \
+              get_momentummatrix.o \
+              get_dipolematrix.o \
+              get_ev_scalapack_hdf5.o \
+              get_absorption.o \
+              get_coulelement_ovl.o \
+              get_coulelement_lvl_v0.o \
+              get_dipolemat_k_k.o \
+              get_esp_charges.o \
+              esp_partition_grid.o \
+              esp_grid_storage.o \
+              adjust_scf_settings.o \
+              DFPT/evaluate_first_order_S.o \
+              friction/evaluate_first_order_S_right.o \
+              DFPT/integrate_first_order_S.o \
+              friction/integrate_first_order_S_right.o \
+              DFPT/evaluate_first_order_H.o \
+              DFPT/evaluate_first_order_rho.o \
+              DFPT/evaluate_first_order_rho_moving_grid.o \
+              DFPT/integrate_first_order_rho.o \
+              DFPT/update_hartree_potential_p2_shanghui.o \
+              DFPT/sum_up_whole_potential_p2_shanghui.o \
+              DFPT/evaluate_xc_shanghui.o \
+              DFPT/integrate_first_order_H.o \
+              DFPT/evaluate_first_order_DM.o \
+              DFPT/evaluate_first_order_U.o \
+              DFPT/evaluate_first_order_C.o \
+              DFPT/evaluate_first_zero_order_DM_EDM.o \
+              DFPT/evaluate_hellman_feynman_hessian.o \
+              DFPT/evaluate_hellman_feynman_hessian_fixed.o \
+              DFPT/evaluate_first_order_H_pulay.o \
+              DFPT/evaluate_second_order_H_pulay.o \
+              DFPT/evaluate_second_order_H_pulay_fixed.o \
+              DFPT/evaluate_second_order_S.o \
+              DFPT/evaluate_second_order_S_fixed.o \
+              DFPT/integrate_hessian.o \
+              DFPT/cpscf_solver.o \
+              DFPT_reduce_memory/evaluate_first_order_S_reduce_memory.o \
+              DFPT_reduce_memory/integrate_first_order_S_reduce_memory.o \
+              friction/evaluate_first_order_S_right_reduce_memory.o \
+              friction/integrate_first_order_S_right_reduce_memory.o \
+              DFPT_reduce_memory/evaluate_first_order_H_reduce_memory.o \
+              DFPT_reduce_memory/evaluate_first_order_rho_reduce_memory.o \
+              DFPT_reduce_memory/integrate_first_order_rho_reduce_memory.o \
+              DFPT_reduce_memory/evaluate_first_order_gradient_rho_reduce_memory.o \
+              DFPT_reduce_memory/integrate_first_order_H_reduce_memory.o \
+              DFPT_reduce_memory/evaluate_zero_order_DM_reduce_memory.o \
+              DFPT_reduce_memory/evaluate_zero_order_EDM_reduce_memory.o \
+              DFPT_reduce_memory/evaluate_first_order_DM_reduce_memory.o \
+              DFPT_reduce_memory/evaluate_first_order_EDM_reduce_memory.o \
+              DFPT_reduce_memory/evaluate_first_order_U_reduce_memory.o \
+              DFPT_reduce_memory/evaluate_first_zero_order_DM_EDM_reduce_memory.o \
+              DFPT_reduce_memory/evaluate_hellman_feynman_hessian_fixed_reduce_memory.o \
+              DFPT_reduce_memory/evaluate_pulay_hessian_fixed_reduce_memory.o \
+              DFPT_reduce_memory/integrate_hessian_reduce_memory.o \
+              DFPT_reduce_memory/cpscf_solver_reduce_memory.o \
+              DFPT_phonon_gamma/evaluate_first_order_S_p0.o \
+              DFPT_phonon_gamma/integrate_first_order_S_p0.o \
+              DFPT_phonon_gamma/construct_first_order_S_p0.o \
+              DFPT_phonon_gamma/evaluate_first_order_H_p0.o \
+              DFPT_phonon_gamma/integrate_first_order_H_p0.o \
+              DFPT_phonon_gamma/construct_first_order_H_p0.o \
+              DFPT_phonon_gamma/evaluate_first_order_DM_p0.o \
+              DFPT_phonon_gamma/evaluate_first_order_rho_p0.o \
+              DFPT_phonon_gamma/integrate_first_order_rho_p0.o \
+              DFPT_phonon_gamma/evaluate_first_order_U_p0.o \
+              DFPT_phonon_gamma/update_hartree_potential_shanghui_p0.o \
+              DFPT_phonon_gamma/sum_up_whole_potential_shanghui_p0.o \
+              DFPT_phonon_gamma/integrate_free_atom_sum_gradient_p0.o \
+              DFPT_phonon_gamma/integrate_free_atom_hessian_p0.o \
+              DFPT_phonon_gamma/evaluate_first_zero_order_DM_EDM_p0.o \
+              DFPT_phonon_gamma/evaluate_second_order_S_p0.o \
+              DFPT_phonon_gamma/evaluate_first_order_H_pulay_p0.o \
+              DFPT_phonon_gamma/evaluate_second_order_H_pulay_p0.o \
+              DFPT_phonon_gamma/integrate_pulay_hessian_p0.o \
+              DFPT_phonon_gamma/cpscf_solver_phonon_p0.o \
+              DFPT_phonon/read_plot_DFPT_phonon_band.o \
+              DFPT_phonon/tab_two_center_coords_PBC.o \
+              DFPT_phonon/trans_sparse_to_matrix.o \
+              DFPT_phonon/trans_first_order_sparse_to_matrix.o \
+              DFPT_phonon/trans_circle_to_cubic.o \
+              DFPT_phonon/trans_cubic_to_circle.o \
+              DFPT_phonon/trans_second_order_sparse_to_matrix.o \
+              DFPT_phonon/add_matrix_to_sparse.o \
+              DFPT_phonon/trans_hessian_to_dynamical_matrix.o \
+              DFPT_phonon/solve_eigen_supercell.o \
+              DFPT_phonon/evaluate_first_order_DM_supercell_p1.o \
+              DFPT_phonon/evaluate_first_order_EDM_supercell_p1.o \
+              DFPT_phonon/evaluate_first_order_S_p1.o \
+              DFPT_phonon/integrate_first_order_S_p1.o \
+              DFPT_phonon/evaluate_first_order_H_p1.o \
+              DFPT_phonon/integrate_first_order_H_p1.o \
+              DFPT_phonon/evaluate_zero_order_DM_p1.o \
+              DFPT_phonon/evaluate_zero_order_EDM_p1.o \
+              DFPT_phonon/prune_first_order_density_matrix_sparse.o \
+              DFPT_phonon/evaluate_first_order_rho_p1.o \
+              DFPT_phonon/integrate_first_order_rho_p1.o \
+              DFPT_phonon/update_hartree_potential_at_zero.o \
+              DFPT_phonon/update_hartree_potential_shanghui_p1.o \
+              DFPT_phonon/sum_up_whole_potential_shanghui_p1.o \
+              DFPT_phonon/integrate_free_atom_sum_gradient_p1.o \
+              DFPT_phonon/integrate_free_atom_hessian_p1.o \
+              DFPT_phonon/integrate_delta_hellman_hessian_p1.o \
+              DFPT_phonon/update_full_matrix_p1.o \
+              DFPT_phonon/update_full_matrix_p1_for_fd_benchmark.o \
+              DFPT_phonon/evaluate_pulay_hessian_p1.o \
+              DFPT_phonon/integrate_pulay_hessian_p1.o \
+              DFPT_phonon/cpscf_solver_phonon_p1.o \
+              DFPT_phonon_reduce_memory/evaluate_first_order_S_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/integrate_first_order_S_phonon_reduce_memory.o \
+              friction/evaluate_first_order_S_right_phonon_reduce_memory.o \
+              friction/integrate_first_order_S_right_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/construct_first_order_S_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/evaluate_first_order_H_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/evaluate_first_order_H_GGA_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/integrate_first_order_H_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/construct_first_order_matrix_reduce_memory.o \
+              DFPT_phonon_reduce_memory/evaluate_zero_order_DM_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/evaluate_first_order_DM_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/evaluate_first_order_rho_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/evaluate_first_order_gradient_rho_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/prune_density_matrix_sparse_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/integrate_first_order_rho_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/evaluate_first_order_U_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/update_hartree_potential_shanghui_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/sum_up_whole_potential_shanghui_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/integrate_free_atom_sum_gradient_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/integrate_free_atom_dynamical_matrix_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/evaluate_zero_order_EDM_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/evaluate_first_order_EDM_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/evaluate_pulay_dynamical_matrix_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/evaluate_hellman_feynman_delta_part_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/integrate_dynamical_matrix_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/integrate_hellam_dynamical_matrix_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/evaluate_Born_effective_charges_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/calculate_first_order_S_and_H_phonon_reduce_memory.o \
+              DFPT_phonon_reduce_memory/cpscf_solver_phonon_reduce_memory.o \
+              DFPT_polarizability/evaluate_first_order_H_polarizability.o \
+              DFPT_polarizability/evaluate_first_order_rho_polarizability.o \
+              DFPT_polarizability/integrate_first_order_rho_polarizability.o \
+              DFPT_polarizability/evaluate_first_order_gradient_rho_polarizability.o \
+              DFPT_polarizability/evaluate_xc_DFPT.o \
+              DFPT_polarizability/add_HF_to_first_order_H_polarizability.o \
+              DFPT_polarizability/integrate_first_order_H_polarizability.o \
+              DFPT_polarizability/evaluate_first_order_DM_polarizability.o \
+              DFPT_polarizability/evaluate_first_order_U_polarizability.o \
+              DFPT_polarizability/integrate_polarizability.o \
+              DFPT_polarizability/cpscf_solver_polarizability.o \
+              DFPT_polar_reduce_memory/evaluate_first_order_H_polar_reduce_memory.o \
+              DFPT_polar_reduce_memory/evaluate_first_order_rho_polar_reduce_memory.o \
+              DFPT_polar_reduce_memory/prune_density_matrix_sparse_polar_reduce_memory.o \
+              DFPT_polar_reduce_memory/integrate_first_order_rho_polar_reduce_memory.o \
+              DFPT_polar_reduce_memory/evaluate_first_order_gradient_rho_polar_reduce_memory.o \
+              DFPT_polar_reduce_memory/integrate_first_order_H_polar_reduce_memory.o \
+              DFPT_polar_reduce_memory/evaluate_first_order_DM_polar_reduce_memory.o \
+              DFPT_polar_reduce_memory/evaluate_first_order_DM_elsi_dm_cpscf_polar_reduce_memory.o \
+              DFPT_polar_reduce_memory/integrate_polar_reduce_memory.o \
+              DFPT_polar_reduce_memory/cpscf_solver_polar_reduce_memory.o \
+              DFPT_dielectric/evaluate_zero_order_DM_dielectric.o \
+              DFPT_dielectric/evaluate_zero_order_EDM_dielectric.o \
+              DFPT_dielectric/evaluate_first_order_DM_dielectric.o \
+              DFPT_dielectric/evaluate_first_order_EDM_dielectric.o \
+              DFPT_dielectric/evaluate_first_order_H_dielectric.o \
+              DFPT_dielectric/evaluate_first_order_U_dielectric.o \
+              DFPT_dielectric/evaluate_Omega_MO_v1.o \
+              DFPT_dielectric/evaluate_Omega_MO_diag.o \
+              DFPT_dielectric/evaluate_first_order_rho_dielectric.o \
+              DFPT_dielectric/evaluate_first_order_gradient_rho_dielectric.o \
+              DFPT_dielectric/integrate_first_order_H_dielectric.o \
+              DFPT_dielectric/integrate_first_order_rho_dielectric.o \
+              DFPT_dielectric/get_momentum_matrix.o \
+              DFPT_dielectric/integrate_momentum_matrix_sparse.o \
+              DFPT_dielectric/evaluate_momentum_matrix_sparse.o \
+              DFPT_dielectric/integrate_Omega_part_1_sparse.o \
+              DFPT_dielectric/evaluate_Omega_part_1_sparse.o \
+              DFPT_dielectric/construct_matrix_complex_no_symmetry.o \
+              DFPT_dielectric/construct_matrix_complex.o \
+              DFPT_dielectric/construct_first_order_matrix_k_complex.o \
+              DFPT_dielectric/evaluate_first_order_Q_k_dielectric.o \
+              DFPT_dielectric/evaluate_Omega_MO_v2.o \
+              DFPT_dielectric/prune_density_matrix_sparse_dielectric.o \
+              DFPT_dielectric/sum_up_whole_potential_shanghui_dielectric.o \
+              DFPT_dielectric/update_hartree_potential_shanghui_dielectric.o \
+              DFPT_dielectric/integrate_Born_effective_charges_Hellman_Feynman.o \
+              DFPT_dielectric/integrate_Born_effective_charges_MP.o \
+              DFPT_dielectric/integrate_Born_effective_charges_MP_force.o \
+              DFPT_dielectric/evaluate_Born_effective_charges_Pulay.o \
+              DFPT_dielectric/integrate_Born_effective_charges_Pulay.o \
+              DFPT_dielectric/evaluate_dielectric_constant.o \
+              DFPT_dielectric/integrate_polarizability_dielectric_constant.o \
+              DFPT_dielectric/integrate_r_dielectric.o \
+              DFPT_dielectric/evaluate_r_dielectric.o \
+              DFPT_dielectric/debug_compare.o \
+              DFPT_dielectric/cpscf_solver_dielectric.o \
+              RRS-PBC/store_rrs_pbc_data.o \
+              RRS-PBC/get_rrs_pbc_k_point_list.o \
+              RRS-PBC/get_rrs_pbc_atom2basis.o \
+              RRS-PBC/get_rrs_pbc_cell_index.o \
+              RRS-PBC/get_rrs_pbc_cell_vector.o \
+              RRS-PBC/read_rrs_pbc_lattice_vector.o \
+              RRS-PBC/read_rrs_pbc_unit_cell.o \
+              RRS-PBC/read_rrs_pbc_plot_band.o \
+              RRS-PBC/output_rrs_pbc_result.o \
+              RRS-PBC/output_rrs_pbc_matrix_real.o \
+              RRS-PBC/output_rrs_pbc_matrix_complex.o \
+              RRS-PBC/output_rrs_pbc_matrix_2D.o \
+              RRS-PBC/output_rrs_pbc_lattice_vector.o \
+              RRS-PBC/output_rrs_pbc_unit_cell.o \
+              RRS-PBC/diagnalize_rrs_pbc.o \
+              RRS-PBC/rrs_pbc_complex_lapack_solver_fast.o \
+              RRS-PBC/prepare_rrs_pbc_energy.o \
+              RRS-PBC/out_rrs_pbc_band.o \
+              RRS-PBC/calculate_rrs_pbc_k_matrices.o \
+              RRS-PBC/build_rrs_pbc_k_matrices.o \
+              RRS-PBC/purge_rrs_pbc_hamiltonian.o \
+              RRS-PBC/parse_rrs_pbc_rationality.o \
+              RRS-PBC/parse_rrs_pbc.o \
+              RRS-PBC/run_rrs_pbc.o \
+              LRC_PT2/prepare_lrc_corr_energy_calc.o \
+              LRC_PT2/evaluate_dftpt2_correlation.o \
+              Periodic_PT2/evaluate_cpt2_energy_kspace.o \
+              Periodic_PT2/evaluate_cpt2_energy_kspace_blacs.o \
+              Periodic_PT2/evaluate_cpt2_os_energy_kspace.o \
+              Periodic_PT2/initialize_cpt2_para.o \
+              Periodic_PT2/pt2_calculation.o \
+              Periodic_PT2/power_auxmat_lapack_complex.o \
+              Periodic_PT2/power_auxmat_scalapack_complex_cpt2.o \
+              Periodic_PT2/power_auxmat_scalapack_real_cpt2.o \
+              Periodic_PT2/get_v_multi_ovlp3fn_cpt2.o \
+              Periodic_PT2/post_cpt2_lapack.o \
+              Periodic_PT2/post_cpt2_blacs.o \
+              sBGE2/evaluate_en_mp2_correlation_energy.o \
+              sBGE2/evaluate_iepa_mp2_correlation_energy.o \
+              sBGE2/evaluate_iepa_mp2_correlation_energy_v02.o \
+              sBGE2/nsolver_iepa_mp2.o \
+              sBGE2/nsolver_iepa_mp2_v02.o \
+              DMFT_embed/multiply_ovlp_matr.o \
+              DMFT_embed/analy_continue_self_energy_dmft.o \
+              DMFT_embed/get_qp_spectrum_dmft.o \
+              DMFT_embed/qp_spectrum_dmft.o \
+              DMFT_embed/transform_to_KS_basis_complex.o \
+              DMFT_embed/transform_to_NAO_basis_complex.o \
+              DMFT_embed/get_GW_self_energy.o \
+              DMFT_embed/get_particle_number.o \
+              DMFT_embed/multiply_ovlp_self_enrg.o \
+              DMFT_embed/initialize_fitting_parameter_dmft.o \
+              DMFT_embed/update_chemical_pot_dmft_cluster.o \
+              DMFT_embed/zeroin_dmft_cluster.o \
+              DMFT_embed/check_norm_dmft_p2_cluster.o \
+              DMFT_embed/update_chemical_pot_cluster.o \
+              DMFT_embed/update_chemical_pot_dmft.o \
+              DMFT_embed/zeroin_dmft.o \
+              DMFT_embed/check_norm_dmft_p2.o \
+              DMFT_embed/update_chemical_pot.o \
+              DMFT_embed/mr_min_lsq_dmft.o \
+              DMFT_embed/get_delta_density_matr.o \
+              DMFT_embed/get_total_energy_dmft.o \
+              DMFT_embed/get_total_energy_dmft_PBE0.o \
+              DMFT_embed/evaluate_hartree_and_exchange_embed.o \
+              DMFT_embed/evaluate_hartree_and_exchange_embed_PBE0.o \
+              DMFT_embed/prepare_partition_tabs_dmft.o \
+              DMFT_embed/get_NEW_on_site_gf_freq.o \
+              DMFT_embed/get_NEW_on_site_gf_freq_PBE0.o \
+              DMFT_embed/get_NEW_embed_gf_freq.o \
+              DMFT_embed/check_the_error_dmft.o \
+              DMFT_embed/analy_continue_green_fn_dmft.o \
+              DMFT_embed/diagonalize_green_fn_dmft.o \
+              DMFT_embed/diagonalize_green_fn_dmft_GW.o \
+              DMFT_embed/get_spectrum_k_dmft.o \
+              DMFT_embed/get_spectrum_dmft.o \
+              DMFT_embed/get_spectrum_dmft_GW.o \
+              DMFT_embed/spectrum_dmft.o \
+              DMFT_embed/spectrum_dmft_GW.o \
+              DMFT_embed/get_pbc_and_cluster_quantities.o \
+              DMFT_embed/diagonalize_auxmat_lapack_complex.o \
+              DMFT_embed/power_genmat_lapack_complex.o \
+              DMFT_embed/overlap_matrix_sqrt.o \
+              DMFT_embed/invert_overlap_matrix_complex.o \
+              DMFT_embed/invert_overlap_matrix_sqrt.o \
+              DMFT_embed/get_spectral_func.o \
+              DMFT_embed/construct_xc_pot.o \
+              DMFT_embed/self_consistent_DMFT.o \
+              DMFT_embed/self_consistent_DMFT_PBE0.o \
+              DMFT_embed/get_on_site_gf_freq.o \
+              DMFT_embed/get_on_site_gf_freq_PBE0.o \
+              DMFT_embed/get_on_site_gf_freq_no_ovlp.o \
+              DMFT_embed/get_embedding_self_enrg.o \
+              DMFT_embed/get_embedding_self_enrg_no_ovlp.o \
+              DMFT_embed/get_embed_gf_freq.o \
+              DMFT_embed/get_embed_gf_freq_no_ovlp.o \
+              DMFT_embed/get_density_matr.o \
+              DMFT_embed/get_density_matr_no_ovlp.o \
+              FCIQMC/ci_calculation.o \
+              FCIQMC/evaluate_E_ci.o \
+              FCIQMC/evaluate_c_vector.o \
+              FCIQMC/evaluate_w_vector_1.o \
+              FCIQMC/evaluate_w_vector_1a1b.o \
+              FCIQMC/evaluate_w_vector_2a.o \
+              FCIQMC/evaluate_w_vector_2b.o \
+              FCIQMC/evaluate_w_vector_1a.o \
+              FCIQMC/evaluate_w_vector_1b.o \
+              FCIQMC/ci_acceleration.o \
+              FCIQMC/ci_acc_initial.o \
+              FCIQMC/output_matrix_2D.o \
+              FCIQMC/output_CI_amplitudes.o \
+              FCIQMC/output_w_vect.o \
+              FCIQMC/output_array.o \
+              FCIQMC/ci_calculation_slab.o \
+              FCIQMC/get_4_index_integrals_slab.o \
+              CCcalc/cc_control.o \
+              CCcalc/general/cc_calculation.o \
+              CCcalc/general/cc_calc_aux.o \
+              CCcalc/general/cc_calc_E.o \
+              CCcalc/general/cc_calc_w_vect.o \
+              CCcalc/general/cc_initial.o \
+              CCcalc/general/cc_RLE.o \
+              CCcalc/general/cc_util.o \
+              CCcalc/cluster/cc_calc_cl.o \
+              CCcalc/cluster/cc_cl_initial.o \
+              CCcalc/cluster/cc_cl_intl.o \
+              CCcalc/cluster/cc_cl_calc_w.o \
+              CCcalc/cluster/cc_cl_aux.o \
+              CCcalc/cluster/cc_cl_DIIS.o \
+              CCcalc/cluster/cc_cl_jacob.o \
+              CCcalc/cluster/cc_cl_PT.o \
+              CCcalc/3D/cc_calc_3d.o \
+              CCcalc/3D/cc_3d_initial.o \
+              CCcalc/3D/cc_3d_intl.o \
+              CCcalc/3D/cc_3d_calc_w.o \
+              CCcalc/3D/cc_3d_aux.o \
+              CCcalc/3D/cc_3d_diis.o \
+              scalapack_generic_wrapper.o \
+              soc/update_soc_matrix.o \
+              soc/integrate_soc_matrix.o \
+              soc/calculate_second_variational_soc.o \
+              soc/construct_soc_hamiltonian.o \
+              MagneticResponse/MR_main.o \
+              MagneticResponse/MR_core.o \
+              MagneticResponse/integrate_FC.o \
+              MagneticResponse/nuclear_data.o \
+              MagneticResponse/GIAO_mult_psi.o \
+              MagneticResponse/compute_dipolar_couplings.o \
+              write_lattice_parameters.o \
+              perform_symmetry_analysis.o \
+              init_citations.o \
+              init_debug.o \
+              get_memory.o \
+              get_sym_overlap.o \
+              advance_KS_solution.o \
+              estimate_Ewald_radius.o \
+              evaluate_densmat_part.o \
+              basis_sets/atom_sphere_wrapper.o \
+              basis_sets/cutoff_pot.o \
+              set_gaussian_free_cut.o \
+              hartree_solver.o \
+              precondition_dielectric.o \
+              cmake_info_stub.o \
+              relativity/rel_integrations.o \
+              relativity/rel_basis_index.o \
+              relativity/rel_functions.o \
+              relativity/rel_testfunctions.o \
+              relativity/rel_diag_functions.o \
+              relativity/rel_scf_functions.o \
+              relativity/x2c.o \
+              relativity/x2c_functions.o \
+              relativity/atom_x2c.o \
+              relativity/sigma_dot_p_int.o \
+              relativity/scalar2spinor.o \
+	      output_dgrid.o \
+              print_illconditioning.o \
+              set_aims_defaults.o \
+              set_mpe_defaults.o \
+              write_preamble.o \
+              DFPT_wrapper.o \
+              rlsy/batch_rlsy_interface.o \
+              rlsy/generate_custom_batches.o \
+              rlsy/generate_index_map.o \
+              rlsy/rlsy_basis_set.o \
+              rlsy/rlsy_calculate_density.o \
+              rlsy/rlsy_calculate_overlap.o \
+              rlsy/rlsy_constants.o \
+              rlsy/rlsy_crystalstructure.o \
+              rlsy/rlsy_distancetable.o \
+              rlsy/rlsy_electron_density.o \
+              rlsy/rlsy_extended_cluster.o \
+              rlsy/rlsy_free_atom.o \
+              rlsy/rlsy_geometry.o \
+              rlsy/rlsy_hartree_potential.o \
+              rlsy/rlsy_helpers.o \
+              rlsy/rlsy_integration_grid.o \
+              rlsy/rlsy_integration_grid_helpers.o \
+              rlsy/rlsy_interface.o \
+              rlsy/rlsy_kpointmesh.o \
+              rlsy/rlsy_kspace_eigenproblem.o \
+              rlsy/rlsy_linalg.o \
+              rlsy/rlsy_memtracker.o \
+              rlsy/rlsy_mpi_helper.o \
+              rlsy/rlsy_pair_locator.o \
+              rlsy/rlsy_partition_function.o \
+              rlsy/rlsy_realspace_integration_helper.o \
+              rlsy/rlsy_realspace_matrix.o \
+              rlsy/rlsy_scalapack_helper.o \
+              rlsy/rlsy_solve_KS_equations.o \
+              rlsy/rlsy_sorting.o \
+              rlsy/rlsy_spacegroup.o \
+              rlsy/rlsy_symmetry_helper_functions.o \
+              rlsy/rlsy_timer.o \
+              rlsy/rlsy_verletlist.o \
+              rlsy/rlsy_voronoi.o \
+              rlsy/test_symmetry_of_grid_and_things_on_grid.o 
+
+SUBROUTINES:=$(addprefix $(OBJDIR)/,$(SUBROUTINES_U))
+
+#  module list: ensure that modules are in right order to avoid dependency problems!
+#               the most basic ones come first ...
+
+MODULES_U = \
+          types.o \
+          mpi_tasks.o \
+          basis_sets/spline.o \
+          basis_sets/rdirac/dftatom.o \
+          relativity/rel_x2c_mod.o \
+          mod_crpa_blacs.o \
+          Periodic_PT2/mod_cpt2_blacs.o \
+          directories.o \
+          localorb_io.o \
+          check_environment.o \
+          constants.o \
+          mpe_constants.o \
+          mpe_types.o \
+          runtime_choices.o \
+          DFPT_OpenCL/opencl_util.o \
+          synchronize_mpi_basic.o \
+          aims_memory_tracking.o \
+          numerical_utilities.o \
+          debug_output.o \
+          xml_write.o \
+          dimensions.o \
+          quicksort_index.o \
+          bravais.o \
+          basis_sets/species_data.o \
+          bspline.o \
+          geometry.o \
+          read_fixed_grid.o \
+          basis_sets/grids.o \
+          basis_sets/basis.o \
+          exchange_ev.o \
+          exchange_trico.o \
+          Periodic_PT2/exchange_ev_cpt2.o \
+          Periodic_PT2/exchange_trico_cpt2.o \
+          Periodic_PT2/exchange_coulomb_cpt2.o \
+          Periodic_PT2/lvl_tricoeff_cpt2.o \
+          Periodic_PT2/redistribute_cpt2_kspace.o \
+          physics.o \
+          physics_ext.o \
+          arch_specific.o \
+          Hartree_F_p_functions.o \
+          analyze_arrays.o \
+          pbc_lists.o \
+          mpi_utilities.o \
+          synchronize_mpi.o \
+          applicable_citations.o \
+          timing_core.o \
+          timing.o \
+          debugmanager.o \
+          scalapack_utils.o \
+          sparse_tensor.o \
+          cg_scalapack.o \
+          scalapack_wrapper.o \
+          elsi_wrapper.o \
+          ks_wrapper.o \
+          restart_elsi.o \
+          statistics.o \
+          batch_statistics.o \
+          json_output.o \
+          c_helper.o \
+          aims_gpu.o \
+          full_local_mat_lapack.o \
+          load_balancing.o \
+          density_matrix_evaluation.o \
+          distributed_hessian.o \
+          lindh.o \
+          trust_radius_method.o \
+          symmetry_constrained_relaxation.o \
+          relaxation.o \
+          molecular_dynamics.o \
+          pot_constrain.o \
+          plumed_new_interface.o \
+          pi_molecular_dynamics.o \
+          thermodynamic_integration.o \
+          general_function.o \
+          wf_extrapolation.o \
+          basis_sets/free_atoms.o \
+          rho_multipole_evaluation.o \
+          v_hartree_multipole_evaluation.o \
+          external/vdwkernel.o \
+          external/nlcorr_routines.o \
+          octree_routines.o \
+          xc.o \
+          xc_library.o \
+          lapack_wrapper.o \
+          precondition.o \
+          lpb_solver_utilities.o \
+          mpb_solver_utilities.o \
+          SPE_solver.o \
+          mixing.o \
+          plot.o \
+          output_mulliken.o \
+          constraint.o \
+          mixing_constraint.o \
+          analytic_multipole_coefficients.o \
+          hartree_potential_real_p0.o \
+          hartree_potential_recip.o \
+          hartree_non_periodic_ewald.o \
+          cartesian_ylm.o \
+          bfgs.o \
+          basbas_fn_coulomb.o \
+          prodbas.o \
+          hartree_fock.o \
+          hartree_fock_p0.o \
+          KH_core_states.o \
+          scaled_zora_transform.o \
+          gw_para.o \
+          separate_core_states.o \
+          force_occupation.o \
+          restart.o \
+          restart_rpa.o \
+          inner_product.o \
+          vdw_correction.o \
+          ll_vdwdf.o \
+          cg.o \
+          forces_densmat.o \
+          energy_density.o \
+          output_molecular_dynamics.o \
+          output_pi_molecular_dynamics.o \
+          plus_u.o \
+          transport.o \
+          get_dielectric_function.o \
+          output_dipole_moment.o \
+          calculate_mommat_base.o \
+          KS_optical_properties.o \
+          tetra.o \
+          KS_optical_properties_tetrahedron.o \
+          calculate_coulmat_ovl.o \
+          calculate_dipolemat_k_k.o \
+          generate_aims_uuid.o \
+          hdf5_tools.o \
+          hdf5_output.o \
+          output_effective_potential.o \
+          evaluate_post_xc.o \
+          evaluate_kinetic_density_densmat.o \
+          calculate_kinetic_density.o \
+          integrate_post_xc_energy.o \
+          MD_QH_init.o \
+          triple_Y.o \
+          my_triple_Y.o \
+          logsbt.o \
+          my_logsbt.o \
+          logsbt_fast_kernel.o \
+          cut_coulomb_operator.o \
+          sbt_overlap.o \
+          sbt_overlap_tb.o \
+          sbt_overlap_aims.o \
+          tight_binding_auxmat.o \
+          lvl_triples.o \
+          my_lvl_triples.o \
+          localized_basbas.o \
+          numerical_stress.o \
+          heat_flux.o \
+          analytical_stress.o \
+          external_pressure_on_system.o \
+          hartree_potential_storage.o \
+          tddft_real_time_propagation.o \
+          calculate_fock_matrix_p0.o \
+          SCGW/scgw_grid.o \
+          SCGW/poles_fit.o \
+          SCGW/scgw_allocations.o \
+          SCGW/gt.o \
+          DFPT_phonon/DFPT_phonon_supercell.o \
+          DMFT_embed/dmft_para.o \
+          pseudodata.o \
+          optical_response/optics_module.o \
+          mpe_dielectric_interfaces_common.o \
+          isc_projected_voronoi.o \
+          isc_implicit_solvent_cavity.o \
+	  isc_constraint_dynamics.o \
+	  isc_common.o \
+          ifp_dielectric_interface_plane.o \
+          mpe_dielectric_interfaces.o \
+          mpe_reaction_field.o \
+          mpe_interface.o \
+          scs_cfdm.o \
+          mbd_rsscs_numerical_forces.o \
+          mbd-dev/mbd.o \
+          mbd-dev/mbd_helper.o \
+          mbd_dev_interface.o \
+          mbd_dev_wrapper.o \
+          density_response.o \
+          mbd-std/mbdvdw.o \
+          mbd-std/quadrature_grid.o \
+          mbd_std_interface.o \
+          mbd_std_wrapper.o \
+          hirshfeld.o \
+          esp_charges.o \
+          esp_grids.o \
+          sym_base.o \
+          FCIQMC/fciqmc_module.o \
+          CCcalc/general/cc_mod.o \
+          CCcalc/cluster/cc_cl_distribution.o \
+          CCcalc/cluster/cc_cl_mem.o \
+          CCcalc/cluster/cc_cl_mpi.o \
+          CCcalc/cluster/cc_cl_mod.o \
+          CCcalc/3D/cc_3d_distribution.o \
+          CCcalc/3D/cc_3d_mem.o \
+          CCcalc/3D/cc_3d_mpi.o \
+          CCcalc/3D/cc_3d_mod.o \
+          Periodic_PT2/restart_pt2.o \
+          lc_wpbeh.o \
+          LRC_PT2/lrc_pt2.o \
+          soc/scalapack_soc.o \
+          soc/dimensions_soc.o \
+          soc/soc_utilities.o \
+          soc/soc_debug.o \
+          friction.o \
+          meta_gga_postp.o \
+          MagneticResponse/integration_gpu_stub.o \
+          MagneticResponse/DFPT.o \
+          MagneticResponse/MR_global.o \
+          MagneticResponse/tools.o \
+          MagneticResponse/integrands.o \
+          MagneticResponse/xc_kernel_rho.o \
+          MagneticResponse/xc_wrapper.o \
+          MagneticResponse/MR_output.o \
+          MagneticResponse/psi_at_nucleus_mod.o \
+          DFPT_pulay_mixing.o \
+          STM/hv_th_stm.o \
+          control_file.o \
+          linalg.o \
+          fodft.o \
+          ipc/ipc_hamiltonian_and_ovl_transfer.o \
+          contour_def_gw.o\
+          contour_def_gw_environment.o \
+          quasi_particle_energies.o \
+          contour_def_gw_types.o \
+          evaluate_polarisability_freq.o \
+          qpe_osPT2/evaluate_ospt2_polarizability_freq.o \
+          evaluate_self_energy_freq.o \
+          print_self_energies.o \
+          basis_sets/atom_sphere/xcfunction.o \
+          initialize_grid_storage.o \
+          matrix_inversion.o \
+          scalapack_matrix_type.o \
+          spectral_func_cd.o \
+          output_handling.o \
+          mpi_routines_stub.o \
+          external/fparser.o
+# Temporarily commented out. Do not remove!
+# see cRPA/README for more information
+#          cRPA/cRPA_view.o \
+#          cRPA/cRPA_flow_adaptive_grid.o \
+#          cRPA/cRPA_flow_realspace_vector.o \
+#          cRPA/cRPA_calculation_integration.o \
+#          cRPA/cRPA_storage_queue.o \
+#          cRPA/cRPA_storage_norms.o \
+#          cRPA/cRPA_parallelism_storage.o \
+#          cRPA/cRPA_storage_exp_coeffs.o \
+#          cRPA/cRPA_storage_mo_coeffs.o \
+#          cRPA/cRPA_calculation_fouriertrans.o \
+#          cRPA/cRPA_storage_greensfunc.o \
+#          cRPA/cRPA_calculation_expbasis.o \
+#          cRPA/cRPA_calculation_energy.o \
+#          cRPA/cRPA_storage_responsefunc_R.o \
+#          cRPA/cRPA_storage_responsefunc_k.o \
+#          cRPA/cRPA_storage.o \
+#          cRPA/cRPA_parallelism_planing.o \
+#          cRPA/cRPA_parallelism.o \
+#          cRPA/cRPA_calculation_exp_coeffs.o \
+#          cRPA/cRPA_calculation_greensfunc.o \
+#          cRPA/cRPA_calculation_responsefunc_R.o \
+#          cRPA/cRPA_calculation_responsefunc_k.o \
+#          cRPA/cRPA_calculation.o \
+#          cRPA/cRPA_flow_test.o \
+#          cRPA/cRPA_storage_test.o \
+#          cRPA/cRPA_flow_adaptive_grid_test.o \
+#          cRPA/cRPA_calculation_test.o \
+#          cRPA/cRPA_calculation_integration_test.o \
+#          cRPA/cRPA_parallelism_test.o \
+#          cRPA/cRPA_calculation_fouriertrans_test.o \
+#          cRPA/cRPA_flow.o
+
+ifeq ($(ELPA_MT),yes)
+   ELPA_ST = no
+   ifeq ($(USE_OMP),yes)
+       ifndef OMPFLAG
+          $(error if USE_OMP=yes, then OMPFLAG must be defined )
+       else
+          MODULES_U += elpa/elpa1_mt.o elpa/elpa2_mt.o
+          LDFLAGS += $(OMPFLAG)
+       endif
+    else
+        $(error ELPA_MT was requested. Invalid choice for USE_OMP [need yes/no]: $(AUTODEPEND))
+    endif
+else
+   ifndef ELPA_ST
+      ELPA_ST = yes
+   endif
+   ifeq ($(ELPA_ST),no)
+      $(error no ELPA_MT no ELPA_ST !)
+   else
+      MODULES_U += elpa/elpa1_st.o elpa/elpa2_st.o
+   endif
+endif
+
+MODULES:=$(addprefix $(OBJDIR)/,$(MODULES_U))
+
+
+# CFLAGS was once called CCFLAGS in some parts
+CFLAGS += $(CCFLAGS)
+
+# C_FILES (a list of files which have to be compiled with c-compiler)
+
+C_FILES = $(OBJDIR)/get_stacksize.o \
+          $(OBJDIR)/check_stacksize.o \
+          $(OBJDIR)/change_directory.o \
+          $(OBJDIR)/change_directory_c.o \
+          $(OBJDIR)/unlimit_stack.o \
+          $(OBJDIR)/bt.o
+
+C_FILES += DFPT_OpenCL/opencl_util_c.o \
+           DFPT_OpenCL/opencl_util_mpi.o \
+           DFPT_OpenCL/opencl_util_mpi_m.o \
+           DFPT_OpenCL/save_load_var.o \
+           DFPT_OpenCL/integrate_first_order_rho.o \
+           DFPT_OpenCL/sum_up_whole_potential_shanghui.o
+
+#C Files for ELPA SSE and AVX kernels, if _not_ pre-installed ELPA library is used
+MODULES += $(OBJDIR)/elpa/elpa1_auxiliary_stub.o
+ifeq ($(ARCHITECTURE),AMD64_AVX)
+  C_FILES += $(OBJDIR)/elpa/elpa2_kernels_real_sse-avx_2hv.o
+  C_FILES += $(OBJDIR)/elpa/elpa2_kernels_complex_sse-avx_1hv.o
+endif
+
+ifeq ($(ARCHITECTURE),AMD64_SSE)
+  ASM_FILES += $(OBJDIR)/elpa/elpa2_kernels_asm_x86_64.o
+else
+  MODULES += $(OBJDIR)/elpa/elpa2_kernels_real_ARCH.o
+  MODULES += $(OBJDIR)/elpa/elpa2_kernels_complex_ARCH.o
+endif
+
+### Modifications of the default build for the cffi Python interface
+# We try to detect the correct include and link flags for Python
+# automatically. This may fail.
+_GREEN := $(shell printf "\e[0;32m")
+_COLOROFF := $(shell printf "\e[0m")
+ifeq ($(strip $(USE_CFFI)),yes)
+ifneq ($(strip $(USE_C_FILES)),yes)
+$(error cffi requires C compilation, set USE_C_FILES = yes or USE_CFFI = no)
+endif
+ifndef PYTHON
+$(error cffi needs Python, set PYTHON = <path to python interpreter>)
+endif
+MODULES += $(OBJDIR)/python_interface.o $(OBJDIR)/aims_c_api.o
+C_FILES += $(OBJDIR)/cffi/python_interface.o
+ifndef PYTHON_INCDIR
+define _PYSCRIPT
+from distutils import sysconfig
+print(sysconfig.get_python_inc())
+endef
+PYTHON_INCDIR := $(shell $(PYTHON) -c '$(_PYSCRIPT)')
+endif
+ifndef PYTHON_LIBDIR
+define _PYSCRIPT
+from distutils import sysconfig
+print(sysconfig.get_config_var("LIBDIR"))
+endef
+PYTHON_LIBDIR := $(shell $(PYTHON) -c '$(_PYSCRIPT)')
+endif
+ifndef PYTHON_LIB
+define _PYSCRIPT
+from distutils import sysconfig
+import os.path
+ldversion = sysconfig.get_config_var("LDVERSION")
+if ldversion:
+	print("python" + ldversion)
+else:
+	dylib = sysconfig.get_config_var("LDLIBRARY")
+	print(os.path.splitext(dylib[3:])[0])
+endef
+PYTHON_LIB := $(shell $(PYTHON) -c '$(_PYSCRIPT)')
+endif
+$(info $(_GREEN)Compiling with the cffi Python interface)
+$(info Python include directory: $(PYTHON_INCDIR))
+$(info Python library directory: $(PYTHON_LIBDIR))
+$(info Python library: $(PYTHON_LIB)$(_COLOROFF))
+LDFLAGS += -l$(PYTHON_LIB) -L$(PYTHON_LIBDIR)
+else
+MODULES += $(OBJDIR)/python_interface_stub.o
+endif
+
+$(OBJDIR)/cffi/python_interface.o: $(OBJDIR)/cffi/python_interface.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -I$(PYTHON_INCDIR) -o $@ -c $<
+
+$(OBJDIR)/cffi/python_interface.c: cffi/build_python_interface.py \
+	cffi/python_interface.py cffi/python_interface.h
+	@mkdir -p $(dir $@)
+	cd $(dir $@) && $(PYTHON) $(CURDIR)/$<
+
+# Flag to enforce dynamical linking when building aims as a shared lib. Maybe compiler dependent and is system dependent.
+SHARED_OPT ?=-shared
+
+#  mpi stubs
+
+MPI_STUBS = $(OBJDIR)/mpi_stub.o
+
+#  scalapack stubs
+SCALAPACK_STUBS = $(OBJDIR)/scalapack_stub.o
+
+#  metis stub and wrappers
+
+METIS_STUB = $(OBJDIR)/metis_stub.o
+METIS_WRAPPER = $(OBJDIR)/metis_tetgen_wrapper.o \
+                $(OBJDIR)/metis_qhull_wrapper.o \
+                $(OBJDIR)/metis_nearest_wrapper.o \
+                $(OBJDIR)/metis_qhull_batches_wrapper.o
+
+#  cuba stubs
+
+CUBA_STUBS = $(OBJDIR)/cuba_stub.o
+
+# Metadynamics plugin (PLUMED) stub
+
+PLUMED_STUB = $(OBJDIR)/plumed_stub.o
+
+#  Stubs for shared memory support in case it isn't used
+
+SHM_STUBS = $(OBJDIR)/shm_stub.o
+
+#Stubs for pimd wrapper, in case it is not used
+
+IPI_STUBS = $(OBJDIR)/ipi_stubs.o
+
+# This settings assumes that whoever switches the architecture flag
+# also set the CC and CPP variables and appropriate compiler flags
+# as documented in Makefile.amd64_AVX.
+# This allows to use the normal Makefile and an appropriate 'make.sys'
+# file to compile fhi-aims.
+#
+ifeq ($(ARCHITECTURE),AMD64_AVX)
+  ifneq ($(strip $(USE_C_FILES)),yes)
+    $(error AMD64_AVX architecture requires C compilation, set USE_C_FILES = yes or choose an ARCHITECTURE other than AMD64_AVX)
+  endif
+  ifeq ($(strip $(CC)),)
+    $(error"C Compiler has to be set using the variable CC=")
+   endif
+   ifeq ($(strip $(CPP)),)
+     $(error"C++ Compiler has to be set using the variable CPP=")
+   endif
+endif
+
+# BL: In case we want to use the C Files put the specified ones in,
+#     otherwise take the stub files
+ifeq ($(strip $(USE_C_FILES)),yes)
+  C_FILES_STUBS = $(C_FILES)
+else
+  C_FILES_STUBS = $(OBJDIR)/check_stacksize_stub.o \
+                  $(OBJDIR)/change_directory_stub.o
+endif
+
+# WPH: libxc-3.0.0 building information
+#      Please see the file "external/libxc/AIMS_README.txt" for more information about
+#      libxc support in aims.
+#      There are two user-specified options:
+#      o "USE_LIBXC = yes" - compiles aims against a version of libxc that we provide with the source code.  This is the
+#                            officially supported version of libxc that every end user is encouraged to use, as well as
+#                            every developer that does not need the absolute cutting-edge functionality found in newer
+#                            versions of libxc.  This option also requires that you specify a C compiler.
+#      o "LIBXC_DIR = /PATH/TO/LIBXC/" - links aims against a precompiled version of libxc.  This option is provided for
+#                                        developers that need to work with functionality in newer libxc versions.  We do
+#                                        not officially support this option, as it is quite likely possible that the
+#                                        version linked against will have a different interface from the version of libxc
+#                                        distributed with aims, and the user will need to modify the interface found in
+#                                        aims source code and possibly this Makefile to link successfully.  Consider this a
+#                                        template of what needs to be done to link against external libxc libraries.  If you
+#                                        are wondering whether you should use this option, the answer is an unequivocal "no".
+#      Known issues:
+#      o 9 December 2016: PGI compilers are not fully Fortran 2003 compliant.  As libxc 3.0.0 uses Fortran 2003 builtins, it
+#        is not possible to compile with USE_LIBXC = yes using PGI.
+
+# The pre-compiled libxc case
+ifneq ($(strip $(LIBXC_DIR)),)
+  # WPH: Since I hate reading the entrails to determine what is going in these Makefiles as much as you do,
+  # gentle reader, here's what's going on here.
+  # We need the libxc modules in the include path.  When using an external library, these modules reside in its
+  # include folder, $(LIBXC_DIR)/include.  In a perfect world, we would simply add -I$(LIBXC_DIR)/include to our
+  # compiler flags and call it a day.
+  # But we live in an awful, terrible, horrible, not very good world where generate_dependencies.pl exists, which
+  # generates a list of dependencies for every file, and it assumes that all modules reside in $(MODDIR).  If we do
+  # not have the libxc modules in $(MODDIR), the make system will determine that a dependency for dimensions.mod
+  # does not exist (namely xc_f03_lib_m.mod, since it resides in $(LIBXC_DIR)/include and not $(MODDIR) ) and
+  # recompile it every time, triggering a make cascade.
+  # To get around this, we make symbolic links in $(MODDIR) to the modules in $(LIBXC_DIR)/include.  Now the make
+  # system sees the libxc modules in $(MODDIR), and everything's good.  As an added bonus, we no longer need a -I
+  # flag to include them.
+
+  # Create the needed symbolic links
+  xc_f03_lib_m.mod: $(LIBXC_DIR)/include/xc_f03_lib_m.mod
+	rm -f $(MODDIR)/xc_f03_lib_m.mod
+	ln -s $(LIBXC_DIR)/include/xc_f03_lib_m.mod $(MODDIR)/xc_f03_lib_m.mod
+  xc_f90_lib_m.mod: $(LIBXC_DIR)/include/xc_f90_lib_m.mod
+	rm -f $(MODDIR)/xc_f90_lib_m.mod
+	ln -s $(LIBXC_DIR)/include/xc_f90_lib_m.mod $(MODDIR)/xc_f90_lib_m.mod
+  libxc_funcs_m.mod: $(LIBXC_DIR)/include/libxc_funcs_m.mod
+	rm -f $(MODDIR)/libxc_funcs_m.mod
+	ln -s $(LIBXC_DIR)/include/libxc_funcs_m.mod $(MODDIR)/libxc_funcs_m.mod
+  xc_f90_types_m.mod: $(LIBXC_DIR)/include/xc_f90_types_m.mod
+	rm -f $(MODDIR)/xc_f90_types_m.mod
+	ln -s $(LIBXC_DIR)/include/xc_f90_types_m.mod $(MODDIR)/xc_f90_types_m.mod
+
+  SUBROUTINES += $(OBJDIR)/libxc_yes.o
+
+  LIBXC_LINKER_FLAGS = -L$(LIBXC_DIR)/lib -lxcf03 -lxcf90 -lxc
+  LIBXC_SOURCES =
+  LIBXC_STUBS_DEP =
+
+
+# Use the version of libxc distributed with aims
+else ifeq ($(strip $(USE_LIBXC)),yes)
+  ifneq ($(strip $(USE_C_FILES)),yes)
+    $(error "LibXC requires C compilation, set USE_C_FILES = yes or USE_LIBXC = no")
+  endif
+
+  EXTERNAL += \
+     $(OBJDIR)/external/libxc-4.0.2/func_reference.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_bcgp.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_bmk.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_cs1.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_gapc.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_gaploc.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_hcth_a.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_op_b88.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_op_g96.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_op_pbe.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_op_pw91.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_op_xalpha.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_pbeloc.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_regtpss.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_revtca.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_scan_e0.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_sg4.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_w94.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_zpbeint.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_zvpbeint.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_k_thakkar.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_beefvdw.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_xc_th1.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_xc_th2.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_xc_th3.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_gg99.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_hjs_b88_v2.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_lag.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_pbeint.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_pbepow.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_pbetrans.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_rge2.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_sg4.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_vmt84.o \
+     $(OBJDIR)/external/libxc-4.0.2/hyb_gga_xc_wb97.o \
+     $(OBJDIR)/external/libxc-4.0.2/hyb_mgga_xc_b88b95.o \
+     $(OBJDIR)/external/libxc-4.0.2/hyb_mgga_xc_kcis.o \
+     $(OBJDIR)/external/libxc-4.0.2/hyb_mgga_xc_wb97mv.o \
+     $(OBJDIR)/external/libxc-4.0.2/hyb_mgga_x_dldf.o \
+     $(OBJDIR)/external/libxc-4.0.2/hyb_mgga_x_m05.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_chachiyo.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_lp96.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_pk09.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_vwn_1.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_vwn_2.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_vwn_3.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_vwn_4.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_vwn_rpa.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_k_zlp.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_xc_1d_ehwlrg.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_x_erf.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_x_rel.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_c_b88.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_c_kcis.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_c_lp90.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_c_m05.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_c_m06l.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_c_revtpss.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_c_tpss.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_c_tpssloc.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_k_pc07.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_xc_cc06.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_xc_hle17.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_gx.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_m11.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_m11_l.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_mbeefvdw.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_pbe_gx.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_sa_tpss.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_tm.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_vt84.o
+
+  # Core routines
+  EXTERNAL += \
+     $(OBJDIR)/external/libxc-4.0.2/references.o \
+     $(OBJDIR)/external/libxc-4.0.2/special_functions.o \
+     $(OBJDIR)/external/libxc-4.0.2/bessel.o \
+     $(OBJDIR)/external/libxc-4.0.2/expint_e1.o \
+     $(OBJDIR)/external/libxc-4.0.2/integrate.o \
+     $(OBJDIR)/external/libxc-4.0.2/util.o \
+     $(OBJDIR)/external/libxc-4.0.2/mix_func.o \
+     $(OBJDIR)/external/libxc-4.0.2/func_info.o \
+     $(OBJDIR)/external/libxc-4.0.2/functionals.o \
+     $(OBJDIR)/external/libxc-4.0.2/version.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_x.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_x_1d.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_x_2d.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_wigner.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_gombas.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_rpa.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_hl.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_vwn.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_pz.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_pw.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_ml1.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_rc04.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_xc_teter93.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_1d_csc.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_1d_loos.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_2d_amgb.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_c_2d_prm.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_k_tf.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_xc_zlp.o \
+     $(OBJDIR)/external/libxc-4.0.2/lda_xc_ksdt.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_lg93.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_pbe.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_rpbe.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_pbea.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_mpbe.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_herman.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_b86.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_b88.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_g96.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_pw86.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_pw91.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_optx.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_airy.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_c09x.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_dk87.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_ft97.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_wc.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_am05.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_bayesian.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_kt.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_htbs.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_pbe.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_lyp.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_p86.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_pw91.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_am05.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_lm.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_wl.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_wi.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_lb.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_xc_b97.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_xc_edf1.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_xc_1w.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_optc.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_tca.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_bpccac.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_sogga11.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_sogga11.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_wpbeh.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_hjs.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_ityh.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_sfat.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_ev93.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_ak13.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_q2d.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_q2d.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_ssb_sw.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_c_ft97.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_n12.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_lv_rpw86.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_2d_b86.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_2d_b86_mgc.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_2d_b88.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_2d_pbe.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_k_tflw.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_k_pearson.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_k_ol1.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_k_ol2.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_k_dk.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_k_meyer.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_vmt.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_hcth_a.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_x_cap.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_xc_oblyp_d.o \
+     $(OBJDIR)/external/libxc-4.0.2/hyb_gga_xc_b3lyp.o \
+     $(OBJDIR)/external/libxc-4.0.2/hyb_gga_xc_o3lyp.o \
+     $(OBJDIR)/external/libxc-4.0.2/hyb_gga_xc_pbeh.o \
+     $(OBJDIR)/external/libxc-4.0.2/hyb_gga_xc_b1wc.o \
+     $(OBJDIR)/external/libxc-4.0.2/hyb_gga_xc_hse.o \
+     $(OBJDIR)/external/libxc-4.0.2/hyb_gga_xc_cam_b3lyp.o \
+     $(OBJDIR)/external/libxc-4.0.2/hyb_gga_xc_camy_blyp.o \
+     $(OBJDIR)/external/libxc-4.0.2/hyb_gga_xc_camy_b3lyp.o \
+     $(OBJDIR)/external/libxc-4.0.2/hyb_gga_xc_lcy_pbe.o \
+     $(OBJDIR)/external/libxc-4.0.2/hyb_gga_xc_lcy_blyp.o \
+     $(OBJDIR)/external/libxc-4.0.2/gga_xc_vv10.o \
+     $(OBJDIR)/external/libxc-4.0.2/hyb_gga_xc_edf2.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_lta.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_tpss.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_br89.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_gvt4.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_m06l.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_tau_hcth.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_2d_prhg07.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_pkzb.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_m08.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_ms.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_mn12.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_mk00.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_c_vsxc.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_c_pkzb.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_c_bc95.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_c_m08.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_c_cs.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_xc_otpss_d.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_xc_zlp.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_mbeef.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_xc_b97mv.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_scan.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_c_scan.o \
+     $(OBJDIR)/external/libxc-4.0.2/hyb_mgga_xc_tpssh.o \
+     $(OBJDIR)/external/libxc-4.0.2/mgga_x_mvs.o \
+     $(OBJDIR)/external/libxc-4.0.2/hyb_mgga_x_mvsh.o \
+     $(OBJDIR)/external/libxc-4.0.2/xc_f.o
+
+  MODULES += \
+     $(OBJDIR)/external/libxc-4.0.2/libxc_funcs_m.o \
+     $(OBJDIR)/external/libxc-4.0.2/xc_f03_lib_m.o \
+     $(OBJDIR)/external/libxc-4.0.2/xc_f90_types_m.o \
+     $(OBJDIR)/external/libxc-4.0.2/xc_f90_lib_m.o
+  SUBROUTINES += $(OBJDIR)/libxc_yes.o
+
+  LIBXC_LINKER_FLAGS =
+  # LIBXC_SOURCES is necessary due to non-obvious behavior I found.  The
+  # criterion for a file to be compiled is if it is found in ALL_SOURCES.
+  # This means that most of the files in aims will be compiled.  However,
+  # the object file resulting from that compilation is only linked into the
+  # executable if the object file exists in the various linking flags:
+  # SUBROUTINES, MODULES, and so on.
+  # This is fine for subroutines.  For modules, however, it can be the case
+  # that multiple versions of the same module, i.e. the module and its stub,
+  # can exist in the source code.  It appears that the fact that both are
+  # compiled means that the wrong .mod file is created (i.e. the stub's .mod
+  # file when the actual module is desired, or the actual module's when the
+  # stub is desired.) which can cause a linking error when the "real" object
+  # file is linked against.
+  # To get around this, I defined LIBXC_SOURCES to only add the folder
+  # to ALL_SOURCES that should be compiled.  The code branch that we do not
+  # want does not get compiled, so the .mod file is always the correct one.
+  # To be honest, I don't know why this affects libxc and not spglib.  My guess
+  # is that, because the spglib stub module is a copy-paste of the "real" module
+  # with the body of subroutines hollowed out, the interfaces are identical and
+  # therefore the resulting .mod are identical.  For libxc, there are various
+  # tricks like templates being done, so even though the final interfaces are
+  # the same between the stub and real modules, the intermediate interfaces in
+  # the .mod and .o files may differ.
+  LIBXC_SOURCES = external/libxc-4.0.2/*.f90
+  # I do not know if LIBXC_STUBS_DEP is necessary anymore, but leaving it in just in case
+  LIBXC_STUBS_DEP =
+
+# The libxc stub case
+else
+  MODULES += \
+    $(OBJDIR)/optical_response/libxc_stub/libxc_stubs.o
+  SUBROUTINES += $(OBJDIR)/libxc_no.o
+
+  LIBXC_LINKER_FLAGS =
+  LIBXC_SOURCES = optical_response/libxc_stub/*.f90
+  LIBXC_STUBS_DEP = optical_response/libxc_stub/libxc_stubs.f90
+endif # libxc
+
+# Stub for Intel Fortran module ifcore
+ifeq ($(PRINT_STACKTRACES),yes)
+  MODULES += $(OBJDIR)/ifcore_stub.f90
+endif
+
+# BL: SPGlib building informations
+ifeq ($(strip $(USE_SPGLIB)),yes)
+  ifeq ($(strip $(USE_C_FILES)),yes)
+    EXTERNAL += \
+       $(OBJDIR)/external/spglib/src/cell.o \
+       $(OBJDIR)/external/spglib/src/debug.o \
+       $(OBJDIR)/external/spglib/src/hall_symbol.o \
+       $(OBJDIR)/external/spglib/src/kpoint.o \
+       $(OBJDIR)/external/spglib/src/mathfunc.o \
+       $(OBJDIR)/external/spglib/src/niggli.o \
+       $(OBJDIR)/external/spglib/src/pointgroup.o \
+       $(OBJDIR)/external/spglib/src/primitive.o \
+       $(OBJDIR)/external/spglib/src/refinement.o \
+       $(OBJDIR)/external/spglib/src/site_symmetry.o \
+       $(OBJDIR)/external/spglib/src/sitesym_database.o \
+       $(OBJDIR)/external/spglib/src/spacegroup.o \
+       $(OBJDIR)/external/spglib/src/spg_database.o \
+       $(OBJDIR)/external/spglib/src/spglib.o \
+       $(OBJDIR)/external/spglib/src/spglib_f.o \
+       $(OBJDIR)/external/spglib/src/spin.o \
+       $(OBJDIR)/external/spglib/src/symmetry.o \
+       $(OBJDIR)/external/spglib/src/tetrahedron_method.o \
+       $(OBJDIR)/external/spglib/src/kgrid.o \
+       $(OBJDIR)/external/spglib/src/delaunay.o \
+       $(OBJDIR)/external/spglib/src/arithmetic.o
+
+    MODULES+= $(OBJDIR)/spglib_symm.o
+    SUBROUTINES+=$(OBJDIR)/spglib_f2c.o
+
+    # WPH:  The contents of SPGLIB_SKIPPED_SOURCES will be filtered out of
+    # DEPEND_SOURCES later on; that is, these files will not be compiled.
+    # Compiling both spglib and its stubs during the same make process can
+    # cause dependency issues during linking.
+    SPGLIB_SKIPPED_SOURCES = spglib_symm_stub.f90
+  else
+     $(error "SPGlib requires C compilation, set USE_C_FILES = yes or USE_SPGLIB = no")
+  endif
+else
+    MODULES+= $(OBJDIR)/spglib_symm_stub.o
+
+    SPGLIB_SKIPPED_SOURCES = spglib_symm.f90 spglib_f2c.f90
+endif
+
+#WPH: If either CUDAFLAGS or CUDALIBS is set, assume user is trying to compile
+#     with CUDA support.
+ifeq ($(strip $(USE_CUDA)),yes)
+   # WPH: Preprocessor directive to CUDA C code controlling whether an
+   # underscore should be added to the end of CUDA C functions which will be
+   # called in main aims Fortran code.
+   # For all compiler suites except IBM XL, an underscore needs to be added to
+   # C functions to allow them to be called by Fortran code, so this
+   # preprocessor directive is passed by default.
+   CUDA_ADD_UNDERSCORE ?= yes
+   ifneq ($(strip $(CUDA_ADD_UNDERSCORE)),no)
+     CUDAFLAGS += -DAdd_
+   endif
+
+   # Added nvcc as default, since it's ubiquitous
+   CUDACC ?= nvcc
+
+   SUBROUTINES+= \
+      $(OBJDIR)/gpu/gpuError.o \
+      $(OBJDIR)/gpu/gpuInterface.o \
+      $(OBJDIR)/gpu/gpuIntegrateHam.o \
+      $(OBJDIR)/gpu/gpuDensity.o \
+      $(OBJDIR)/gpu/gpuForces.o
+else
+   SUBROUTINES+= $(OBJDIR)/gpu/gpu_stub.o
+endif
+
+ifeq ($(strip $(EXTERNAL_ELSI)),yes)
+  ELSI_LIB=$(ELSI)
+  elsi.mod:
+  elpa2.mod:
+  fortjson.mod:
+  fjson_datatype.mod:
+  fjson_rw.mod:
+else
+  ifeq ($(strip $(EXTERNAL_ELPA)),yes)
+    ELSI_LIB=$(ELPA)
+    elpa.mod:
+    elpa1.mod:
+    elpa2.mod:
+
+    MODULES+= \
+      $(OBJDIR)/external/elsi/src/elsi_aeo.o
+  else
+    MODULES+= \
+      $(OBJDIR)/external/elsi/external/ELPA/src/aligned_mem.o \
+      $(OBJDIR)/external/elsi/external/ELPA/src/check_pd.o \
+      $(OBJDIR)/external/elsi/external/ELPA/src/elpa1_auxiliary.o \
+      $(OBJDIR)/external/elsi/external/ELPA/src/elpa1_compute_private.o \
+      $(OBJDIR)/external/elsi/external/ELPA/src/elpa1.o \
+      $(OBJDIR)/external/elsi/external/ELPA/src/elpa2_compute.o \
+      $(OBJDIR)/external/elsi/external/ELPA/src/elpa2.o \
+      $(OBJDIR)/external/elsi/external/ELPA/src/elpa_utilities.o \
+      $(OBJDIR)/external/elsi/external/ELPA/src/mod_mpi.o \
+      $(OBJDIR)/external/elsi/external/ELPA/src/mod_pack_unpack_complex.o \
+      $(OBJDIR)/external/elsi/external/ELPA/src/mod_pack_unpack_real.o \
+      $(OBJDIR)/external/elsi/external/ELPA/src/mod_precision.o \
+      $(OBJDIR)/external/elsi/external/ELPA/src/mod_single_hh_trafo_real.o \
+      $(OBJDIR)/external/elsi/src/elsi_elpa.o \
+      $(OBJDIR)/external/elsi/src/stub_aeo.o
+  endif
+
+  MODULES+= \
+    $(OBJDIR)/external/elsi/external/FortJSON/src/fortjson.o \
+    $(OBJDIR)/external/elsi/external/FortJSON/src/fjson_constants.o \
+    $(OBJDIR)/external/elsi/external/FortJSON/src/fjson_datatype.o \
+    $(OBJDIR)/external/elsi/external/FortJSON/src/fjson_precision.o \
+    $(OBJDIR)/external/elsi/external/FortJSON/src/fjson_rw.o \
+    $(OBJDIR)/external/elsi/external/FortJSON/src/fjson_setup.o \
+    $(OBJDIR)/external/elsi/external/FortJSON/src/fjson_utilities.o \
+    $(OBJDIR)/external/elsi/external/libOMM/src/MatrixSwitch/MatrixSwitch.o \
+    $(OBJDIR)/external/elsi/external/libOMM/src/MatrixSwitch/MatrixSwitch_ops.o \
+    $(OBJDIR)/external/elsi/external/libOMM/src/MatrixSwitch/ms_m_add.o \
+    $(OBJDIR)/external/elsi/external/libOMM/src/MatrixSwitch/ms_m_copy.o \
+    $(OBJDIR)/external/elsi/external/libOMM/src/MatrixSwitch/ms_m_register.o \
+    $(OBJDIR)/external/elsi/external/libOMM/src/MatrixSwitch/ms_m_set.o \
+    $(OBJDIR)/external/elsi/external/libOMM/src/MatrixSwitch/ms_mm_multiply.o \
+    $(OBJDIR)/external/elsi/external/libOMM/src/libOMM/omm_ops.o \
+    $(OBJDIR)/external/elsi/external/libOMM/src/libOMM/omm_params.o \
+    $(OBJDIR)/external/elsi/external/libOMM/src/libOMM/omm_rand.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/ChebyshevSolversModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/DataTypesModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/DMatrixModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/DensityMatrixSolversModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/EigenBoundsModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/ErrorModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/ExponentialSolversModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/GemmTasksModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/GeometryOptimizationModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/HermiteSolversModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/Interface.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/InverseSolversModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/LinearSolversModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/LoadBalancerModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/LoggingModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/MatrixMapsModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/MatrixMarketModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/MatrixMemoryPoolModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/NTMPIModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/PermutationModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/PMatrixMemoryPoolModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/PolynomialSolversModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/ProcessGridModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/PSMatrixAlgebraModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/PSMatrixModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/RootSolversModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/SignSolversModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/SMatrixAlgebraModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/SMatrixModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/SolverParametersModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/SquareRootSolversModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/SVectorModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/TimerModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/TrigonometrySolversModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/TripletListModule.o \
+    $(OBJDIR)/external/elsi/external/NTPoly/src/TripletModule.o \
+    $(OBJDIR)/external/elsi/src/elsi_constant.o \
+    $(OBJDIR)/external/elsi/src/elsi_datatype.o \
+    $(OBJDIR)/external/elsi/src/elsi_decision.o \
+    $(OBJDIR)/external/elsi/src/elsi_geo.o \
+    $(OBJDIR)/external/elsi/src/elsi_get.o \
+    $(OBJDIR)/external/elsi/src/elsi_input.o \
+    $(OBJDIR)/external/elsi/src/elsi_interface.o \
+    $(OBJDIR)/external/elsi/src/elsi_lapack.o \
+    $(OBJDIR)/external/elsi/src/elsi_malloc.o \
+    $(OBJDIR)/external/elsi/src/elsi_mpi.o \
+    $(OBJDIR)/external/elsi/src/elsi_ntpoly.o \
+    $(OBJDIR)/external/elsi/src/elsi_occ.o \
+    $(OBJDIR)/external/elsi/src/elsi_omm.o \
+    $(OBJDIR)/external/elsi/src/elsi_output.o \
+    $(OBJDIR)/external/elsi/src/elsi_pexsi.o \
+    $(OBJDIR)/external/elsi/src/elsi_precision.o \
+    $(OBJDIR)/external/elsi/src/elsi_redist.o \
+    $(OBJDIR)/external/elsi/src/elsi_rw.o \
+    $(OBJDIR)/external/elsi/src/elsi_set.o \
+    $(OBJDIR)/external/elsi/src/elsi_setup.o \
+    $(OBJDIR)/external/elsi/src/elsi_solver.o \
+    $(OBJDIR)/external/elsi/src/elsi_sort.o \
+    $(OBJDIR)/external/elsi/src/elsi_util.o \
+    $(OBJDIR)/external/elsi/src/stub_eigenexa.o \
+    $(OBJDIR)/external/elsi/src/stub_magma.o \
+    $(OBJDIR)/external/elsi/src/stub_pexsi.o \
+    $(OBJDIR)/external/elsi/src/stub_sips.o
+
+  EXTERNAL+= \
+    $(OBJDIR)/external/elsi/external/libOMM/src/libOMM/omm_callback.o \
+    $(OBJDIR)/external/elsi/external/libOMM/src/libOMM/omm.o \
+    $(OBJDIR)/external/elsi/external/libOMM/src/libOMM/omm_quartic.o \
+    elsi_version_stub.o
+
+  ELSI_SOURCES= \
+    external/elsi/external/FortJSON/src/fortjson.f90 \
+    external/elsi/external/FortJSON/src/fjson_constants.f90 \
+    external/elsi/external/FortJSON/src/fjson_datatype.f90 \
+    external/elsi/external/FortJSON/src/fjson_precision.f90 \
+    external/elsi/external/FortJSON/src/fjson_rw.f90 \
+    external/elsi/external/FortJSON/src/fjson_setup.f90 \
+    external/elsi/external/FortJSON/src/fjson_utilities.f90 \
+    external/elsi/external/libOMM/src/MatrixSwitch/MatrixSwitch.f90 \
+    external/elsi/external/libOMM/src/MatrixSwitch/MatrixSwitch_ops.f90 \
+    external/elsi/external/libOMM/src/MatrixSwitch/ms_m_add.f90 \
+    external/elsi/external/libOMM/src/MatrixSwitch/ms_m_copy.f90 \
+    external/elsi/external/libOMM/src/MatrixSwitch/ms_m_register.f90 \
+    external/elsi/external/libOMM/src/MatrixSwitch/ms_m_set.f90 \
+    external/elsi/external/libOMM/src/MatrixSwitch/ms_mm_multiply.f90 \
+    external/elsi/external/libOMM/src/libOMM/omm.f90 \
+    external/elsi/external/libOMM/src/libOMM/omm_callback.f90 \
+    external/elsi/external/libOMM/src/libOMM/omm_ops.f90 \
+    external/elsi/external/libOMM/src/libOMM/omm_params.f90 \
+    external/elsi/external/libOMM/src/libOMM/omm_quartic.f90 \
+    external/elsi/external/libOMM/src/libOMM/omm_rand.f90 \
+    external/elsi/external/NTPoly/src/ChebyshevSolversModule.f90 \
+    external/elsi/external/NTPoly/src/DataTypesModule.f90 \
+    external/elsi/external/NTPoly/src/DMatrixModule.f90 \
+    external/elsi/external/NTPoly/src/DensityMatrixSolversModule.f90 \
+    external/elsi/external/NTPoly/src/EigenBoundsModule.f90 \
+    external/elsi/external/NTPoly/src/ErrorModule.f90 \
+    external/elsi/external/NTPoly/src/ExponentialSolversModule.f90 \
+    external/elsi/external/NTPoly/src/GemmTasksModule.f90 \
+    external/elsi/external/NTPoly/src/GeometryOptimizationModule.f90 \
+    external/elsi/external/NTPoly/src/HermiteSolversModule.f90 \
+    external/elsi/external/NTPoly/src/Interface.f90 \
+    external/elsi/external/NTPoly/src/InverseSolversModule.f90 \
+    external/elsi/external/NTPoly/src/LinearSolversModule.f90 \
+    external/elsi/external/NTPoly/src/LoadBalancerModule.f90 \
+    external/elsi/external/NTPoly/src/LoggingModule.f90 \
+    external/elsi/external/NTPoly/src/MatrixMapsModule.f90 \
+    external/elsi/external/NTPoly/src/MatrixMarketModule.f90 \
+    external/elsi/external/NTPoly/src/MatrixMemoryPoolModule.f90 \
+    external/elsi/external/NTPoly/src/NTMPIModule.f90 \
+    external/elsi/external/NTPoly/src/PermutationModule.f90 \
+    external/elsi/external/NTPoly/src/PMatrixMemoryPoolModule.f90 \
+    external/elsi/external/NTPoly/src/PolynomialSolversModule.f90 \
+    external/elsi/external/NTPoly/src/ProcessGridModule.f90 \
+    external/elsi/external/NTPoly/src/PSMatrixAlgebraModule.f90 \
+    external/elsi/external/NTPoly/src/PSMatrixModule.f90 \
+    external/elsi/external/NTPoly/src/RootSolversModule.f90 \
+    external/elsi/external/NTPoly/src/SignSolversModule.f90 \
+    external/elsi/external/NTPoly/src/SMatrixAlgebraModule.f90 \
+    external/elsi/external/NTPoly/src/SMatrixModule.f90 \
+    external/elsi/external/NTPoly/src/SolverParametersModule.f90 \
+    external/elsi/external/NTPoly/src/SquareRootSolversModule.f90 \
+    external/elsi/external/NTPoly/src/SVectorModule.f90 \
+    external/elsi/external/NTPoly/src/TimerModule.f90 \
+    external/elsi/external/NTPoly/src/TrigonometrySolversModule.f90 \
+    external/elsi/external/NTPoly/src/TripletListModule.f90 \
+    external/elsi/external/NTPoly/src/TripletModule.f90 \
+    external/elsi/src/elsi_constant.f90 \
+    external/elsi/src/elsi_datatype.f90 \
+    external/elsi/src/elsi_decision.f90 \
+    external/elsi/src/elsi_geo.f90 \
+    external/elsi/src/elsi_get.f90 \
+    external/elsi/src/elsi_input.f90 \
+    external/elsi/src/elsi_interface.f90 \
+    external/elsi/src/elsi_lapack.f90 \
+    external/elsi/src/elsi_malloc.f90 \
+    external/elsi/src/elsi_mpi.f90 \
+    external/elsi/src/elsi_ntpoly.f90 \
+    external/elsi/src/elsi_occ.f90 \
+    external/elsi/src/elsi_omm.f90 \
+    external/elsi/src/elsi_output.f90 \
+    external/elsi/src/elsi_pexsi.f90 \
+    external/elsi/src/elsi_precision.f90 \
+    external/elsi/src/elsi_redist.f90 \
+    external/elsi/src/elsi_rw.f90 \
+    external/elsi/src/elsi_set.f90 \
+    external/elsi/src/elsi_setup.f90 \
+    external/elsi/src/elsi_solver.f90 \
+    external/elsi/src/elsi_sort.f90 \
+    external/elsi/src/elsi_util.f90 \
+    external/elsi/src/stub_eigenexa.f90 \
+    external/elsi/src/stub_magma.f90 \
+    external/elsi/src/stub_pexsi.f90 \
+    external/elsi/src/stub_sips.f90 \
+    elsi_version_stub.f90
+
+  ifeq ($(strip $(DONT_HAVE_MPI_IALLGATHER)),yes)
+    MODULES+= \
+      $(OBJDIR)/external/elsi/external/NTPoly/src/MatrixReduceModuleNoIallgather.o
+
+    ELSI_SOURCES+= \
+      $(OBJDIR)/external/elsi/external/NTPoly/src/MatrixReduceModuleNoIallgather.f90
+  else
+    MODULES+= \
+      $(OBJDIR)/external/elsi/external/NTPoly/src/MatrixReduceModule.o
+
+    ELSI_SOURCES+= \
+      $(OBJDIR)/external/elsi/external/NTPoly/src/MatrixReduceModule.f90
+  endif
+
+  ifeq ($(strip $(EXTERNAL_ELPA)),yes)
+    ELSI_SOURCES+= \
+      external/elsi/src/elsi_aeo.f90
+  else
+    ELSI_SOURCES+= \
+      external/elsi/src/elsi_elpa.f90 \
+      external/elsi/src/stub_aeo.f90
+    ELSI_SOURCES+= \
+      external/elsi/external/ELPA/src/aligned_mem.f90 \
+      external/elsi/external/ELPA/src/check_pd.f90 \
+      external/elsi/external/ELPA/src/elpa1_auxiliary.f90 \
+      external/elsi/external/ELPA/src/elpa1_compute_private.f90 \
+      external/elsi/external/ELPA/src/elpa1.f90 \
+      external/elsi/external/ELPA/src/elpa2_compute.f90 \
+      external/elsi/external/ELPA/src/elpa2.f90 \
+      external/elsi/external/ELPA/src/elpa_utilities.f90 \
+      external/elsi/external/ELPA/src/mod_mpi.f90 \
+      external/elsi/external/ELPA/src/mod_pack_unpack_complex.f90 \
+      external/elsi/external/ELPA/src/mod_pack_unpack_real.f90 \
+      external/elsi/external/ELPA/src/mod_precision.f90 \
+      external/elsi/external/ELPA/src/mod_single_hh_trafo_real.f90
+
+    # Default ELPA2 kernels: generic
+    ifeq ($(strip $(ELPA2_KERNEL)),)
+      ELPA2_KERNEL=GENERIC
+    endif
+
+    ifeq ($(strip $(ELPA2_KERNEL)),GENERIC)
+      EXTERNAL+= \
+        $(OBJDIR)/external/elsi/external/ELPA/src/kernel_real.o
+
+      MODULES+= \
+        $(OBJDIR)/external/elsi/external/ELPA/src/kernel_complex.o \
+        $(OBJDIR)/external/elsi/external/ELPA/src/elpa2_utilities.o \
+        $(OBJDIR)/external/elsi/external/ELPA/src/mod_compute_hh_trafo_complex.o \
+        $(OBJDIR)/external/elsi/external/ELPA/src/mod_compute_hh_trafo_real.o
+
+      ELSI_SOURCES+= \
+        external/elsi/external/ELPA/src/kernel_complex.f90 \
+        external/elsi/external/ELPA/src/kernel_real.f90 \
+        external/elsi/external/ELPA/src/elpa2_utilities.f90 \
+        external/elsi/external/ELPA/src/mod_compute_hh_trafo_complex.f90 \
+        external/elsi/external/ELPA/src/mod_compute_hh_trafo_real.f90
+
+      ELPA2_KERNEL=yes
+    endif
+
+    ifeq ($(strip $(ELPA2_KERNEL)),BLUEGENEQ)
+      EXTERNAL+= \
+        $(OBJDIR)/external/elsi/external/ELPA/src/kernel_real_bgq.o
+
+      MODULES+= \
+        $(OBJDIR)/external/elsi/external/ELPA/src/kernel_complex.o \
+        $(OBJDIR)/external/elsi/external/ELPA/src/elpa2_utilities_bgq.o \
+        $(OBJDIR)/external/elsi/external/ELPA/src/mod_compute_hh_trafo_complex.o \
+        $(OBJDIR)/external/elsi/external/ELPA/src/mod_compute_hh_trafo_real_bgq.o
+
+      ELSI_SOURCES+= \
+        external/elsi/external/ELPA/src/kernel_complex.f90 \
+        external/elsi/external/ELPA/src/kernel_real_bgq.f90 \
+        external/elsi/external/ELPA/src/elpa2_utilities_bgq.f90 \
+        external/elsi/external/ELPA/src/mod_compute_hh_trafo_complex.f90 \
+        external/elsi/external/ELPA/src/mod_compute_hh_trafo_real_bgq.f90
+
+      ELPA2_KERNEL=yes
+    endif
+
+    ifeq ($(strip $(ELPA2_KERNEL)),AVX)
+      MODULES+= \
+        $(OBJDIR)/external/elsi/external/ELPA/src/elpa2_utilities_avx.o \
+        $(OBJDIR)/external/elsi/external/ELPA/src/mod_compute_hh_trafo_complex_avx.o \
+        $(OBJDIR)/external/elsi/external/ELPA/src/mod_compute_hh_trafo_real_avx.o \
+        $(OBJDIR)/external/elsi/external/ELPA/src/mod_fortran_interfaces_avx.o
+
+      C_FILES+= \
+        $(OBJDIR)/external/elsi/external/ELPA/src/kernel_real_avx_2hv.o \
+        $(OBJDIR)/external/elsi/external/ELPA/src/kernel_complex_avx_1hv.o
+
+      ELSI_SOURCES+= \
+        external/elsi/external/ELPA/src/elpa2_utilities_avx.f90 \
+        external/elsi/external/ELPA/src/mod_compute_hh_trafo_complex_avx.f90 \
+        external/elsi/external/ELPA/src/mod_compute_hh_trafo_real_avx.f90 \
+        external/elsi/external/ELPA/src/mod_fortran_interfaces_avx.f90
+
+      ELPA2_KERNEL=yes
+
+      ifneq ($(strip $(USE_C_FILES)),yes)
+        $(error ELPA AVX kernel requires C compilation, set USE_C_FILES = yes or choose another ELPA kernel)
+      endif
+
+      ifeq ($(strip $(CC)),)
+        $(error C Compiler has to be set in order to compile ELPA AVX kernels)
+      endif
+
+    endif
+
+    ifeq ($(strip $(ELPA2_KERNEL)),AVX2)
+      MODULES+= \
+        $(OBJDIR)/external/elsi/external/ELPA/src/elpa2_utilities_avx2.o \
+        $(OBJDIR)/external/elsi/external/ELPA/src/mod_compute_hh_trafo_complex_avx2.o \
+        $(OBJDIR)/external/elsi/external/ELPA/src/mod_compute_hh_trafo_real_avx2.o \
+        $(OBJDIR)/external/elsi/external/ELPA/src/mod_fortran_interfaces_avx2.o
+
+      C_FILES+= \
+        $(OBJDIR)/external/elsi/external/ELPA/src/kernel_real_avx2_2hv.o \
+        $(OBJDIR)/external/elsi/external/ELPA/src/kernel_complex_avx2_1hv.o
+
+      ELSI_SOURCES+= \
+        external/elsi/external/ELPA/src/elpa2_utilities_avx2.f90 \
+        external/elsi/external/ELPA/src/mod_compute_hh_trafo_complex_avx2.f90 \
+        external/elsi/external/ELPA/src/mod_compute_hh_trafo_real_avx2.f90 \
+        external/elsi/external/ELPA/src/mod_fortran_interfaces_avx2.f90
+
+      ELPA2_KERNEL=yes
+
+      ifneq ($(strip $(USE_C_FILES)),yes)
+        $(error ELPA AVX2 kernel requires C compilation, set USE_C_FILES = yes or choose another ELPA kernel)
+      endif
+
+      ifeq ($(strip $(CC)),)
+        $(error C Compiler has to be set in order to compile ELPA AVX2 kernels)
+      endif
+
+    endif
+
+    ifeq ($(strip $(ELPA2_KERNEL)),AVX512)
+      MODULES+= \
+        $(OBJDIR)/external/elsi/external/ELPA/src/elpa2_utilities_avx512.o \
+        $(OBJDIR)/external/elsi/external/ELPA/src/mod_compute_hh_trafo_complex_avx512.o \
+        $(OBJDIR)/external/elsi/external/ELPA/src/mod_compute_hh_trafo_real_avx512.o \
+        $(OBJDIR)/external/elsi/external/ELPA/src/mod_fortran_interfaces_avx512.o
+
+      C_FILES+= \
+        $(OBJDIR)/external/elsi/external/ELPA/src/kernel_complex_avx512_1hv.o \
+        $(OBJDIR)/external/elsi/external/ELPA/src/kernel_real_avx512_2hv.o
+
+      ELSI_SOURCES+= \
+        external/elsi/external/ELPA/src/elpa2_utilities_avx512.f90 \
+        external/elsi/external/ELPA/src/mod_compute_hh_trafo_complex_avx512.f90 \
+        external/elsi/external/ELPA/src/mod_compute_hh_trafo_real_avx512.f90 \
+        external/elsi/external/ELPA/src/mod_fortran_interfaces_avx512.f90
+
+      ELPA2_KERNEL=yes
+
+      ifneq ($(strip $(USE_C_FILES)),yes)
+        $(error ELPA AVX512 kernel requires C compilation, set USE_C_FILES = yes or choose another ELPA kernel)
+      endif
+
+      ifeq ($(strip $(CC)),)
+        $(error C Compiler has to be set in order to compile ELPA AVX512 kernels)
+      endif
+
+    endif
+
+    # GPU not supported
+    ifeq ($(strip $(ELPA2_KERNEL)),GPU)
+      $(error ELPA GPU acceleration not yet supported)
+    endif
+
+    # ELPA2_KERNEL is not properly set
+    ifneq ($(strip $(ELPA2_KERNEL)),yes)
+      $(error Invalid choice for ELPA2_KERNEL)
+      $(error Supported choices include: GENERIC, BLUEGENEQ, SSE_ASSEMBLER, AVX, AVX2)
+    endif
+  endif
+endif
+
+# For parser:
+PARSER_STUBS = $(OBJDIR)/dont_stop_no_parser.o
+PARSER_OBJECTS = $(OBJDIR)/stop_as_i_am_parser.o
+
+#Stubs for hdf5 (paralell output) , in case it is not used
+
+HDF5_STUBS = $(OBJDIR)/hdf5_stubs.o
+
+# IPC files
+ifeq ($(strip $(USE_IPC)),yes)
+   IPC_FILES = ipc_packet.o ipc_c.o ipc_stdio.o ipc.o
+else
+   IPC_FILES = ipc_stub.o
+endif
+IPC_FILES:=$(addprefix $(OBJDIR)/ipc/,$(IPC_FILES))
+
+#PERF stubs
+PERF_STUBS ?=$(OBJDIR)/perf_stubs.o
+
+# necessarry to determine the ELPA files to be included in build rules
+ifeq ($(ELPA_MT),yes)
+ELPA_SOURCES= \
+  elpa/elpa1_mt.f90 \
+  elpa/elpa2_mt.f90 \
+  elpa/elpa1_auxiliary_stub.f90 \
+  elpa/elpa2_kernels_complex_stub.f90 \
+  elpa/elpa2_kernels_real_stub.f90
+else
+ELPA_SOURCES= \
+  elpa/elpa1_st.f90 \
+  elpa/elpa2_st.f90 \
+  elpa/elpa1_auxiliary_stub.f90 \
+  elpa/elpa2_kernels_complex_stub.f90 \
+  elpa/elpa2_kernels_real_stub.f90
+endif
+
+#************************************************************************
+#
+# Automatic dependency detection
+#
+#************************************************************************
+
+# === Check AUTODEPEND setting
+
+ifneq ($(strip $(AUTODEPEND)),yes)
+  ifneq ($(strip $(AUTODEPEND)),no)
+    ifneq ($(strip $(AUTODEPEND)),manual)
+      $(error Invalid choice for AUTODEPEND [need yes/no]: $(AUTODEPEND))
+    endif
+  endif
+endif
+
+# === Get DEPEND_SOURCES
+
+ALL_SOURCES = $(wildcard \
+    *.f90 \
+    *.f \
+    external/*.f \
+    external/*.f90 \
+    $(LIBXC_SOURCES) \
+    $(ELSI_SOURCES) \
+    $(ELPA_SOURCES) \
+    basis_sets/*.f90 \
+    basis_sets/atom_sphere/*.f90 \
+    basis_sets/rdirac/*.f90 \
+    basis_sets/sratom/*.f90 \
+    basis_sets/external/*.f \
+    basis_sets/external/*.f90 \
+    ipc/ipc_hamiltonian_and_ovl_transfer.f90 \
+    SCGW/*.f90 \
+    DFPT/*.f90 \
+    DFPT_OpenCL/*.f90 \
+    DFPT_reduce_memory/*.f90 \
+    DFPT_phonon_gamma/*.f90 \
+    DFPT_phonon/*.f90 \
+    DFPT_phonon_reduce_memory/*.f90 \
+    DFPT_polarizability/*.f90 \
+    DFPT_polar_reduce_memory/*.f90 \
+    DFPT_dielectric/*.f90 \
+    DMFT_embed/*.f90 \
+    RRS-PBC/*.f90 \
+    FCIQMC/*.f90 \
+    CCcalc/*.f90 \
+    CCcalc/general/*.f90 \
+    CCcalc/cluster/*.f90 \
+    CCcalc/3D/*.f90 \
+    Periodic_PT2/*.f90 \
+    qpe_osPT2/*.f90 \
+    LRC_PT2/*.f90 \
+    sBGE2/*.f90 \
+    optical_response/*.f90 \
+    bse/*.f90 \
+    external/i-pi/*.f90 \
+    gpu/*.f90 \
+    cRPA/*.f90 \
+    relativity/*.f90 \
+    soc/*.f90 \
+    friction/*.f90 \
+    MagneticResponse/*.f90 \
+    STM/*.f90 \
+    mbd-dev/mbd.f90 \
+    mbd-dev/mbd_helper.f90 \
+    mbd-std/mbdvdw.f90 \
+    mbd-std/quadrature_grid.f90 \
+    external/libmbd/src/*.f90 \
+	rlsy/*.f90 \
+)
+
+######################################
+
+# Do not generate dependencies for:
+#  o *__genmod.f90:
+#      ifort can generate files like this; ignore completely.
+#  o arch_*.f90:
+#      Only one of these files are linked in.  Add only that one.
+#  o write_version_stamp.f90:
+#      This file is written automagically and may not be in the dependency
+#      list.  Thus, add it explicitly to the command line.
+NODEPEND_PATTERNS = %__genmod.f90 arch%.f90 write_version_stamp.f90 mpi_tasks_tracing.f90 VTune.f90 VTune_stubs.f90
+ifeq ($(strip $(USE_CFFI)),yes)
+NODEPEND_PATTERNS += python_interface_stub.f90
+else
+NODEPEND_PATTERNS += python_interface.f90
+endif
+NODEPEND_PATTERNS += $(SPGLIB_SKIPPED_SOURCES)
+
+NODEPEND_PATTERNS += MagneticResponse/integration.f90
+
+DEPEND_SOURCES=$(filter-out $(NODEPEND_PATTERNS), $(ALL_SOURCES)) $(ARCH_MODULE) $(LIBXC_STUBS_DEP)
+
+# === Set GENERATE_DEPS from AUTODEPEND_TYPE
+
+ifneq ($(strip $(AUTODEPEND)),no)
+  AUTODEPEND_TYPE ?= perl
+  ifeq ($(strip $(AUTODEPEND_TYPE)),perl)
+    GENERATE_DEPS= ./generate-dependencies.pl >Makefile.moddeps
+  else
+    ifeq ($(strip $(AUTODEPEND_TYPE)),python)
+      GENERATE_DEPS= ./generate-dependencies.py -o Makefile.moddeps
+    else
+      $(error Invalid choice for AUTODEPEND_TYPE [need perl/python]: $(AUTODEPEND_TYPE))
+    endif
+  endif
+  GENERATE_DEPS_LINE=$(GENERATE_DEPS) write_version_stamp.f90 $(DEPEND_SOURCES)
+endif
+
+# === Include Makefile.moddeps if it exists and AUTODEPEND is yes/manual
+
+ifneq ($(strip $(AUTODEPEND)),no)
+  # Do not include it if only "make clean" or "make depend".
+  ifneq ($(strip $(TRIVIALGOALS)),yes)
+
+include Makefile.moddeps
+
+ endif
+
+endif
+
+
+# === Auto build Makefile.moddeps for AUTODEPEND = yes
+
+ifeq ($(strip $(AUTODEPEND)),yes)
+depend:
+	@echo '* Automatic detection of dependencies is now enabled'
+	@echo '* by default, so "make depend" is not necessary any more.'
+	@echo '* You can disable the autodetection with "AUTODEPEND = no".'
+# As Makefile.moddeps is included, the following rule will be checked on every
+# make invocation before actually considering the actual make target.  If it
+# is updated, make will restart from the beginning.  This is potentially
+# dangerous as it can lead to infinite loops if for some reasons
+# Makefile.moddeps is updated /again/.  If you experience problems, use
+# "AUTODEPEND = manual" and run "make depend" before the actual builds.
+#
+Makefile.moddeps: $(DEPEND_SOURCES) $(firstword $(GENERATE_DEPS))
+	./version_stamp_writer.pl $(AIMSVERSION) >write_version_stamp.f90
+	@echo "$(GENERATE_DEPS) <Fortran files>"
+	@$(GENERATE_DEPS_LINE)
+endif
+
+# === Manually build Makefile.moddeps for AUTODEPEND = manual
+
+ifeq ($(strip $(AUTODEPEND)),manual)
+depend:
+	./version_stamp_writer.pl $(AIMSVERSION) >write_version_stamp.f90
+	@echo "$(GENERATE_DEPS) <Fortran files>"
+	@$(GENERATE_DEPS_LINE)
+#  ifneq ($(strip $(TRIVIALGOALS)),yes)
+## This warning will often be overlooked in practice.  However, stopping here
+## would invalidate the idea of AUTODEPEND = manual, namely as a means to get
+## autodependencies which even work when something is skrewed up.
+#Makefile.moddeps: $(DEPEND_SOURCES)
+#	@echo '*** Warning: Dependencies are not up to date.'
+#	@echo '*** If you are not building from scratch, this might'
+#	@echo '*** even subtly invalidate your build.  Better rebuild'
+#	@echo '*** by "make clean", "make depend", and'
+#	@echo '*** "make $(MAKECOMMANDGOALS)".'
+#  endif
+endif
+
+#************************************************************************
+#
+# General rules
+#
+#************************************************************************
+
+# rules for f files
+$(OBJDIR)/%.o:%.f
+	@mkdir -p $(dir $@)
+	$(FC) $(FFLAGS) $(CBFLAGS) -o $@ -c $<
+
+
+# rules for f90 files
+$(OBJDIR)/%.o:%.f90
+	@mkdir -p $(dir $@) ;
+	$(F90COMPILE)
+
+# rules for c files
+$(OBJDIR)/%.o:%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -o $@ -c $<
+
+# rules for c++ files
+$(OBJDIR)/%.o:%.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -o $@ -c $<
+
+# rules for cuda files
+$(OBJDIR)/%.o:%.cu
+	@mkdir -p $(dir $@)
+	$(CUDACC) $(CUDAFLAGS) -o $@ -c $<
+
+
+# explicit rule for elpa assembler kernel
+$(OBJDIR)/elpa/elpa2_kernels_asm_x86_64.o: elpa/elpa2_kernels_asm_x86_64.s
+	@mkdir -p $(dir $@)
+	$(AS) -o elpa/elpa2_kernels_asm_x86_64.o elpa/elpa2_kernels_asm_x86_64.s
+
+# explicit rules for elpa c kernel
+$(OBJDIR)/elpa/elpa2_kernels_real_sse-avx_2hv.o: elpa/elpa2_kernels_real_sse-avx_2hv.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -o elpa/elpa2_kernels_real_sse-avx_2hv.o -c elpa/elpa2_kernels_real_sse-avx_2hv.c
+
+# explicit rules for elpa cpp kernel
+$(OBJDIR)/elpa/elpa2_kernels_complex_sse-avx_1hv.o: elpa/elpa2_kernels_complex_sse-avx_1hv.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -o elpa/elpa2_kernels_complex_sse-avx_1hv.o -c elpa/elpa2_kernels_complex_sse-avx_1hv.cpp
+
+# Explicit rules for ELPA AVX kernels redistributed in ELSI
+$(OBJDIR)/external/elsi/external/ELPA/src/kernel_real_avx_2hv.o: external/elsi/external/ELPA/src/kernel_real_avx_2hv.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -o external/elsi/external/ELPA/src/kernel_real_avx_2hv.o -c external/elsi/external/ELPA/src/kernel_real_avx_2hv.c
+
+$(OBJDIR)/external/elsi/external/ELPA/src/kernel_complex_avx_1hv.o: external/elsi/external/ELPA/src/kernel_complex_avx_1hv.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -o external/elsi/external/ELPA/src/kernel_complex_avx_1hv.o -c external/elsi/external/ELPA/src/kernel_complex_avx_1hv.c
+
+# Explicit rules for ELPA AVX2 kernels redistributed in ELSI
+$(OBJDIR)/external/elsi/external/ELPA/src/kernel_real_avx2_2hv.o: external/elsi/external/ELPA/src/kernel_real_avx2_2hv.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -o external/elsi/external/ELPA/src/kernel_real_avx2_2hv.o -c external/elsi/external/ELPA/src/kernel_real_avx2_2hv.c
+
+$(OBJDIR)/external/elsi/external/ELPA/src/kernel_complex_avx2_1hv.o: external/elsi/external/ELPA/src/kernel_complex_avx2_1hv.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -o external/elsi/external/ELPA/src/kernel_complex_avx2_1hv.o -c external/elsi/external/ELPA/src/kernel_complex_avx2_1hv.c
+
+# Explicit rules for ELPA AVX512 kernels redistributed in ELSI
+$(OBJDIR)/external/elsi/external/ELPA/src/kernel_real_avx512_2hv.o: external/elsi/external/ELPA/src/kernel_real_avx512_2hv.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -o external/elsi/external/ELPA/src/kernel_real_avx512_2hv.o -c external/elsi/external/ELPA/src/kernel_real_avx512_2hv.c
+
+$(OBJDIR)/external/elsi/external/ELPA/src/kernel_complex_avx512_1hv.o: external/elsi/external/ELPA/src/kernel_complex_avx512_1hv.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -o external/elsi/external/ELPA/src/kernel_complex_avx512_1hv.o -c external/elsi/external/ELPA/src/kernel_complex_avx512_1hv.c
+
+#************************************************************************
+#
+# Exceptional rules
+#
+#************************************************************************
+
+######## BUILD FILES THAT CONSUME MUCH TIME AT COMPILATION BUT DO NOT
+######## NEED EFFICIENCY AT RUNTIME WITHOUT OPTIMIZING COMPILER FLAGS
+######## IF F90MINFLAGS IS SPECIFIED (BY AJJACKSON, BATH) ######
+$(OBJDIR)/read_control.o:read_control.f90
+	@mkdir -p $(dir $@) ;
+	$(F90MINIMALCOMPILE)
+
+# NOW CHECK ANY FILES THAT ARE SUPPOSED TO BE COMPILED WITH REDUCED SETTINGS
+# (F90REDUCEDCOMPILE, DERIVED FROM F90REDUCEDFLAGS). F90REDUCEDFLAFGS MUST ONLY
+# BE USED WITH A KNOWN_COMPILER_BUGS FLAG, NEVER ON ITS OWN. THIS FLAG IS ONLY
+# INTENDED TO HEAD OFF SPECIFIC AND SEVERE COMPILER BUGS, NOT AS A GENERIC FLAG
+# FOR ALL COMPILERS.
+
+# F90REDUCEDFLAGS allows one to optionally set a lower optimization level,
+# e.g., -O2 instead of -O3, for specific subroutines. These subroutines
+# must be added by hand below, following the example of scs_cfdm.f90 .
+
+# Belown, the file scs_cfdm.f90 will be compiled with reduced optimization
+# flags if those are specified in the Makefile. If this F90REDUCEDFLAGS
+# is not specified, the file will be compiled with normal (full) optimization.
+#
+# Note that scs_cfdm.f90 triggers a bug in Intel Fortran 13.1, which is why it is
+# listed here.
+#
+
+ifeq ($(KNOWN_COMPILER_BUGS),ifort-13.1-O3)
+$(OBJDIR)/scs_cfdm.o:scs_cfdm.f90
+	@mkdir -p $(dir $@)
+	$(F90REDUCEDCOMPILE)
+endif
+
+ifeq ($(KNOWN_COMPILER_BUGS),ifort-14.0.1-O3)
+$(OBJDIR)/calculate_fock_matrix_p0.o:calculate_fock_matrix_p0.f90
+	@mkdir -p $(dir $@)
+	$(F90REDUCEDCOMPILE)
+endif
+
+ifeq ($(KNOWN_COMPILER_BUGS),ifort-17.0.0-O3)
+$(OBJDIR)/calculate_fock_matrix_p0.o:calculate_fock_matrix_p0.f90
+	@mkdir -p $(dir $@)
+	$(F90REDUCEDCOMPILE)
+endif
+
+ifeq ($(KNOWN_COMPILER_BUGS),XL_SUMMITDEV)
+# WPH Dec. 7 2017:  Enabling -qsimd=auto or -qhot=level=1 (part of -O3) throws an IPA error
+#                   when compiling ipa/ipc_hamiltonian_and_ovl_transfer.f90 or
+#                   out_plot_band_soc_mulliken_scalapack.f90 on summitdev with XL.
+$(OBJDIR)/ipc/ipc_hamiltonian_and_ovl_transfer.o:ipc/ipc_hamiltonian_and_ovl_transfer.f90
+	@mkdir -p $(dir $@) ;
+	$(F90REDUCEDCOMPILE)
+
+out_plot_band_soc_mulliken_scalapack.o:out_plot_band_soc_mulliken_scalapack.f90
+	@mkdir -p $(dir $@) ;
+	$(F90REDUCEDCOMPILE)
+endif
+
+# BELOW IS A SET OF ARCHITECTURE SPECIFIC BUGS.
+# THIS SHOULD BE HANDLED BY A KNOWN_COMPILER_BUGS KEYWORD INSTEAD.
+
+ifeq ($(ARCHITECTURE),AMD64_AVX)
+$(OBJDIR)/integrate_log_mesh.o:integrate_log_mesh.f90
+	@mkdir -p $(dir $@)
+	$(F90REDUCEDCOMPILE)
+
+$(OBJDIR)/evaluate_partition_tab_3atoms_p0.o:evaluate_partition_tab_3atoms_p0.f90
+	@mkdir -p $(dir $@)
+	$(F90REDUCEDCOMPILE)
+
+$(OBJDIR)/evaluate_wave_psi.o:evaluate_wave_psi.f90
+	@mkdir -p $(dir $@)
+	$(F90REDUCEDCOMPILE)
+endif
+
+# This is a module defined by the Fortran 2003 standard.  It is "use"d, but
+# does not need to be built.  Simply ignore.
+$(MODDIR)/iso_c_binding.mod: ;
+
+# the optional bindings for the Intel VTune Profiler are at present not
+# supported in the makefile, please use the WAF-build script if you need them
+$(OBJDIR)/vtune.o : VTune_stubs.f90
+	@mkdir -p $(dir $@) ;
+	$(FC) $(MPIF) $(F90FLAGS) $(CBFLAGS) -o $@ -c $< $(TOUCH_MODS)
+$(MODDIR)/vtune.mod : vtune.o;
+
+# $1 target name
+# $2 source file name
+define elpa_rule
+$1: $2
+	@mkdir -p $(dir $1)
+	$(MPIFC) $(F90FLAGS) $(CBFLAGS) $(MPIF) $(OMPFLAG) -o $1 -c $2
+endef
+
+# rule for elpa{1|2}_{st|mt}.f90
+$(foreach file,$(ELPA_SOURCES),$(eval $(call elpa_rule,$(OBJDIR)/$(patsubst %.f90,%.o,$(file)),$(file))))
+
+$(MODDIR)/arch_specific.mod: $(OBJDIR)/arch_specific.o ;
+$(OBJDIR)/arch_specific.o: $(ARCH_MODULE)
+	@mkdir -p $(dir $@)
+	$(FC) $(F90FLAGS) $(CBFLAGS) -o $(OBJDIR)/arch_specific.o -c $(ARCH_MODULE) $(TOUCH_MODS)
+
+$(OBJDIR)/lapack_wrapper.o: lapack_wrapper.f90
+	@mkdir -p $(dir $@)
+	$(MPIFC) $(F90FLAGS) $(CBFLAGS) $(MPIF) -o $@ -c $< $(TOUCH_MODS)
+
+$(OBJDIR)/elpa1.o: elpa1.f90
+	@mkdir -p $(dir $@)
+	$(MPIFC) $(F90FLAGS) $(CBFLAGS) $(MPIF) -o $@ -c $< $(TOUCH_MODS)
+
+$(OBJDIR)/elpa2.o: elpa2.f90
+	@mkdir -p $(dir $@)
+	$(MPIFC) $(F90FLAGS) $(CBFLAGS) $(MPIF) -o $@ -c $< $(TOUCH_MODS)
+
+# This is the numeric kernel file for the ELPA eigensolver.
+# ELPA is a standalone library (and should be), integration into the arch_* module
+# ist therefore not desired.
+$(OBJDIR)/elpa/elpa2_kernels_real_ARCH.o: $(ELPA_KERNEL_REAL)
+	@mkdir -p $(dir $@)
+	$(MPIFC) $(F90FLAGS) $(CBFLAGS) $(MPIF) -o $(OBJDIR)/elpa/elpa2_kernels_real_ARCH.o -c $(ELPA_KERNEL_REAL)
+$(OBJDIR)/elpa/elpa2_kernels_complex_ARCH.o: $(ELPA_KERNEL_COMPLEX)
+	@mkdir -p $(dir $@)
+	$(MPIFC) $(F90FLAGS) $(CBFLAGS) $(MPIF) -o $(OBJDIR)/elpa/elpa2_kernels_complex_ARCH.o -c $(ELPA_KERNEL_COMPLEX)
+
+$(OBJDIR)/check_stacksize.o: check_stacksize.f90
+	@mkdir -p $(dir $@)
+	$(MPIFC) $(F90FLAGS) $(CBFLAGS) $(MPIF) -o $@ -c $< $(TOUCH_MODS)
+
+$(OBJDIR)/mpi_tasks.o: $(MPI_TASKS)
+	@mkdir -p $(dir $@)
+	$(MPIFC) $(F90FLAGS) $(CBFLAGS) $(MPIF) -o $@ -c $< $(TOUCH_MODS)
+
+$(OBJDIR)/mpi_types.o: mpi_types.f90
+	@mkdir -p $(dir $@)
+	$(MPIFC) $(F90FLAGS) $(CBFLAGS) $(MPIF) -o $@ -c $< $(TOUCH_MODS)
+
+$(OBJDIR)/mpi_headers.o: mpi_headers.f90
+	@mkdir -p $(dir $@)
+	$(MPIFC) $(F90FLAGS) $(CBFLAGS) $(MPIF) -o $@ -c $< $(TOUCH_MODS)
+
+$(OBJDIR)/arch_specific.o: $(MODDIR)/mpi_tasks.mod \
+                             $(MODDIR)/check_environment.mod
+
+$(OBJDIR)/check_environment_variable.o: check_environment_variable.f90
+	@mkdir -p $(dir $@)
+	$(MPIFC) $(F90FLAGS) $(CBFLAGS) $(MPIF) -o $@ -c $< $(TOUCH_MODS)
+
+$(OBJDIR)/phonon/mpi_tasks_phonon.o: phonon/mpi_tasks_phonon.f90
+	@mkdir -p $(dir $@)
+	$(MPIFC) $(F90FLAGS) $(CBFLAGS) $(MPIF) -o $@ -c $< $(TOUCH_MODS)
+
+$(OBJDIR)/vibrations/mpi_tasks_vibrations.o: vibrations/mpi_tasks_vibrations.f90
+	@mkdir -p $(dir $@)
+	$(MPIFC) $(F90FLAGS) $(CBFLAGS) $(MPIF) -o $@ -c $< $(TOUCH_MODS)
+
+$(OBJDIR)/perf_stubs.o: perf_stubs.f90
+	@mkdir -p $(dir $@)
+	$(MPIFC) $(F90FLAGS) $(CBFLAGS) $(MPIF) -o $@ -c $< $(TOUCH_MODS)
+
+$(OBJDIR)/mpi_stub.o: mpi_stub.f90
+	@mkdir -p $(dir $@)
+	$(FC) $(MPIF) $(F90FLAGS) $(CBFLAGS) -o $@ -c $< $(TOUCH_MODS)
+
+$(OBJDIR)/phonon/mpi_dummy.o: phonon/mpi_dummy.f90
+	@mkdir -p $(dir $@)
+	$(FC) $(MPIF) $(F90FLAGS) $(CBFLAGS) -o $@ -c $< $(TOUCH_MODS)
+
+$(OBJDIR)/vibrations/mpi_dummy.o: vibrations/mpi_dummy.f90
+	@mkdir -p $(dir $@)
+	$(FC) $(MPIF) $(F90FLAGS) $(CBFLAGS) -o $@ -c $< $(TOUCH_MODS)
+
+$(OBJDIR)/optical_response/libxc_stub/libxc_stubs.o: optical_response/libxc_stub/libxc_stubs.f90
+	@mkdir -p $(dir $@)
+	$(FC) $(F90FLAGS) $(CBFLAGS) -o optical_response/libxc_stub/libxc_stubs.o -c $< $(TOUCH_MOD_SIBLINGS)
+
+$(OBJDIR)/ipc/ipc_stub.o: ipc/ipc_stub.f90
+	@mkdir -p $(dir $@)
+	$(FC) $(F90FLAGS) $(CBFLAGS) -o ipc/ipc_stub.o -c $< $(TOUCH_MOD_SIBLINGS)
+
+$(OBJDIR)/ipc/ipc.o: ipc/ipc.f90
+	@mkdir -p $(dir $@)
+	$(FC) $(F90FLAGS) $(CBFLAGS) -fPIC -o ipc/ipc.o -c $< $(TOUCH_MOD_SIBLINGS)
+
+$(OBJDIR)/elsi_wrapper.o: elsi_wrapper.f90
+	@mkdir -p $(dir $@)
+	$(FC) $(F90FLAGS) $(CBFLAGS) -o $@ -c $< $(ELSI_LIB) $(TOUCH_MODS)
+
+$(OBJDIR)/external/elsi/src/elsi_mpi.o: external/elsi/src/elsi_mpi.f90
+	@mkdir -p $(dir $@)
+	$(MPIFC) $(F90FLAGS) $(MPIF) -o $@ -c $< $(TOUCH_MODS)
+
+$(OBJDIR)/external/elsi/src/elsi_aeo.o: external/elsi/src/elsi_aeo.f90
+	@mkdir -p $(dir $@)
+	$(FC) $(F90FLAGS) $(CBFLAGS) -o $@ -c $< $(ELSI_LIB) $(TOUCH_MODS)
+
+$(OBJDIR)/external/elsi/external/libOMM/src/MatrixSwitch/MatrixSwitch.o: external/elsi/external/libOMM/src/MatrixSwitch/MatrixSwitch.f90
+	@mkdir -p $(dir $@)
+	$(MPIFC) $(F90FLAGS) $(MPIF) -o $@ -c $< $(TOUCH_MODS)
+
+$(OBJDIR)/external/elsi/external/ELPA/src/mod_mpi.o: external/elsi/external/ELPA/src/mod_mpi.f90
+	@mkdir -p $(dir $@)
+	$(MPIFC) $(F90FLAGS) $(MPIF) -o $@ -c $< $(TOUCH_MODS)
+
+$(OBJDIR)/external/elsi/external/NTPoly/src/NTMPIModule.o: external/elsi/external/NTPoly/src/NTMPIModule.f90
+	@mkdir -p $(dir $@)
+	$(MPIFC) $(F90FLAGS) $(MPIF) -o $@ -c $< $(TOUCH_MODS)
+
+$(OBJDIR)/external/libmbd/src/mbd_mpi.o: external/libmbd/src/mbd_mpi.f90
+	@mkdir -p $(dir $@)
+	$(MPIFC) $(F90FLAGS) $(MPIF) -o $@ -c $< $(TOUCH_MODS)
+
+ipc.mod: $(IPC_FILES)
+
+$(OBJDIR)/json_output.o: $(OBJDIR)/json_output.f90
+	@mkdir -p $(dir $@)
+	$(FC) $(F90FLAGS) $(CBFLAGS) -o $@ -c $< $(ELSI_LIB) $(TOUCH_MODS)
+
+$(OBJDIR)/MagneticResponse/MR_main.o: $(OBJDIR)/MagneticResponse/MR_main.f90
+	@mkdir -p $(dir $@)
+	$(FC) $(F90FLAGS) $(CBFLAGS) -o $@ -c $< $(ELSI_LIB) $(TOUCH_MODS)
+
+$(OBJDIR)/MagneticResponse/MR_output.o: $(OBJDIR)/MagneticResponse/MR_output.f90
+	@mkdir -p $(dir $@)
+	$(FC) $(F90FLAGS) $(CBFLAGS) -o $@ -c $< $(ELSI_LIB) $(TOUCH_MODS)
+
+# Version stamp writer code
+# The version stamp should be written anew for every make invocation which
+# builds an FHI-aims executable.  Otherwise, the compile time would be
+# outdated.  Therefore, make sure that the corresponding files get removed as
+# intermediate files after usage:
+# .INTERMEDIATE:write_version_stamp.f90 $(OBJDIR)/write_version_stamp.o
+# Generate the subroutine
+write_version_stamp.f90: FORCE
+	./version_stamp_writer.pl $(AIMSVERSION) >$@
+# Compile it; also specify dependencies.
+$(OBJDIR)/write_version_stamp.o: write_version_stamp.f90
+	$(FC) $(F90FLAGS) $(CBFLAGS) -o $@ -c $< $(TOUCH_MODS)
+
+#************************************************************************
+#
+# Auxiliary executables
+#
+#************************************************************************
+
+#  make targets for auxiliary packages that are not connected to the main aims binary:
+#
+#  Vibrations, phonons.
+
+# Make file utility for vibrations - including a separate version stamp treatment and everything.
+# first: vibrations in serial require the use of a dummy mpi system.
+vibrations: vibrations/hessian_diagonalization.f90 vibrations/numerical_vibrations.pl $(OBJDIR)/vibrations/mpi_dummy.o serial
+	cat vibrations/hessian_diagonalization.f90 | \
+            sed 's/use MPI_ROUTINES/use mpi_dummy/g; s/Version XXXXXX/Version '$(AIMSVERSION)'/g'  \
+              > $(OBJDIR)/vibrations/hessian_temp.f90
+	$(FC) $(CBFLAGS) $(F90FLAGS) -o $(BINDIR)/vibrations_diagonalizer.$(AIMSVERSION).x \
+              $(OBJDIR)/vibrations/mpi_dummy.o $(OBJDIR)/vibrations/hessian_temp.f90 \
+              $(LAPACKBLAS)
+	-rm -f $(OBJDIR)/vibrations/hessian_temp.f90 ; \
+	cat vibrations/numerical_vibrations.pl | \
+	    sed -e 's/HESSIAN_DIAGONALIZER/vibrations_diagonalizer.'$(AIMSVERSION)'.x/g' \
+                -e 's/Version XXXXXX/Version '$(AIMSVERSION)'/g' \
+                -e 's|AIMS_BINARY_DIRECTORY|'$(abspath $(BINDIR))'|g' \
+                -e 's/AIMS_BINARY/aims.'$(AIMSVERSION)'.serial.x/g' \
+              > $(BINDIR)/aims.vibrations.$(AIMSVERSION).pl
+	chmod +x $(BINDIR)/aims.vibrations.$(AIMSVERSION).pl
+
+.PHONY: vibrations # Ignore the folder with the same name.
+
+# with mpi, the thing should use the mpi utilities provided by the compiler ...
+vibrations.mpi: vibrations/hessian_diagonalization.f90 \
+                vibrations/numerical_vibrations.pl \
+                $(OBJDIR)/vibrations/mpi_tasks_vibrations.o \
+                mpi
+	cat vibrations/hessian_diagonalization.f90 | \
+            sed 's/use MPI_ROUTINES/use mpi_tasks_vibrations/g; s/Version XXXXXX/Version '$(AIMSVERSION)'/g'  \
+              > $(OBJDIR)/vibrations/hessian_temp.f90
+	$(FC) $(CBFLAGS) $(F90FLAGS) -o $(OBJDIR)/vibrations/hessian_temp.o -c $(OBJDIR)/vibrations/hessian_temp.f90
+	$(MPIFC) $(CBFLAGS) -o $(BINDIR)/vibrations_diagonalizer.$(AIMSVERSION).mpi.x \
+                 $(OBJDIR)/vibrations/mpi_tasks_vibrations.o $(OBJDIR)/vibrations/hessian_temp.o \
+                 $(LAPACKBLAS) $(SCALAPACK)
+	-rm -f $(OBJDIR)/vibrations/hessian_temp.f90
+	cat vibrations/numerical_vibrations.pl | \
+            sed -e 's/HESSIAN_DIAGONALIZER/vibrations_diagonalizer.'$(AIMSVERSION)'.mpi.x/g;' \
+                -e 's/Version XXXXXX/Version '$(AIMSVERSION)'/g' \
+                -e 's|AIMS_BINARY_DIRECTORY|'$(abspath $(BINDIR))'|g' \
+                -e 's/AIMS_BINARY/aims.'$(AIMSVERSION)'.mpi.x/g' \
+                -e '/^\$$CALLING_PREFIX/ s/""/"mpiexec -n 2 "/g' \
+              > $(BINDIR)/aims.vibrations.$(AIMSVERSION).mpi.pl
+	chmod +x $(BINDIR)/aims.vibrations.$(AIMSVERSION).mpi.pl
+
+# same as mpi, except the FHI-aims scalapack.mpi binary is used.
+vibrations.scalapack.mpi: vibrations/hessian_diagonalization.f90 \
+                vibrations/numerical_vibrations.pl \
+                $(OBJDIR)/vibrations/mpi_tasks_vibrations.o \
+                scalapack.mpi
+	cat vibrations/hessian_diagonalization.f90 | \
+            sed 's/use MPI_ROUTINES/use mpi_tasks_vibrations/g; s/Version XXXXXX/Version '$(AIMSVERSION)'/g'  \
+              > $(OBJDIR)/vibrations/hessian_temp.f90
+	$(FC) $(CBFLAGS) $(F90FLAGS) -o $(OBJDIR)/vibrations/hessian_temp.o -c $(OBJDIR)/vibrations/hessian_temp.f90
+	$(MPIFC) $(CBFLAGS) -o $(BINDIR)/vibrations_diagonalizer.$(AIMSVERSION).scalapack.mpi.x \
+                 $(OBJDIR)/vibrations/mpi_tasks_vibrations.o $(OBJDIR)/vibrations/hessian_temp.o \
+                 $(LAPACKBLAS) $(SCALAPACK)
+	-rm -f $(OBJDIR)/vibrations/hessian_temp.f90
+	cat vibrations/numerical_vibrations.pl | \
+            sed -e 's/HESSIAN_DIAGONALIZER/vibrations_diagonalizer.'$(AIMSVERSION)'.scalapack.mpi.x/g;' \
+                -e 's/Version XXXXXX/Version '$(AIMSVERSION)'/g' \
+                -e 's|AIMS_BINARY_DIRECTORY|'$(abspath $(BINDIR))'|g' \
+                -e 's/AIMS_BINARY/aims.'$(AIMSVERSION)'.scalapack.mpi.x/g' \
+                -e '/^\$$CALLING_PREFIX/ s/""/"mpiexec -n 2 "/g' \
+              > $(BINDIR)/aims.vibrations.$(AIMSVERSION).scalapack.mpi.pl
+	chmod +x $(BINDIR)/aims.vibrations.$(AIMSVERSION).scalapack.mpi.pl
+
+# Make file utility for phonons - including a separate version stamp treatment and everything.
+# first: phonons in serial require the use of a dummy mpi system.
+phonons: $(OBJDIR)/arch_specific.o $(OBJDIR)/check_environment.o serial $(OBJDIR)/phonon/mpi_dummy.o
+	cat phonon/aims.phonons.pl | \
+            sed -e 's/DYNAMICMATRIXDIAGONALIZER/phonon_dynamic_matrix_diagonalization.'$(AIMSVERSION)'.x/g' \
+                -e 's/SYMMETRYCHECKER/phonon_symmetry_check.'$(AIMSVERSION)'.x/g' \
+                -e 's/Version XXXXXX/Version '$(AIMSVERSION)'/g' \
+                -e 's|AIMS_BINARY_DIRECTORY|'$(abspath $(BINDIR))'|g' \
+                -e 's/AIMS_BINARY/aims.'$(AIMSVERSION)'.serial.x/g' \
+              > $(BINDIR)/aims.phonons.$(AIMSVERSION).pl
+	cat phonon/phonons_hessian_diagonalization.f90 | \
+            sed -e 's/use MPI_ROUTINES/use mpi_dummy/g' \
+                -e 's/Version XXXXXX/Version '$(AIMSVERSION)'/g' \
+              > $(OBJDIR)/phonon/phonon_temp.f90
+	cat phonon/phonons_symmetry_check.f90 | \
+            sed -e 's/use MPI_ROUTINES/use mpi_dummy/g' \
+              > $(OBJDIR)/phonon/symmetry_temp.f90
+	$(FC) $(CBFLAGS) $(F90FLAGS) -o $(BINDIR)/phonon_dynamic_matrix_diagonalization.$(AIMSVERSION).x \
+              $(OBJDIR)/phonon/mpi_dummy.o $(OBJDIR)/phonon/phonon_temp.f90 $(OBJDIR)/arch_specific.o $(OBJDIR)/check_environment.o \
+              $(LAPACKBLAS)
+	$(FC) $(CBFLAGS) $(F90FLAGS) -o $(BINDIR)/phonon_symmetry_check.$(AIMSVERSION).x \
+              $(OBJDIR)/phonon/mpi_dummy.o $(OBJDIR)/phonon/symmetry_temp.f90 \
+              $(LAPACKBLAS)
+	chmod +x $(BINDIR)/aims.phonons.$(AIMSVERSION).pl
+	-rm -f $(OBJDIR)/phonon/*_temp.f90
+
+# with mpi, the thing should use the mpi utilities provided by the compiler ...
+phonons.mpi: $(OBJDIR)/arch_specific.o $(OBJDIR)/check_environment.o mpi $(OBJDIR)/phonon/mpi_tasks_phonon.o
+	cat phonon/aims.phonons.pl | \
+            sed -e 's/DYNAMICMATRIXDIAGONALIZER/phonon_dynamic_matrix_diagonalization.'$(AIMSVERSION)'.mpi.x/g' \
+                -e 's/SYMMETRYCHECKER/phonon_symmetry_check.'$(AIMSVERSION)'.mpi.x/g' \
+                -e 's/Version XXXXXX/Version '$(AIMSVERSION)'/g' \
+                -e 's|AIMS_BINARY_DIRECTORY|'$(abspath $(BINDIR))'|g' \
+                -e 's/AIMS_BINARY/aims.'$(AIMSVERSION)'.mpi.x/g' \
+                -e '/^\$$CALLING_PREFIX/ s/""/"mpiexec -n 2 "/g' \
+              > $(BINDIR)/aims.phonons.$(AIMSVERSION).mpi.pl
+	cat phonon/phonons_hessian_diagonalization.f90 | \
+            sed 's/use MPI_ROUTINES/use mpi_tasks_phonon/g; s/Version XXXXXX/Version '$(AIMSVERSION)'/g' \
+              > $(OBJDIR)/phonon/phonon_temp.f90
+	cat phonon/phonons_symmetry_check.f90 | \
+            sed 's/use MPI_ROUTINES/use mpi_tasks_phonon/g' \
+              > $(OBJDIR)/phonon/symmetry_temp.f90
+	$(MPIFC) $(CBFLAGS) $(F90FLAGS) -o $(BINDIR)/phonon_dynamic_matrix_diagonalization.$(AIMSVERSION).mpi.x \
+                 $(OBJDIR)/phonon/mpi_tasks_phonon.o $(OBJDIR)/phonon/phonon_temp.f90 $(OBJDIR)/arch_specific.o $(OBJDIR)/check_environment.o \
+                 $(LAPACKBLAS)
+	$(MPIFC) $(CBFLAGS) $(F90FLAGS) -o $(BINDIR)/phonon_symmetry_check.$(AIMSVERSION).mpi.x \
+                 $(OBJDIR)/phonon/mpi_tasks_phonon.o $(OBJDIR)/phonon/symmetry_temp.f90 \
+                 $(LAPACKBLAS)
+	chmod +x $(BINDIR)/aims.phonons.$(AIMSVERSION).mpi.pl
+	rm -f $(OBJDIR)/phonon/*_temp.f90
+
+# same as mpi, except a better FHI-aims binary is used.
+phonons.scalapack.mpi: $(OBJDIR)/arch_specific.o $(OBJDIR)/check_environment.o scalapack.mpi $(OBJDIR)/phonon/mpi_tasks_phonon.o
+	cat phonon/aims.phonons.pl | \
+            sed -e 's/DYNAMICMATRIXDIAGONALIZER/phonon_dynamic_matrix_diagonalization.'$(AIMSVERSION)'.mpi.x/g' \
+                -e 's/SYMMETRYCHECKER/phonon_symmetry_check.'$(AIMSVERSION)'.mpi.x/g' \
+                -e 's/Version XXXXXX/Version '$(AIMSVERSION)'/g' \
+                -e 's|AIMS_BINARY_DIRECTORY|'$(abspath $(BINDIR))'|g' \
+                -e 's/AIMS_BINARY/aims.'$(AIMSVERSION)'.scalapack.mpi.x/g' \
+                -e '/^\$$CALLING_PREFIX/ s/""/"mpiexec -n 2 "/g' \
+              > $(BINDIR)/aims.phonons.$(AIMSVERSION).scalapack.mpi.pl
+	cat phonon/phonons_hessian_diagonalization.f90 | \
+            sed 's/use MPI_ROUTINES/use mpi_tasks_phonon/g; s/Version XXXXXX/Version '$(AIMSVERSION)'/g' \
+              > $(OBJDIR)/phonon/phonon_temp.f90
+	cat phonon/phonons_symmetry_check.f90 | \
+            sed 's/use MPI_ROUTINES/use mpi_tasks_phonon/g' \
+              > $(OBJDIR)/phonon/symmetry_temp.f90
+	$(MPIFC) $(CBFLAGS) $(F90FLAGS) -o $(BINDIR)/phonon_dynamic_matrix_diagonalization.$(AIMSVERSION).mpi.x \
+                 $(OBJDIR)/phonon/mpi_tasks_phonon.o $(OBJDIR)/phonon/phonon_temp.f90 $(OBJDIR)/arch_specific.o $(OBJDIR)/check_environment.o \
+                 $(LAPACKBLAS)
+	$(MPIFC) $(CBFLAGS) $(F90FLAGS) -o $(BINDIR)/phonon_symmetry_check.$(AIMSVERSION).mpi.x \
+                 $(OBJDIR)/phonon/mpi_tasks_phonon.o $(OBJDIR)/phonon/symmetry_temp.f90 \
+                 $(LAPACKBLAS)
+	chmod +x $(BINDIR)/aims.phonons.$(AIMSVERSION).scalapack.mpi.pl
+	rm -f $(OBJDIR)/phonon/*_temp.f90
+
+#************************************************************************
+#
+# Auxiliary targets
+#
+#************************************************************************
+
+SOURCES = *.f90 *.f */*.f */*.f90 external/*/*.f90 external/*/*/*.f90 f2py/*.py
+TAGS: $(SOURCES)
+	ctags -e $(SOURCES)
+
+.PHONY: FORCE
+FORCE:
+
+
+archive: *.f* */*.f* Makefile.backend version_stamp_writer.pl
+	mkdir FHI-aims-$(AIMSVERSION)
+	for file in $$(git ls-files); do \
+	   dir=FHI-aims-$(AIMSVERSION)/$$(dirname $$file); \
+           if [ ! -e $$dir ]; then mkdir -p $$dir; fi; \
+           cp -a $$file $$dir; \
+	done
+	./version_stamp_writer.pl --only-gitstr \
+                    >FHI-aims-$(AIMSVERSION)/git-rev.txt
+	tar czf FHI-aims-$(AIMSVERSION).tar.gz FHI-aims-$(AIMSVERSION)
+	rm -r FHI-aims-$(AIMSVERSION)
+
+lib: $(MODULE_HEADERS) $(MODDIR)/arch_specific.mod \
+     $(BUILDDIR)/libaims-$(AIMSVERSION).so
+
+$(BUILDDIR)/libaims-$(AIMSVERSION).so: $(OBJDIR)/write_version_stamp.o \
+               $(MODULES) $(OBJDIR)/main.o $(SUBROUTINES) $(EXTERNAL) \
+               $(ANACON) $(MPI_STUBS) $(SCALAPACK_STUBS) $(METIS_STUB) \
+               $(CUBA_STUBS) $(SHM_STUBS) $(PLUMED_STUB) $(PARSER_STUBS) \
+               $(IPI_STUBS)  $(HDF5_STUBS) $(C_FILES_STUBS) $(PERF_STUBS)
+	if [ -z "$(filter -fPIC,$(FFLAGS))" ]; then \
+	   echo "Need FFLAGS+=-fPIC for all files."; false; \
+	fi
+	$(FC) $(FFLAGS) $(CBFLAGS) $(LDFLAGS) -shared -o $@ $^
+	@echo "Built $@."
+
+# other makefile utilities
+clean:
+	-rm -f Makefile.moddeps write_version_stamp.f90
+	-find . -name "*.o" -delete
+	-find . -name "*.i90" -delete
+	-find . -name "*.lst" -delete
+	-find . -name "*.imod" -delete
+	-find . -name "*.itypes" -delete
+	-find . -name "*.mod" -delete
+
+allclean: clean
+	-find . -name "*.o" -delete
+	-find . -name "*.mod" -delete
+
+# Rel module cleaner
+rel_clean:
+	-rm -f $(OBJDIR)/rel_atoms.o
+# cleans only those subroutines that need to be recompiled between a serial
+# and a MPI compile
+mpiclean:
+	-rm -f $(OBJDIR)/mpi_tasks.o $(MODDIR)/mpi_tasks.mod
+	-rm -f $(OBJDIR)/mpi_types.o $(MODDIR)/mpi_types.mod
+	-rm -f $(OBJDIR)/mpi_headers.o $(MODDIR)/mpi_headers.mod
+gwclean:
+	-rm -f $(OBJDIR)/SCGW/*.o

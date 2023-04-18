@@ -1,0 +1,34 @@
+\chapter[Debug Manager]{Debug Manager - a centralized debugging facility for developers}
+\label{appendix_debugmanager}
+
+FHI-aims features a centralized utility for controlling debug output. This utility keeps track of all registered
+modules (in a physical sense, e.g. the DFPT features are a module in this context) and can enable their debug output
+selectively via the \emph{control.in} file.
+
+The main idea behind this utility is to provide a simple tool to generate debug-flags that can be set in the
+\emph{control.in} without having to register them manually in the input parsing routines. Furthermore, it also
+provides a central debug interface to the user, instead of having to use different flags, flags that can
+only be toggled in the sourcecode or even no toggles at all.
+
+You can enable debugging for any registered module in the input file by adding a \texttt{debug\_module my\_module}.
+The list of currently supported modules can be found in the file \emph{init\_debug.f90}.
+
+To register your module, you only need to add a single line to the \emph{init\_debug.f90}:
+\begin{verbatim}
+    register_debugmodule("your_tag")
+\end{verbatim}
+Afterwards, you can conveniently activate debugging in the \emph{control.in} by using the flag:
+\begin{verbatim}
+    debug_module your_tag
+\end{verbatim}
+This tells the code to enable debugging for your code. Just call
+\begin{verbatim}
+    debugprint(message, your_tag)
+\end{verbatim}
+in your code to only print the message if debugging for your module is enabled. For more complicated debug
+functionality, there also is
+\begin{verbatim}
+    module_is_debugged(your_tag)
+\end{verbatim}
+This function returns a logical value and thus can be used as condition in an enclosing if-block. Both functions are
+located inside the \texttt{debugmanager} module, which you can import like any other module with a use-statement.

@@ -1,0 +1,296 @@
+\documentclass[11pt,letterpaper]{article}
+\special{papersize=8.5in,11in}
+%\renewcommand\baselinestretch{1.05}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\pagestyle{plain}                   
+%%%%%%%%%% EXACT 1in MARGINS %%%%%%%
+\setlength{\textwidth}{6.5in}     %%
+\setlength{\oddsidemargin}{0in}   %%
+\setlength{\evensidemargin}{0in}  %%
+\setlength{\textheight}{8.85in}   %%
+\setlength{\topmargin}{0in}       %%
+\setlength{\headheight}{0in}      %%
+\setlength{\headsep}{0in}         %%
+\setlength{\footskip}{.15in}      %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\renewcommand{\refname}{References\hfil}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usepackage{amsmath,amssymb}
+\makeatletter
+\g@addto@macro\normalsize{%
+  \setlength\abovedisplayskip{0pt}
+  \setlength\belowdisplayskip{0pt}
+  \setlength\abovedisplayshortskip{0pt}
+  \setlength\belowdisplayshortskip{0pt}
+}
+\makeatother
+\usepackage{amsthm}
+\usepackage[comma, square, numbers, sort&compress]{natbib}
+\makeatletter
+\newcommand*{\citensp}[2][]{%
+  \begingroup
+  \let\NAT@mbox=\mbox
+  \let\@cite\NAT@citenum
+  \let\NAT@space\NAT@spacechar
+  \let\NAT@super@kern\relax
+  \renewcommand\NAT@open{[}%
+  \renewcommand\NAT@close{]}%
+  \citep[#1]{#2}%
+  \endgroup
+}
+\makeatother
+
+\usepackage{latexsym}
+\usepackage{indentfirst}
+\usepackage{mathrsfs}
+%\usepackage[notref, notcite]{showkeys}
+\usepackage{graphicx}
+\usepackage{wrapfig}
+\usepackage{mdwlist}
+%\usepackage{hyperref}
+\usepackage[compact]{titlesec}
+\titlespacing{\section}{1pt}{*1}{*1}
+\titlespacing{\subsection}{0.5pt}{*0.5}{*0.5}
+\usepackage{enumitem}
+\setitemize{noitemsep,topsep=2pt,parsep=0pt,partopsep=0pt}
+\setenumerate{noitemsep,topsep=2pt,parsep=0pt,partopsep=0pt}
+
+%\usepackage{ulem}
+
+\usepackage{xcolor}
+\providecommand{\red}[1]{\textcolor{red}{\textit{#1}}}
+
+
+\newcommand{\veps}{\varepsilon}
+\newcommand{\eps}{\epsilon}
+
+\newcommand{\BV}{\mathrm{BV}}
+\newcommand{\CB}{\mathrm{CB}}
+\newcommand{\DG}{\mathrm{DG}}
+\newcommand{\KS}{\mathrm{KS}}
+\newcommand{\FD}{\mathrm{FD}}
+\newcommand{\eff}{\mathrm{eff}}
+
+\newcommand{\abs}[1]{\lvert#1\rvert}
+\newcommand{\norm}[1]{\lVert#1\rVert}
+\newcommand{\average}[1]{\langle#1\rangle}
+\newcommand{\bra}[1]{\langle#1\rvert}
+\newcommand{\ket}[1]{\lvert#1\rangle}
+
+\newcommand{\ud}{\,\mathrm{d}}
+\newcommand{\RR}{\mathbb{R}}
+
+\newcommand{\mc}[1]{\mathcal{#1}}
+\newcommand{\ms}[1]{\mathscr{#1}}
+\newcommand{\mf}[1]{\mathsf{#1}}
+
+\newcommand{\per}{\mathrm{per}}
+
+\newcommand{\xc}{\mathrm{xc}}
+\newcommand{\ext}{\mathrm{ext}}
+
+\newcommand{\TT}{\mathrm{T}}
+\newcommand{\Or}{\mathcal{O}}
+
+\newcommand{\boldV}{\mbox{\boldmath$V$}}
+\newcommand{\boldW}{\mbox{\boldmath$W$}}
+\newcommand{\boldw}{\mbox{\boldmath$w$}}
+
+\newcommand{\bolda}{\mbox{\boldmath$a$}}
+\newcommand{\boldf}{\mbox{\boldmath$f$}}
+\newcommand{\boldR}{\mbox{\boldmath$R$}}
+\newcommand{\boldT}{\mbox{\boldmath$T$}}
+\newcommand{\boldPsi}{\mbox{\boldmath$\Psi$}}
+\newcommand{\boldPhi}{\mbox{\boldmath$\Phi$}}
+\newcommand{\boldchi}{\mbox{\boldmath$\chi$}}
+\newcommand{\bolds}{\mbox{\boldmath$\sigma$}}
+\newcommand{\boldF}{\mbox{\boldmath$F$}}
+\newcommand{\boldH}{\mbox{\boldmath$H$}}
+\newcommand{\boldS}{\mbox{\boldmath$S$}}
+\newcommand{\boldA}{\mbox{\boldmath$A$}}
+\newcommand{\boldB}{\mbox{\boldmath$B$}}
+\newcommand{\boldL}{\mbox{\boldmath$L$}}
+\newcommand{\boldQ}{\mbox{\boldmath$Q$}}
+\newcommand{\boldI}{\mbox{\boldmath$I$}}
+\newcommand{\boldc}{\mbox{\boldmath$c$}}
+\newcommand{\boldlambda}{\mbox{\boldmath$\lambda$}}
+\newcommand{\boldrho}{\mbox{\boldmath$\rho$}}
+\newcommand{\FHIaims}{\texttt{FHI-aims}}
+\newcommand{\erf}{\mathop{\mathrm{erf}}}
+\newcommand{\erfc}{\mathop{\mathrm{erfc}}}
+\newcommand{\at}{\text{at}}
+
+\begin{document}
+
+\begin{flushleft} 
+\noindent\Large\textbf{FHI-aims File Format Description: geometry.in}
+\end{flushleft}
+
+\section{Overview}
+
+FHI-aims requires two input files, which should contain all
+information needed to run a first-principles calculation. 
+
+All technical settings should be specified in a single file
+\texttt{control.in}. 
+
+A second input file, \texttt{geometry.in},
+specifies the system geometry (placement and type of
+atoms, unit cell vectors, etc.) and any information that is linked
+directly to the system geometry, to the system's physical environment,
+or to specific atoms. No other technical information should be part of 
+\texttt{geometry.in}. In particular, $k$-space related information is
+provided to the code in a generic format as a part of
+\texttt{control.in}, in fractional coordinates of the reciprocal space
+vectors, not of \texttt{geometry.in}. 
+
+In its simplest form, \texttt{geometry.in} is a generic format
+specification for files conveying the atomic structure of molecules or
+solids. This basic form is thus functionally equivalent to
+other, code-agnostic file specifications containing atomic structure
+information, such as .xyz, .cif, or .pdb . Like these other file
+formats, \texttt{geometry.in} can contain technical information beyond
+the actual atomic structure. 
+
+The present document focuses on aspects related to the basic atomic
+structure information (including information on specified initial spin
+moments, which may result in physically different outcomes for the
+structure in question). A full listing of all keywords related to
+\texttt{geometry.in} may be found in the FHI-aims code manual.
+
+\section{Examples}
+
+Any molecular geometry in FHI-aims requires only cartesian atomic
+coordinates of the position of a nucleus (in {\AA}) and of the atomic
+species (usually, the chemical element) found at that position. No
+other information is required. Any \texttt{geometry.in} file that does
+not include a unit cell specification is automatically considered to
+correspond to the definition of an isolated molecule.
+
+The \texttt{geometry.in} file for an isolated N$_2$ molecule might look like
+this:
+
+\begin{verbatim}
+  atom 0. 0. 0.      N
+  atom 0. 0. 1.0976  N
+\end{verbatim}
+ 
+Periodic systems are defined by specifying three lattice repeat vectors
+in cartesian units ({\AA}). The \texttt{geometry.in} file for the
+primitive two-atom cell of a GaAs periodic crystal might look like
+this: 
+
+\begin{verbatim}
+  lattice_vector  2.826650         2.826650         0.000000
+  lattice_vector  0.000000         2.826650         2.826650
+  lattice_vector  2.826650         0.000000         2.826650
+
+  atom  0.000000         0.000000         0.000000  Ga
+  atom  1.413325         1.413325         1.413325  As
+\end{verbatim}
+
+The previous version specifies the cartesian atomic coordinates in
+{\AA} (\texttt{atom} keyword). Alternatively, a specification in 
+fractional coordinates (units of the lattice vectors) is possible as
+well: 
+
+\begin{verbatim}
+  lattice_vector  2.826650         2.826650         0.000000
+  lattice_vector  0.000000         2.826650         2.826650
+  lattice_vector  2.826650         0.000000         2.826650
+
+  atom_frac  0.               0.               0.        Ga
+  atom_frac  0.25             0.25             0.25      As
+\end{verbatim}
+
+The relation between lattice vectors $\{\bolda_i\}$, cartesian
+atomic coordinates $\{\boldR_I\}$ of atom $I$ and fractional atomic
+coordinates $\{\boldf_I\}$ is
+\begin{equation}
+  R_{I,j} = \sum_k f_{I,k} a_{k,j}
+\end{equation}
+The index $j$ denotes the cartesian coordinates of the $k$th lattice
+vector in the order provided in \texttt{geometry.in}.
+
+\section{Format and Keywords}
+
+In \texttt{geometry.in}, whitespace separates keywords and their
+values. Empty lines are ignored and comment lines can be inserted
+starting with the '\#' character. The order of lines is generally
+arbitrary, with the exception of keywords that pertain to a specific
+atom. Keywords that pertain to a specific atom (such as an
+\texttt{initial\_moment} spin moment specification or a constraint on
+the atomic position) must be specified after the \texttt{atom} or
+\texttt{atom\_frac} line of that atom, and before the \texttt{atom} or
+\texttt{atom\_frac} line indicating the next atom. \\[1.0ex]
+
+\noindent
+\textbf{Keywords descriptions}: \\
+(restricted to the keywords that do not refer to code-specific
+technical features)
+\\[1.0ex]
+
+\texttt{atom} \\[1.0ex]
+{
+  \noindent
+  Usage: \texttt{atom} \texttt{x} \texttt{y} \texttt{z}
+  \texttt{species\_name} \\[1.0ex]
+  Purpose: Specifies the initial location and type of an atom. \\[1.0ex]
+  \texttt{x}, \texttt{y}, \texttt{z} are real numbers (in \AA) which
+  specify the atomic position. \\[1.0ex]
+  \texttt{species\_name} is a string descriptor which names the element on
+    this atomic position; it must match with one of the species descriptions
+    given in \texttt{control.in}. \\[1.0ex]
+}
+
+\texttt{atom\_frac} \\[1.0ex]
+{
+  \noindent
+  Usage: \texttt{atom\_frac} \texttt{$n_1$} \texttt{$n_2$} \texttt{$n_3$}
+  \texttt{species\_name} \\[1.0ex]
+  Purpose: Specifies the initial location and type of an atom in fractional coordinates. \\[1.0ex]
+  \texttt{$n_i$} is a real multiple of lattice vector $i$.
+  \texttt{species\_name} is a string descriptor which names the element on
+    this atomic position; it must match with one of the species descriptions
+    given in \texttt{control.in}. \\[1.0ex]
+}
+Fractional coordinates are only meaningful in periodic calculations. \\[1.0ex]
+
+\texttt{lattice\_vector} \\[1.0ex]
+{
+  \noindent
+  Usage: \texttt{lattice\_vector} \texttt{x} \texttt{y} \texttt{z} \\[1.0ex]
+  Purpose: Specifies one lattice vector for periodic boundary conditions. \\[1.0ex]
+  \texttt{x}, \texttt{y}, \texttt{z} are real numbers (in \AA) which
+  specify the direction and length of a unit cell vector. \\[1.0ex]
+}
+If up to three lattice vectors are specified, FHI-aims automatically assumes
+periodic boundary conditions in those directions. \emph{Note} that the
+order of lattice vectors matters, as the order of $k$ space divisions (given
+in \texttt{control.in}) depends on it! \\[1.0ex]
+
+\texttt{initial\_moment} \\[1.0ex]
+{
+  \noindent
+  Usage: \texttt{initial\_moment} \texttt{moment} \\[1.0ex]
+  Purpose: Allows to place an initial spin moment on an \texttt{atom} in
+    file \texttt{geometry.in}. \\[1.0ex]
+  \texttt{moment} is a real number, referring to the electron
+  difference $N^\uparrow - N^\downarrow$ on that site. Default: Zero, 
+  unless \texttt{default\_initial\_moment} is set explicitly. \\[1.0ex]
+}
+The \texttt{initial\_moment} keyword always applies to the immediately preceding
+\texttt{atom} specified in input file
+\texttt{geometry.in}. The moment is introduced by using a
+spin-polarized instead of an unpolarized spherical free-atom density
+on that site in the initial superposition-of-free-atoms density. Note
+that initial charge densities are generated by the functional
+  specified with \texttt{xc} 
+for DFT-LDA/GGA, but refer to \texttt{pw-lda} densities for all other
+functionals (hybrid functionals, Hartree-Fock, ...).
+
+
+\end{document}

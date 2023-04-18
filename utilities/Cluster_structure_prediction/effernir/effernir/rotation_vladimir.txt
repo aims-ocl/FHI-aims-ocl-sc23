@@ -1,0 +1,80 @@
+///calculate center of mass of child/
+double x_cmP1=0.0, y_cmP1=0.0, z_cmP1=0.0;
+
+*for* (i=0; i< numAtoms; i++)
+{x_cmP1 += child[i][0];y_cmP1 += child[i][1];z_cmP1 += child[i][2];}
+
+x_cmP1=x_cmP1/numAtoms;y_cmP1=y_cmP1/numAtoms;z_cmP1=z_cmP1/numAtoms;
+
+/// shift the origin of coord. system to the center of mass/
+
+*for* (i=0; i< numAtoms; i++)
+{child[i][0] = child[i][0]-x_cmP1;child[i][1] = child[i][1]-y_cmP1;child[i][2] = child[i][2]-z_cmP1;}
+
+/// choose random plane Ax+By+Cz+D=0/
+double A,B,C,phii,thetaa;
+
+phii=pi*ran3(&idum3);
+thetaa=2.*pi*ran3(&idum3);
+A=sin(phii)*cos(thetaa);  /// vector (A,B,C) is unit/
+B=sin(phii)*sin(thetaa); 
+C=cos(phii);
+*if* (A<0) {A=-A; B=-B;C=-C;}
+///printf("A=%e  B=%e  C=%e  norm=%e\n",A,B,C,sqrt(A*A+B*B+C*C));/
+
+int j=0, size_of_half;
+double min, min_tmp, plane_shift;
+/// choose random angle by which to rotate half of the child/
+double angle=2.*pi*ran3(&idum3);
+
+printf("Rotate half of the child in mutation by %.6g deg... \n",angle*360./2./pi);
+*for* (i=0; i< numAtoms; i++)
+{
+ *if* (A*child[i][0]+B*child[i][1]+C*child[i][2]>0)
+ {
+  XYZ axis = {A,B,C};
+  XYZ point={child[i][0],child[i][1],child[i][2]};
+  XYZ newpoint=ArbitraryRotate(point,angle,axis);
+  child[i][0]=newpoint.x; child[i][1]=newpoint.y; child[i][2]=newpoint.z;
+ j++;
+ }
+}
+size_of_half=j;
+printf("Rotation done. Rotated %i particles\n",size_of_half);
+/*************************************************************************/
+/*************************************************************************/
+ typedef struct {
+   double x,y,z;
+} XYZ;
+
+
+/*************************************************************************/
+/*
+   Rotate a point p by angle theta around an arbitrary unit axis vector r
+   Return the rotated point.
+   Positive angles are anticlockwise looking down the axis
+   towards the origin.
+   Assume right hand coordinate system.
+*/
+XYZ ArbitraryRotate(XYZ p,double theta,XYZ r)
+{
+   XYZ q = {0.0,0.0,0.0};
+   double costheta,sintheta;
+
+   costheta = cos(theta);
+   sintheta = sin(theta);
+
+   q.x += (costheta + (1 - costheta) * r.x * r.x) * p.x;
+   q.x += ((1 - costheta) * r.x * r.y - r.z * sintheta) * p.y;
+   q.x += ((1 - costheta) * r.x * r.z + r.y * sintheta) * p.z;
+
+   q.y += ((1 - costheta) * r.x * r.y + r.z * sintheta) * p.x;
+   q.y += (costheta + (1 - costheta) * r.y * r.y) * p.y;
+   q.y += ((1 - costheta) * r.y * r.z - r.x * sintheta) * p.z;
+
+   q.z += ((1 - costheta) * r.x * r.z - r.y * sintheta) * p.x;
+   q.z += ((1 - costheta) * r.y * r.z + r.x * sintheta) * p.y;
+   q.z += (costheta + (1 - costheta) * r.z * r.z) * p.z;
+
+   return(q);
+}

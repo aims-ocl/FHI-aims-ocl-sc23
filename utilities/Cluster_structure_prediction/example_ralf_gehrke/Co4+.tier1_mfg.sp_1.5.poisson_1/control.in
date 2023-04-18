@@ -1,0 +1,153 @@
+#  Volker Blum, FHI 2004 : Input file for LocalOrb code project
+#
+#  Input file control.in : All computational details for structure geometry.in
+#
+#  * First, general computational parameters:
+#         xc           - specifies type of exchange-correlation potential
+#         relativistic - specifies the type of kinetic energy expression
+#         empty_states - specifies the number of empty states per atom to be included
+#         KS_method    - specifies the treatment of the Kohn-Sham equations (e.g., full diagonalisation by Lapack)
+#         charge_mix_param - mixing parameter for linear charge-density mixing
+#         sc_accuracy_rho - convergence criterion for the average charge
+#                        density distance
+#         sc_accuracy_eev - convergence criterion for the sum of eigenvalues
+#                        between different sc iterations
+#         sc_accuracy_etot - convergence criterion for the total energy
+#                        between different sc iterations
+#         force_potential - Force the use of a debug-type potential,
+#                           e.g. superposition of free atoms
+#         force_cmplx  - Force integrations using complex matrix elements
+#
+  xc                pbe
+  relativistic      none
+  charge            1.0
+  empty_states      5
+  KS_method         lapack
+  occupation_type   gaussian 0.2
+  occupation_acc    1e-08
+  mixer             pulay
+  ini_linear_mixing 0
+  charge_mix_param  0.05
+  n_max_pulay       20
+  sc_accuracy_rho  1E-6
+  sc_accuracy_eev  1E-4
+  sc_accuracy_etot 1E-6
+  sc_iter_limit    300
+  relax_geometry   bfgs 5e-2
+#  * Next, specify output options:
+#    - basis
+#    - matrices
+#    - grids
+#    - v_eff
+#    - v_hartree (partitioned Hartree potentials)
+#
+#  output       basis
+#  output       matrices
+#  output       v_hartree
+#
+################################################################################
+#
+#  LocalOrb code project
+#  VB, Fritz-Haber Institut, 2006
+#
+#  Suggested "safe" defaults for Co atom (to be pasted into control.in file)
+#  All values have been tested for a non-relativistic, non-spinpolarized Co2
+#  molecule using the PW-LDA functional. Validity for PBE is expected.
+#
+#  used bond distances: 1.6, 2.0, 2.5, 3.5 Ang
+#
+################################################################################
+  species        Co
+#     global species definitions
+#         basis_acc    - a basis state |a> is included if 
+#                        [1.-sum(<b_i|a>)] > basis_acc for all previous basis
+#                        states |b_i> of the same atom and angular momentum
+#         cut_pot      - for atomic-like basis-defining potential,
+#                        * onset radius of cutoff potential in Angstroem
+#                        * radial width of cutoff barrier in Angstroem
+#                        * target WKB transmission coefficient for cutoff barrier
+#         logarithmic  - grid for wave function determination
+#                        Definition: r_grid_min, r_grid_max, increase per point
+#                        r_grid_min is divided by Z inside the prg, mainly for
+#                        compatibility with Martin Fuchs' fhipp code.
+#         radial       - radial grid for tabulation / integration during the
+#         angular      - cluster calculation in - number of grid points;
+#                        and scaling parameter
+#         angular      - Max. number of angular integration grid points per
+#                        radial integration shell. 
+#         angular_min  - Min. number of angular integration grid points per
+#                        radial integration shell. 
+#         angular_acc  - Accuracy criterion for angular integrations in a
+#                        given radial shell.
+#         l_hartree    - maximum angular momentum quantum number to compute
+#                        the partitioned Hartree potential
+    nucleus      27
+    basis_acc    1.0e-4
+    cut_pot      4.0          2.64588605  1.0
+    logarithmic  0.00100 100.00  1.0123
+    radial_base        52 7.0
+    radial_multiplier  2
+    angular      974
+    angular_min  50
+    angular_acc  1.0e-08
+    l_hartree    4
+#     atomic configuration and basis functions:
+#         valence      - topmost (filled!) atomic valence basis states
+#         confined     - atomic-like polarisation states - potentially confined
+#         ion_occ      - defines ion shell configuration for ionic basis states
+#         ionic        - actual ionic basis functions, individually 
+#                        (ionization is given via occupation of filled states)
+#         hydrogenic   - hydrogenic states - defined by effective nuclear
+#                        charge of Coulomb potential, given along with radial
+#                        / angular quantum number
+#         gaussian     - at this time, the equivalent of cartesian Gaussian
+#                        functions is implemented.
+################################################################################
+#
+#  Definition of "minimal" basis
+#
+################################################################################
+#     valence basis states
+    valence      4  s   2.
+    valence      3  p   6.
+    valence      3  d   7.
+#     ion occupancy
+    ion_occ      4  s   1.
+    ion_occ      3  p   6.
+    ion_occ      3  d   6.
+################################################################################
+#
+#  Recipe for a "brute-force" basis (not for production!!)
+#
+################################################################################
+# "First tier" (last improvement: 9.99 meV)
+#     hydro 4 f 8.4
+     hydro 2 p 2.2
+#     hydro 5 g 11.6
+     hydro 3 d 4.5
+     ionic 4 s 9.4486
+# "Second tier" (first improvement 7.80 meV, last improvement: 1.75 meV)
+#     ionic 3 d 9.4486
+#     hydro 6 h 17.6
+#     hydro 5 f 14.8
+#     hydro 3 p 5.2
+#     hydro 1 s 0.7
+# "Third tier" (first improvement 1.36 meV, last improvement: 0.22 meV)
+# VB: NOTE - the hydro 4s function was ARTIFICIALLY moved to this tier,
+#            since no s function is relevant at all at this level in Co2.
+#            This is not systematic and should be tested before a final assignment.
+#     hydro 4 f 7
+#     hydro 3 p 3.3
+#     hydro 5 g 14
+#     hydro 3 d 9
+#     hydro 6 f 25
+#     hydro 4 s 4.8
+# further basis functions (first improvement 0.19 meV, last improvement: 0.05 meV)
+#     hydro 4 p 13.6
+#     confined 6 h -0.3
+#     confined 3 d -0.8
+#     confined 3 p -0.3
+#     confined 5 f -0.6
+
+
+

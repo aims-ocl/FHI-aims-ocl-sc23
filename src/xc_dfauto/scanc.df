@@ -1,0 +1,64 @@
+# vim: set syntax=maple:
+
+read "basics.mpl";
+read "pw92c.df";
+
+epsilon[Cscan] := proc(n, zeta, s, a)
+    epsilonc1(n, zeta, s)+Fc(a)*(epsilonc0(n, zeta, s)-epsilonc1(n, zeta, s))
+end;
+Fc := proc(a)
+    exp(-c1c*a/(1-a)*step(a/(1-a)))*step(1-a)-dc*exp(c2c/(1-a)*step(-1/(1-a)))*step(a-1)
+end;
+epsilonc1 := proc(n, zeta, s_)
+    epsilon[Cunif](r[s](n), zeta)+H1(r[s](n), zeta, T1(n, zeta, s_))
+end;
+H1 := proc(rs, zeta, t)
+    gama*phi(zeta)^3*ln(1+w1(rs, zeta)*(1-1/(1+4*A(rs, zeta)*t^2)^(1/4)))
+end;
+A := proc(rs, zeta)
+    beta(rs)/(gama*w1(rs, zeta))
+end;
+beta := proc(rs)
+    0.066725*(1+0.1*rs)/(1+0.1778*rs)
+end;
+w1 := proc(rs, zeta)
+    exp(-epsilon[Cunif](rs, zeta)/(gama*phi(zeta)^3))-1
+end;
+gama := 0.031091;
+epsilonc0 := proc(n, zeta, s_)
+    (epsilonclda0(r[s](n))+H0(r[s](n), s_))*Gc(zeta)
+end;
+Gc := proc(zeta)
+    (1-2.3631*(dx(zeta)-1))*(1-zeta^12)
+end;
+dx := proc(zeta)
+    ((1+zeta)^(4/3)+(1-zeta)^(4/3))/2
+end;
+ds := proc(zeta)
+    ((1+zeta)^(5/3)+(1-zeta)^(5/3))/2
+end;
+epsilonclda0 := proc(rs)
+    -b1c/(1+b2c*sqrt(rs)+b3c*rs)
+end;
+H0 := proc(rs, s)
+    b1c*ln(1+w0(rs)*(1-ginfzeta0(s)))
+end;
+w0 := proc(rs)
+    exp(-epsilonclda0(rs)/b1c)-1
+end;
+ginfzeta0 := proc(s)
+    1/(1+4*xiinf*s^2)^(1/4)
+end;
+xiinf := 0.128026;
+b1c := 0.0285764;
+b2c := 0.0889;
+b3c := 0.125541;
+c1c := 0.64;
+c2c := 1.5;
+dc := 0.7;
+
+f := rho*epsilon[Cscan](rho, (rho(a)-rho(b))/rho, S(rho, sqrt(sigma)), Alpha1(rho, (rho(a)-rho(b))/rho, sqrt(sigma), tau/2));
+g := 0;
+G := rho(s)*epsilon[Cscan](rho(s), 1, S(rho(s), sqrt(sigma(ss))), Alpha1(rho(s), 1, sqrt(sigma(ss)), tau(s)/2));
+
+title := "SCAN correlation functional";

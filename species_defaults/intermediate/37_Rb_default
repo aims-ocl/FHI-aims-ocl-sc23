@@ -1,0 +1,94 @@
+################################################################################
+#
+#  FHI-aims code project
+#  Volker Blum, Fritz Haber Institute Berlin, 2009
+#  Tong Zhu, Will Huhn and Volker Blum, Duke University 2018
+#
+#  Suggested "intermediate" defaults for Rb atom (to be pasted into control.in file)
+#
+#  Rb, Sr, Cs and Ba are very large atoms. This requires uncomfortably large
+#  cut_pot radii (the high cut_pot values are especially costly for hybrid DFT
+#  calculations, both regarding time and memory). Additionally, since they are
+#  relatively heavy elements, high-accuracy basis set convergence actually
+#  requires more radial functions than for their light-element counterparts.
+#
+#  Compared to the "tight" settings, the "intermediate" settings for Rb are
+#  reduced in the following way:
+#
+#  - cut_pot from 6.0 Angstrom to 5.25 Angstrom
+#
+#  The cut_pot value has a noticeable effect particularly for neutral situations
+#  (the Rb dimer is a good example) and we were not comfortable with reducing it more.
+#  ("intermediate" still implies high accuracy.) However, a comparison to the "light"
+#  settings (which are not crazy) shows that further reductions are possible in many
+#  situations, if the cut_pot value for Rb is the bottleneck. (Note that some internal
+#  cutoffs in current FHI-aims are set according to the largest atom, and so in principle,
+#  even a single Rb atom in a large structure can have a noticeable effect on memory and
+#  speed.)
+#
+################################################################################
+  species          Rb
+#     global species definitions
+    nucleus        37
+    mass           85.4678
+#
+    l_hartree      6
+#
+    cut_pot        5.25  2.0  1.0
+    basis_dep_cutoff    1e-4
+#
+    radial_base    57  7.0
+    radial_multiplier  2
+    angular_grids specified
+      division   0.1250  110
+      division   0.9394  194
+      division   1.1230  302
+      division   1.2051  434
+#      division   1.2929  590
+#      division   1.3869  770
+#      division   7.0005  974
+#      outer_grid  974
+      outer_grid  434
+################################################################################
+#
+#  Definition of "minimal" basis
+#
+################################################################################
+#     valence basis states
+    valence      5  s   1.
+    valence      4  p   6.
+    valence      3  d  10.
+#     ion occupancy
+    ion_occ      5  s   0.
+    ion_occ      4  p   6.
+    ion_occ      3  d  10.
+################################################################################
+#
+#  Suggested additional basis functions. For production calculations, 
+#  uncomment them one after another (the most important basis functions are
+#  listed first).
+#
+#  Constructed for dimers: 2.45, 3.00, 4.00, 5.00 A
+#
+################################################################################
+#  "First tier" - improvements: -104.04 meV to -9.25 meV
+     hydro 3 d 4.5
+     hydro 3 p 2.5
+     hydro 4 f 6.6
+     hydro 4 s 2.9
+#  "Second tier" - improvements: -4.35 meV to -0.89 meV
+     ionic 4 d auto
+#     hydro 5 g 9.2
+#     hydro 2 s 2.4
+#     hydro 5 p 8
+#  "Third tier" - improvements: -0.76 meV to -0.13 meV
+#     hydro 4 d 7.6
+#     hydro 4 f 4.2
+#     hydro 4 f 18
+#     hydro 6 h 12.8
+#     hydro 4 p 2.9
+#     hydro 1 s 0.4
+#  "Fourth tier" - improvements: -0.07 meV and lower.
+#     hydro 5 g 6.2
+#     hydro 2 s 1.1
+#     hydro 5 d 9.2

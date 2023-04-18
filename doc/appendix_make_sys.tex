@@ -1,0 +1,381 @@
+\chapter{Building FHI-aims with a make.sys}
+\label{Sec:makesys}
+
+This section contains a quick and practical explanation
+of the main steps using a \texttt{make.sys} file. This how FHI-aims used to be compiled in the past and is here for legacy reasons.
+
+1. In the \emph{src} directory, create a file called \texttt{make.sys}
+and open it with a text editor. Make sure you did \textit{not} edit
+the file called \texttt{Makefile} as provided with the original
+distribution of FHI-aims if you choose to use and edit the
+\texttt{make.sys} file (which is recommended).
+
+2. In order to build FHI-aims, you will need to inform the computer
+about which particular compilers, libraries, optimization flags and
+possible optional parts of the build process you intend to use. This
+is the purpose of \texttt{make.sys}. We here only cover a few most
+important keywords (variables) to be included in
+\texttt{make.sys}. Many more are available, often documented in the
+actual \texttt{Makefile} or, if nothing else, in the more detailed
+\texttt{Makefile.backend}, which controls the detailed pieces of the
+build process. Note that the syntax, particularly the spaces around
+the `` = `` signs, in \texttt{make.sys} are important since this file
+will be included in the \texttt{Makefile} and will have to be read
+by the \texttt{make} command further below.
+
+3. The following is what a typical \texttt{make.sys} file could look like (see
+the aimsclub wiki for other examples for specific platforms). The
+explanation of all keywords follows below. Note that this is the copy
+of \texttt{make.sys} on the author's (VB's) laptop. You \text{will}
+need to edit every single variable -- the directories to be used on
+other computers \emph{will} be different. Blind copying and hoping
+for the best will not work.
+
+\begin{verbatim}
+ FC = ifort
+ FFLAGS = -O3 -ip -fp-model precise -module $(MODDIR)
+ FMINFLAGS = -O0  -fp-model precise -module $(MODDIR)
+ F90MINFLAGS = -O0  -fp-model precise -module $(MODDIR)
+ F90FLAGS = $(FFLAGS)
+ ARCHITECTURE = Generic
+ LAPACKBLAS = -L/opt/intel/mkl/lib -I/opt/intel/mkl/include \ 
+              -lmkl_intel_lp64 -lmkl_sequential -lmkl_core 
+ USE_MPI = yes
+ MPIFC = mpif90
+ SCALAPACK = /usr/local/scalapack-2.0.2/libscalapack.a
+ USE_C_FILES = yes
+ CC = gcc
+ CCFLAGS =
+ USE_SPGLIB = yes
+ USE_LIBXC = yes
+\end{verbatim}
+
+4. Here is a list of each of these keywords' meanings:
+\begin{itemize}
+  \item \texttt{FC} : The name of the Fortran compiler you intend to
+    use. This choice is not unimportant. On x86 platforms, Intel
+    Fortran usually produces fast code, whereas other compilers
+    (unfortunately, particularly free compilers such as gfortran) can
+    lead to significantly slower (factor 2-3) FHI-aims runs
+    later.
+  \item \texttt{FFLAGS} : These are compile-time and linker flags that
+    control the optimization level that the compiler will use. Finding
+    out which optimization level is fastest is worth your time, but
+    note that real-world compilers can have bugs. In the worst case,
+    this can mean numerically wrong results, something you should
+    definitely care about. One way to test the broader correctness of a given
+    FHI-aims build (later) is to run FHI-aims' regression tests on the
+    computer you intend to use and make sure that all results are
+    marked as correct. For example,
+    for Intel Fortran, 
+    \texttt{-fp-model precise} is highly recommended. Unfortunately,
+    we have no way to foresee all possible compiler bugs across all
+    future platforms and compilers -- testing is best. Please ask if
+    needed (see Sec. \ref{Sec:community} for where to find help).
+  \item \texttt{FMINFLAGS} specifies a lower optimization level for
+    some subroutines that do not need
+    optimization. \texttt{read\_control.f90}, the subroutine that
+    reads one of FHI-aims' main input files, is one such file that
+    does not need high levels of optimization but could take very long
+    to compile if a high optimization level were requested for it.
+  \item \texttt{F90MINFLAGS} and \texttt{F90FLAGS} are usually just
+    copies of \texttt{FMINFLAGS} and \texttt{FFLAGS}, except for the
+    few compilers (IBM's xlf) that might treat Fortran .f90 and
+    (legacy) .f files differently.
+  \item \texttt{ARCHITECTURE} can have multiple meanings, including
+    specific handling of a few compilers' quirks (the pgi compiler,
+    for example, needs a different call to erf()) and potentially
+    optimization levels for CPU-specific extensions (e.g., AVX - this
+    can be worthwhile). For many purposes, ``Generic'' is good enough
+    but do take the time to look into CPU-specific optimizations if
+    you intend to run very large, demanding calculations.
+  \item \texttt{LAPACKBLAS} specifies the locations of numerical
+    linear algebra subroutines, particularly the Basic Linear Algebra
+    Subroutines (BLAS) and the higher-level Lapack
+    subroutines. The location and names of these libraries will vary
+    from computer to computer, but it is \textbf{VERY} important to
+    select well-performing BLAS subroutines for a given computer --
+    the effect on performance will be drastic. An additional item to
+    ensure is that these BLAS libraries should \textbf{NEVER} try to
+    use any internal multithreading (for example, the
+    \texttt{mkl\_sequential} library quoted above is inherently
+    single-threaded, which is normally what we want).
+    FHI-aims is already very efficiently parallized
+    for multiple processors. Requesting (say) 16 threads for each of
+    (say) 16 parallel tasks on a parallel computer with 16 physical
+    CPU cores would have the effect of trying to balance 256 threads
+    within the computer, typically slowing execution down to a
+    crawl. With FHI-aims, only ever use only a single thread per
+    parallel task unless you have a special reason and know exactly
+    what you are doing.  
+  \item \texttt{USE\_MPI} will make sure that the code knows and will use
+    the process-based Message Passing Interface (MPI) parallelization,
+    which makes sure that FHI-aims can run in parallel both inside a
+    single compute node as well as across a large number of
+    nodes. In later production runs and unless you have a good reason
+    not to do so, always use as many MPI tasks as there are physical
+    processor cores available (no more, no less).
+  \item \texttt{MPIFC} is the name of the wrapper command that ensures a
+    correct compilation with a given Fortran compiler and a given MPI
+    library. This command (often called \texttt{mpif90}) is also
+    specific to a given computer system and to the installed MPI
+    library.
+  \item \texttt{SCALAPACK} specifies the location of the library that
+    contains scalapack's parallel linear algebra subroutines and the
+    so-called basic linear algebra communications (BLACS)
+    subroutines. The author (VB) built his own version of this libary,
+    but usually these subroutines are also supplied with standard
+    linear algebra libraries such as Intel's Math Kernel Library
+    (mkl).
+  \item \texttt{USE\_C\_FILES} specifies whether a small number of
+    subroutines written in C should be compiler into FHI-aims. These
+    routines are not performance-critical but can access environment
+    variables. They can thus provide very useful additional output
+    about the computer system environment used and also make a few
+    other useful libraries accessible (like spglib for symmetry
+    handling).
+  \item \texttt{CC} is the C compiler to be used. Usually, gcc is fine
+    and actually recommended even if the Fortran compiler used is not
+    a Gnu compiler.
+  \item \texttt{CCFLAGS} could house any compiler flags needed for the
+    C compiler. It is not worth doing this for performance reasons
+    (very little impact) but some compilers may need other special
+    instructions to work with Fortran.
+  \item \texttt{USE\_SPGLIB} decides whether the \texttt{spglib}
+    library for symmetry handling will be used. We are very much
+    indebted to the authors of this and other libraries that are
+    available as open source -- please respect their open-source
+    licenses and cite the authors if you use their tools.
+  \item \texttt{USE\_LIBXC} decides whether additional subroutines for
+    exchange correlation functionals, provided in the \texttt{libxc}
+    library, should be used. As for \texttt{spglib}, we are very much
+    indebted to the authors of this library. Please respect their
+    open-source license and cite them if you use their tools.
+\end{itemize}
+
+5. \textit{Phew.} That was a lot of keywords. But this is computational
+science, and having a reasonable command of these pieces is worth our
+while. If you did figure them all out, close the \texttt{make.sys}
+file and continue to ...
+
+6. ... build the code by typing \texttt{make -j scalapack.mpi}.
+
+7. Do not despair. If the process above worked well, proceed to try a
+testrun and then, if you are up for it, the regression tests. If you received an error  
+message during the build (that may well be the case), do not despair
+-- try again and, if needed, seek help. This process is ultimately not
+rocket science and only a finite amount of pieces are needed. Look up
+examples on aimsclub or seek help through one of the channels
+mentioned in Sec. \ref{Sec:community} if needed.
+
+8. There are other pieces that can help improve a build on a specific
+platform. For example, it can be quite desirable to build and link
+instead to a separate (standalone build) of the ELPA library
+(high-performance eigenvalue solver) and of the ELSI electronic
+structure infrastructure. For time and space reasons, this is not
+covered here presently, but it's worth investigating these libraries.
+
+\emph{In general, the ``aimsclub'' Wiki is the appropriate place to
+  look for detailed compiler settings for specific platforms. If you
+  have a successful 'make.sys' file for your own setup, please add 
+  it there. The information given in this section is essential as it
+  explains the process, but the platform specific remarks in the Wiki
+  may help you save some time.} 
+
+\section{A more measured approach to building FHI-aims}
+\label{Sec:build}
+
+This is a slower and step by step explanation of the build process,
+slightly different and somewhat redundant with
+Sec. \ref{Sec:makesys}. Ultimately, your build process should ideally
+look somewhat like what is covered in Sec. \ref{Sec:makesys}, and in
+particular, never edit the \texttt{Makefile} if you already have a
+file \texttt{make.sys} around. What follows is based on direct editing
+of the \texttt{Makefile} and should only be needed for practice
+purposes. 
+
+Starting from the end of Sec. \ref{Sec:prerequisites} and once all
+prerequisites are in place, change directory to the \emph{src/} 
+directory, and open the \texttt{Makefile} in a text editor. 
+
+\begin{center}
+  \parbox[c]{0.8\textwidth}
+  {
+  \emph{You must
+  adjust at least some system-specific portions of the} \texttt{Makefile}\emph{---simply typing
+  ``make'' and hoping that the problem will go away will not work.}
+  }
+\end{center}
+
+Usually, all you will have to do is to decide on one of the preconfigured make
+targets -- ``serial'', ``mpi'', or ``scalapack.mpi''. Near the top of the
+\texttt{Makefile}, a number of \emph{mandatory} settings are commented for each
+target. Uncomment \emph{only} the block of settings relevant to your chosen
+make target, and fill in the correct values of each variable (\texttt{FC},
+\texttt{FFLAGS}, \texttt{LAPACKBLAS}, ...) for your computer
+system. \emph{Note} that the Makefile itself contains detailed instructions
+and explanations regarding the meaning of these variables. Often, simply
+adjusting the compiler name, the location of your libraries
+(\texttt{LAPACKBLAS}, possibly \texttt{MPIFC} or \texttt{SCALAPACK}) will be
+sufficient. In addition, we \emph{strongly} recommend that you consult the
+documentation of  your compiler, in order to find out which optimization
+options \emph{beyond} the generic ``-O3'' optimization level suggested preset in the
+\texttt{Makefile} will make a  difference on your computer.
+
+Finally, this brings us to the key step of the build process: Building the
+code. After the \texttt{Makefile} is adjusted, type
+
+\begin{verbatim}
+  make <target>
+\end{verbatim}
+
+at the command line, where ``$\langle$target$\rangle$'' should be replaced by
+the target of your choice: 
+``serial'', ``mpi'', or ``scalapack.mpi''.\footnote{There is an
+  additional target, \texttt{parser}, which builds an executable 
+that stops after parsing the input. This binary can be used to check the
+validity of input files. (The \keyword{dry\_run} keyword achieves the
+almost same effect with the full binary.)
+} 
+If successful, this should build
+the desired FHI-aims binary (the compilation will take a while) and place it
+in the \emph{bin/} directory mentioned above.
+
+Building FHI-aims can take a while nowadays. If you have more than one
+processor on the machine for building FHI-aims, try
+
+\begin{verbatim}
+  make -j <number_of_processors> <target>
+\end{verbatim}
+
+This choice should speed up the process greatly.
+
+You may also wish to keep your own copy of the \texttt{Makefile}, for
+instance to be able to work directly with the FHI-aims git repository
+without overwriting the general \texttt{Makefile}. In that case, just
+copy the standard \texttt{Makefile} to something like
+\texttt{Makefile.myname}, and use 
+
+\begin{verbatim}
+  make -j <number_of_processors> -f Makefile.myname <target>
+\end{verbatim}
+
+Finally, we do note that there is some support for more sophisticated
+tasks, such as cross-platform builds (building binaries for different
+architectures from the same home directory) among the non-standard
+environment variables in the Makefile (see there). 
+
+\subsection{Cross-Compiling with a C Compiler}
+\label{cross-compile-c}
+
+As noted in Section \ref{Sec:makesys}, FHI-aims does provide some
+functionality that can only be accessed by compiling part of the code
+base with a C compiler, in some cases simply because a system call in
+question is not available from a Fortran interface. It is possible to
+build FHI-aims without C support and the code will happily run based
+only on Fortran, but if possible, cross-compiling with C is preferable. 
+
+Cross-compiling with a C compiler can be simple \emph{if} your Fortran
+and C compiler use compatible interfaces. (This may not be always the
+case.) In the simplest case, adding the following two variables to
+your \texttt{Makefile} or to your \texttt{make.sys} file will enable
+some basic functionality that can only be accessed with a C
+cross-compiled build:
+
+\begin{verbatim}
+ USE_C_FILES = yes
+ CC = gcc
+\end{verbatim}
+
+The CC variable should specify a C compiler compatible with your
+Fortran compiler on your specific computer system. \texttt{gcc} is
+often the right choice. Again, C cross-compiling is not
+necessary, but if you do, please make sure that the right C compiler
+is chosen for your system.
+
+An additional variable \texttt{CCFLAGS} can be set to specify C
+compiler flags along with the \texttt{CC} variable above and will add
+C compiler flags that might be necessary for your particular computer setup.
+
+\section{Compilation options beyond the standard Makefile}
+\label{Sec:Makefiles}
+
+The build provided by the standard \texttt{Makefile} in FHI-aims is designed
+for minimal complexity to obtain the full functionality that most users should
+have. Separate ``basic linear algebra subroutines'' (BLACS), Lapack,
+parallel builds (if a parallel machine is available, nowadays almost always),
+and scalapack support are so performance-critical that every user should spend
+the time to investigate them in detail before doing serious production work
+with FHI-aims. These dependencies of FHI-aims on external libraries are
+therefore kept in the main \texttt{Makefile}.
+
+In addition, FHI-aims provides further functionality that can be achieved by
+linking to other external libraries. However, this functionality will not be
+needed by all users and/or could seriously complicate the build process for
+everyone. Such functionality is therefore available through separate, amended
+versions of the \texttt{Makefile}. We encourage everyone to try these builds
+(they are not so difficult after all), but they should not become stumbling
+blocks. 
+
+We also note that not all of these builds are routinely tested. At this
+time, it is not certain that all of them will still work out of the
+box. The information is kept here to make sure it is available. Please
+ask (see Section \ref{Sec:community}) if you encounter problems.
+
+In particular, several optional Makefile with additional functionality
+exist (and could even be combined):
+\begin{itemize}
+  \item \texttt{Makefile.cuba} : Allows to compile in the separate ``CUBA''
+    Monte Carlo integration library, which enables the Langreth-Lundqvist van
+    der Waals functional based on noloco as a post-processing step. See Section
+    \ref{Sec:vdwdf} for more details.
+  \item \texttt{Makefile.meta} : \emph{still experimental!} Allows to
+    interface FHI-aims to the \texttt{PLUMED} library for free-energy
+    calculations for molecular dynamics. \\ (see
+    \url{http://merlino.mi.infn.it/\~plumed/PLUMED/Home.html} , the \texttt{PLUMED}
+    project homepage). Currently, a copy of the \texttt{PLUMED} library is
+    kept in the \emph{external} directory of the FHI-aims source code, and
+    must be compiled separately using a C compiler. Note that
+     the token ``-DFHIAIMS'' must be included in the CCFLAGS (at present, this is already specified in \texttt{plumed.inc}). 
+     For compiling on IBM power machines, the flags -mpowerpc64 -maix64 should
+    be included. In the future, this will be corrected by housing the
+    respective FHI-aims plugin directly in the \texttt{PLUMED} library. We
+    apologize that the linking process is not yet further documented,
+    but if this functionality is of interest to you, please contact us.\\
+    By selecting the correct target in \texttt{Makefile.meta}, the code can be compiled 
+    with \texttt{lapack} or \texttt{scalapack} libraries, or with shared memory support (see next item).
+  \item \texttt{Makefile.ipi} : Allows to interface with the i-PI path integral molecular dynamics wrapper\cite{CeriottiMoreMano_2013}.
+    See the \keyword{use\_pimd\_wrapper} keyword for a few more details.
+  \item \texttt{Makefile.shm} : Another example of a Makefile that
+    cross-links C and Fortran based functionality, although the
+    actual functionality that Makefile.shm provides --  access to
+    shared-memory arrays in the Hartree potential -- is no longer
+    needed at this point.
+  \item \texttt{Makefile.amd64\_SSE} : This Makefile contains an
+    example how to use FHI-aims together with a version of the 
+    ELPA library which is especially tuned for SSE vector instructions.
+    Note that the GNU C compiler must be installed in order to produce
+    running code from the specific assembler files. As the name
+    ``amd64'' indicates this optimization is only reasonable on
+    processors which support the amd64 instruction set.
+    Note that ''ELPA\_ST'' is set, to use the single-threaded version
+    of ELPA.
+  \item \texttt{Makefile.amd64\_SSE\_mt} : The same as
+    Makefile.amd64\_SSE, but by setting ''ELPA\_MT'' the hybrid MPI
+    OpenMP version of ELPA is used.
+  \item \texttt{Makefile.amd64\_AVX} : This Makefile contains an
+    example how to use FHI-aims together with a version of the 
+    ELPA library which is especially tuned for AVX vector instructions.
+    Note that the GNU C and C++ compiler must be installed in order to produce
+    running code from the specific ELPA files which contain gcc
+    intrinsic functions. As the name  ``amd64'' indicates this
+    optimization is only reasonable on  processors which support the 
+    amd64 instruction set and which already ''understand'' AVX,
+    i.e. Intel Sandybridge or newer. Note that ''ELPA\_ST'' is set, to 
+    use the single-threaded version of ELPA.
+  \item \texttt{Makefile.amd64\_AVX\_mt} : The same as
+    Makefile.amd64\_AVX, but by setting ''ELPA\_MT'' the hybrid MPI
+    OpenMP version of ELPA is used.
+  \item \texttt{Makefile.hdf5} : The HDF5 module provides functions and routines to efficently make use of parallel writing and reading of data (mpi-io). The usual compiler options have to be set in the same way as in the normal Makefie. Additionally the path to your installation of hdf5 must be provided. If the environment variable \textit{HDF5\_HOME} is already set on your system nothing else has to be changed otherwise it has to be set in \textit{Makefile.hdf5}.
+
+\end{itemize}

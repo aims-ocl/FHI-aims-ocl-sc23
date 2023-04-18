@@ -1,0 +1,87 @@
+GNUmakefile instructions for FHI-aims, JW 2010.
+
+In order to build FHI-aims, you can open the main "Makefile" and follow the
+instructions therein.  Alternatively, this directory contains some files for a
+slightly different interface to the main makefiles.
+
+In order to use these files,
+
+$ ln -s config/GNUmakefile GNUmakefile
+$ cp config/default.cfg default.cfg
+$ $EDIT default.cfg
+# Fill in the variables given in default.cfg according to the instructions
+# in the next sections.
+$ make
+# The FHI-aims binary aims.$(AIMSVERSION).x is in
+# $(BINDIR), which defaults to ../bin.
+
+
+###########################################################################
+
+MANDATORY and HIGHLY RECOMMENDED configuration variables:
+
+FC         : Fortran compiler
+
+FFLAGS     : Compiler flags for f77-style fixed-format subroutines
+
+F90FLAGS   : Compiler flags for f90-style free-format subroutines
+
+LAPACKBLAS : Compile path and libraries that hold Lapack and BLAS subroutines
+
+USE_MPI    : "yes" or "no"
+
+MPIFC      : MPI compiler for MPI = yes.
+
+SCALAPACK  : ScaLapack and BLACS Libraries, if needed.
+
+
+Make sure to consult your compiler manual for optimization flags.
+
+
+###########################################################################
+
+SPECIAL PURPOSE variables
+
+ARCH       : Use this file instead of arch_generic.f90 for compiler-specific
+             code.
+
+LDFLAGS    : Flags passed to the linker.
+
+CBFLAGS    : Used along with FFLAGS; probably meant to be set from the
+             command line  "make CBFLAGS='-check bounds'".
+
+
+BINDIR     : Directory for compiled and linked binaries [../bin]
+
+BUILDDIR   : Default directory for compiled object and module files [.]
+
+OBJDIR     : Directory for compiled object files [$(BUILDDIR)]
+
+MODDIR     : Directory for compiled module headers [$(BUILDDIR)]
+
+BINNAME    : Name of default target [<empty>] to make
+             aims.$(AIMSVERSION).$(BINNAME).x instead of aims.$(AIMSVERSION).x.
+
+###########################################################################
+
+COMPLETELY OPTIONAL configuration settings:
+
+* shared memomry Hartree potential communication:
+
+SHM        : Defines the build of shared memory support routines.
+	     Mostly "SHM = shm.o" suffices.  "SHM = shm.o /usr/lib64/librt.a"
+	     might be needed.
+
+CC         : A C compiler compatible with $(FC)
+
+CFLAGS     : Compiler flags for the C compiler
+
+* metadynamics with Plumed:
+
+META       : Set a non-empty string to build the Plumed metadynamics library
+             and link it to FHI-aims.
+
+* Langreth-Lundqvist van der Waals functional:
+
+CUBA       : Location of the CUBA Library for Monte Carlo integration
+

@@ -1,0 +1,530 @@
+\section{Integration, grids, and partitioning}
+
+The next single most important set of specifications required for
+FHI-aims are the settings regarding the numerical grids used in many
+contexts. Details regarding the shape and physical motivation behind
+these grids are given in Refs. \cite{Blum08,Havu08}, and we do not
+repeat them here. 
+
+Notice that the actual required grids may depend on the context of the
+calculation, for example whether Hartree-Fock, hybrid functionals, and
+or $GW$ calculations are required. In these cases, some specific
+settings may require tightening, and some defaults may automatically
+be chosen differently depending on whether or not those techniques are
+used. 
+
+Specifically, the present section deals with the following topics:
+\begin{itemize}
+  \item the 1D logarithmic grid infrastructure required for atomic /
+    free-atom like calculation
+  \item radial and angular grids for all three-dimensional integrals
+  \item shaping the partition functions used to split the full
+    three-dimensional integrals into effective atom-per-atom pieces
+  \item Splitting the grids into different batches for localization /
+    parallelization efficiency
+\end{itemize}
+
+While many of the settings below take safe defaults for standard
+FHI-aims calculations and need not be modified, it is particularly
+important to verify the accuracy and efficiency of 
+all three-dimensional integration grids (\subkeyword{species}{radial\_base},
+\subkeyword{species}{angular\_grids}, and associated tags), since
+these determine the performance of the code. In the
+\texttt{species\_defaults} files, (very) safe settings for DFT-LDA/GGA
+are provided, but for many tasks, may be reduced at very little
+accuracy loss. 
+
+\newpage
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{batch\_size\_limit}{control.in}
+{
+  \noindent
+  Usage: \keyword{batch\_size\_limit} \option{value} \\[1.0ex]
+  Purpose: Hard upper bound to the number of points in an integration
+  batch. \\[1.0ex]
+  Restriction: Applies to the \texttt{maxmin} and \texttt{octree}
+  \keyword{grid\_partitioning\_method}. \\[1.0ex] 
+  \option{value} is an integer number. Default: 200. \\
+}
+See \keyword{grid\_partitioning\_method} and Ref. \cite{Havu08} for
+details regarding integration batches. 
+
+\keydefinition{force\_lebedev}{control.in}
+{
+  \noindent
+  Usage: \keyword{force\_lebedev} \option{type} \\[1.0ex]
+  Purpose: Allows to switch between Delley's \cite{Delley95} angular grids
+    (17 digits) and the original angular grids tabulated by Lebedev
+    and Laikov \cite{Lebedev75,Lebedev76,Lebedev99} (12 digits) \\[1.0ex] 
+  \option{type} is a keyword (string), either \texttt{original} or
+    \texttt{Delley}. Default: \texttt{Delley}. \\
+}
+This option need not be changed (or invoked) in any  normal runs,
+since there is no quantitative difference between integrals with
+Delley's and Lebedev's tabulated grids to our knowledge.
+
+Lebedev's grids may be explicitly invoked when denser angular grids
+than 1202 points (already very dense!) per radial integration shell
+around each species are required. In detail, grids with the following
+numbers of grid points are provided:
+\begin{itemize}
+  \item \texttt{Delley} : 6, 14, 26, 50, 110, 194, 302, 434, 590, 770, 
+        974, 1202
+  \item \texttt{Lebedev} : 6, 14, 26, 38, 50, 86, 110, 146, 170, 194,
+        302, 350, 434, 590, 770, 974, 1202, 1454, 1730, 2030, 2354, 2702,
+        3074, 3470, 3890, 4334, 4802, 5294, 5810
+\end{itemize}
+These numbers of grid points can be invoked in the
+subtags of the \subkeyword{species}{angular\_grids} \texttt{specified}
+description for fixed angular grids (the default in the preconstructed
+\texttt{species\_defaults} files), and in further tags such as
+\subkeyword{species}{angular} or \subkeyword{species}{angular\_min}. 
+
+
+\keydefinition{grid\_partitioning\_method}{control.in}
+{
+  \noindent
+  Usage: \keyword{grid\_partitioning\_method} \option{method}
+    \\[1.0ex]
+  Purpose: Allows to switch between different methods to partition the
+    full (3D) integration grids into batches for individual
+    operations. \\[1.0ex]
+  \option{method} is a string, charactrizing one of the different
+    methods outlined below. Default: serial--\texttt{maxmin},
+    parallel--\texttt{parallel\_hash+maxmin} \\ 
+}
+Partitioning the integration grid properly can be performance-critical
+for the expensive grid-based Hamiltonian integration and charge
+density update steps. Details on these methods are given in
+Ref. \cite{Havu08}. In particular, we support:
+\begin{itemize}
+  \item \texttt{maxmin} :
+    The default for serial computations: the ``grid-adapted cut-plane'' method
+    described in Ref. \cite{Havu08}
+  \item \texttt{parallel\_hash+maxmin} :
+    The default for all parallel runs. We first hash the grid points to tasks
+    by the geometric location and then run a maxmin algorithm locally in each
+    task. 
+  \item \texttt{parallel\_maxmin} :
+    Memory-parallel implementation of the \texttt{maxmin} method. However, the
+    exact implementations requires rather much communication, and has been
+    superseded by \texttt{parallel\_hash+maxmin}. 
+  \item \texttt{octree} :
+    The ``octree'' method described in Ref. \cite{Havu08}
+  \item \texttt{parallel\_octree}
+    Parallel version of the ``octree'' method described in
+    Ref. \cite{Havu08}. Only useful for research purposes---superseded by
+    \texttt{parallel\_hash+maxmin} for all practical applications. 
+  \item \texttt{octant}
+    Simple partitioning of the grid into ``octants'' of each radial
+    integration shell arround each atom.
+\end{itemize}
+Note that additional parameters may be invoked to specify details for
+these methods, most importantly \keyword{batch\_size\_limit} and
+\keyword{points\_in\_batch}. 
+
+We mention for completeness that FHI-aims supports further,
+experimental grid batching methods, including the possibility to link
+to external libraries. The associated \option{method} strings are
+\texttt{tetgen+metis}, \texttt{qhull+metis}, \texttt{nearest+metis},
+and \texttt{group}. As discussed in Ref. \cite{Havu08}, the
+conceptually simpler \texttt{maxmin} method performs as well or even
+better than these ``bottom-up'' type approaches, and should be
+preferred. 
+
+\keydefinition{min\_batch\_size}{control.in}
+{
+  \noindent
+  Usage: \keyword{min\_batch\_size} \option{value} \\[1.0ex]
+  Purpose: Sets the minimum number of points allowed in an integration
+  batch. \\[1.0ex]
+  Restriction: Affects the \texttt{octree}
+  \keyword{grid\_partitioning\_method} method only. \\[1.0ex] 
+  \option{value} is an integer number. Default: 1. \\
+}
+No need to tweak for standard production calculations. See
+\keyword{grid\_partitioning\_method} for details regarding integration
+batches. 
+
+\keydefinition{partition\_acc}{control.in}
+{
+  \noindent
+  Usage: \keyword{partition\_acc} \option{threshold} \\[1.0ex]
+  Purpose: If the partition function norm for 3D integrals and the
+  Hartree potential is below \option{threshold}, that integration
+  point is ignored. \\[1.0ex]
+  \option{threshold} is a small positive real number. Default:
+    10$^{-15}$. \\
+}
+See Ref. \cite{Blum08} for details regarding ``partitioning of unity''
+of the charge density in integrations and the Hartree potential. 
+The partition functions $p_\text{at}(\boldr)$ are only
+calculated if their denominator (the norm; e.g. $\sum_\text{at}
+\rho_\text{at}/|\boldr-\boldR_\text{at}|^2$ is greater than \option{value},
+else that integration point is ignored.
+
+Notice that this type of partitioning is strictly
+rigorous for integrands that extend no further than the free-atom like
+densities used to define our partition functions. This is always true
+for DFT-LDA/GGA, with NAO's but if you suspect (e.g., with very diffuse
+Gaussian basis functions) some kind of integration noise, reducing
+\option{threshold} may be a good first test. 
+
+\keydefinition{partition\_type}{control.in}
+{
+  \noindent
+  Usage: \keyword{partition\_type}   \option{type} \\[1.0ex]
+  Purpose: Specifies which kind of partition table is used for all
+    three-dimensional integrations. \\[1.0ex] 
+  \option{type} : A string that specifies which kind of partition
+    table is used. Default: \texttt{stratmann\_sparse} \\ 
+}
+Usually, this tag need not be modified from the default. See the
+Computer Physics Communications description of FHI-aims for a 
+description of the numerical integration technique used in FHI-aims. 
+
+In brief, each extended three-dimensional integrand is broken down
+into atom-centered pieces, using a set of localized, atom-centered
+partition functions:
+\begin{equation}
+  \label{Eq:part}
+  p_\text{at}(\boldr) =
+  \frac{g_\text{at}(\boldr)}{\sum_{\text{at}^\prime}
+  g_{\text{at}^\prime}(\boldr)} \, .
+\end{equation}
+where $g_\text{at}(\boldr)$ is an atom-centered weight function. The
+following options for \option{type} are available:
+\begin{itemize}
+  \item \texttt{rho\_r2} : $g_\text{at}(\boldr) =
+    n_\text{at}^\text{free}(r)/r^2$ \\ (first suggested
+    by Delley \cite{Delley90}).
+  \item \texttt{rho\_r} : $g_\text{at}(\boldr) = n_\text{at}^\text{free}(r)/r$
+  \item \texttt{rho} : $g_\text{at}(\boldr) = n_\text{at}^\text{free}(r)$
+  \item \texttt{fermi} : \emph{Deprecated---do not use.} A
+    Fermi-function like approach, requires two additional parameters.
+  \item \texttt{stratmann}: The shape suggested by Stratmann \emph{et
+    al.}, Ref. \cite{Stratmann96}. This saves $\approx$10-20~\% of the
+    numerical effort compared to \texttt{rho\_r2}. More importantly, however,
+    our recent testing shows that \texttt{stratmann} is also significantly
+    accurate in some corner cases where the effects of integration accuracy
+    even make a difference. \emph{Note the properly bounded ``stratmann\_smoother'' default
+    function below. Straight ``stratmann'' should not be used.}
+  \item \texttt{stratmann\_smooth}: Partial update to guarantee a smooth edge 
+    at the ``outer radius'' or atoms. \emph 
+  \item \texttt{stratmann\_smoother}: Corrected version of the \texttt{stratmann} partition table.
+    The following explanation refers to the prescription given in Eqs. (8), (11), 
+    and (14) of Ref. \cite{Stratmann96}. The actual (normalized) partition function is given by Eq. (10).
+    At each grid point, it depends on a product of cell functions Eq. (9) over potentially all atoms
+    in the system---unless its cell function is equal to one, a faraway atom may contribute to the
+    partition function at a given grid point. Through the definition of $\mu_{ik}$ in Eq. (4) of 
+    Ref. \cite{Stratmann96} and the limitation of the cell function to unity for $\mu_{ik} < a = 0.64$
+    through Eqs. (11) / (14), the distance from which an atom can contribute is restricted, but
+    potentially to a very large radius indeed. This becomes a problem for periodic systems (in our case,
+    a theoretical radius of 25 {\AA} would have resulted even for light settings and the farthest grid
+    points from each atom, set to 5~{\AA} for light settings). \\
+    To avoid an overly large volume of contributing atoms, we restrict the list of contributing atoms
+    to only those whose free-atom charge density would not be zero at the integration point in question.
+    To that end, Eq. (8) of Ref. \cite{Stratmann96} is additionally multiplied with a function that 
+    smoothly interpolates between the original $s$ of Stratmann and coworkers and unity. The interpolation
+    is done only for atom distances between 0.8 and 1.0 times their free-atom radius, and uses a 
+    $[1-\cos(2x)]$-like interpolating function. The bottom line is that we get the benefits of both
+    the Stratmann table and a restricted atom list without any discontinuities or wiggles as a 
+    function of atomic positions or unit cell vectors --- which is as it should be.
+  \item \texttt{stratmann\_sparse}: This version of the \texttt{Stratmann} partition table is the same as
+    \texttt{stratmann\_smoother}, but it stores the relevant interatomic distances in a memory saving form.
+\end{itemize}
+Note that the free atom electron density $n_\text{at}^\text{free}(r)$
+still determines the extent of many partition function types. This is
+controlled by the \subkeyword{species}{cut\_free\_atom} keyword. See
+also the \keyword{hartree\_partition\_type}
+keyword, which presently must have the same setting as the
+\keyword{partition\_type} keyword.
+
+\keydefinition{points\_in\_batch}{control.in}
+{
+  \noindent
+  Usage: \keyword{points\_in\_batch} \option{value} \\[1.0ex]
+  Purpose: Target number of grid points per integration batch. \\[1.0ex]
+  Restriction: Applies to the \texttt{maxmin} and \texttt{octree}
+    \keyword{grid\_partitioning\_method}. \\[1.0ex] 
+  \option{value} is an integer number. Default: 100 for most calculations.  When GPU acceleration is used for tasks involving the batch integration scheme, this value is raised to 200. \\
+}
+See \keyword{grid\_partitioning\_method} and Ref. \cite{Havu08} for
+details regarding integration batches. 
+
+
+\newpage
+
+\subsection*{Subtags for \emph{species} tag in \texttt{control.in}:}
+
+\subkeydefinition{species}{angular}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{angular} \option{limit} \\[1.0ex]
+  Purpose: For \emph{self-adapting} angular integration grids, the
+    maximum allowed number of points per radial shell. \\[1.0ex]
+  Restriction: This flag has no effect for species where
+    \subkeyword{species}{angular\_grids} is explicitly specified (the default in
+    our \texttt{species\_default} files). \\[1.0ex]
+  \option{limit} is the maximum allowed number of integration points
+    per radial shell. \\
+}
+This option is only meaningful for self-adapting angular grids, which
+are \emph{not} the recommended default for production calculations
+with FHI-aims -- (i) because these grids are often rather dense, and
+(ii) because they are meaningful only for cluster-type geometries. In 
+order to specify self-adapting angular grids anyway, you must also set
+the keywords \subkeyword{species}{angular\_min} and
+\subkeyword{species}{angular\_acc}.  
+
+The available values of integration points in given angular grids are
+listed with the keyword \keyword{force\_lebedev}. 
+
+\subkeydefinition{species}{angular\_acc}{control.in}
+{
+  \noindent 
+  Usage: \subkeyword{species}{angular\_acc} \option{threshold}
+    \\[1.0ex]
+  Purpose: For \emph{self-adapting} angular integration grids,
+    specifies the desired integration accuracy for the initial 
+    Hamiltonian and overlap matrix elements. \\[1.0ex]
+  Restriction: Use only for cluster-type geometries. \\[1.0ex]
+  \option{threshold} is a small positive real number; if 0., no
+    adaptation is performed. Default: 0. \\
+}
+If \option{threshold} is not zero, this option invokes the
+self-adaptation of all angular integration grids, within the limits
+given by \subkeyword{species}{angular\_min} and
+\subkeyword{species}{angular}. The adaption criteria are the initial 
+Hamiltonian / overlap matrix integrals. 
+
+In all
+preconstructed \texttt{species\_default} files, we specify reliable
+angular integration grids for all elements for DFT. No adaptation
+is required. For the curious, our own grids are adapted for symmetric
+dimers at a tight bond distance, using \option{threshold} = $10^{-8}$.
+
+\subkeydefinition{species}{angular\_grids}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{angular\_grids} \option{method}
+    \\[1.0ex]
+  Purpose: Indicates how the angular integration grids (in each radial
+    integration shell) for this \keyword{species} are
+    determined. \\[1.0ex]
+  \option{method} is a string, either \texttt{auto} or
+    \texttt{specified}. \\
+}
+The standard \texttt{species\_default} files provided with FHI-aims
+provide \texttt{specified} angular grids (on the safe side, i.e.,
+rather dense) for each \subkeyword{species}{radial\_base} integration shell
+around an atom. The line: \\[1.0ex]
+\subkeyword{species}{angular\_grids} \texttt{specified} \\[1.0ex]
+must be immediately followed by a series of lines with \\[1.0ex]
+    \subkeyword{species}{division} [...] \\
+    \subkeyword{species}{outer\_grid} [...] \\[1.0ex]
+tag(s). These contain the actual grid specification. 
+
+If method \texttt{auto} is given, appropriate specifications for
+self-adapting grids should be included in \texttt{control.in} (keywords 
+\subkeyword{species}{angular}, \subkeyword{species}{angular\_min}, 
+\subkeyword{species}{angular\_acc}).
+
+\subkeydefinition{species}{angular\_min}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{angular\_min} \option{value} \\[1.0ex]
+  Purpose: specifies the minimum number of angular grid points per
+    radial integration shell \\[1.0ex]
+  \option{value} is the minimum number of grid points per shell. \\
+}
+For \texttt{specified} \subkeyword{species}{angular\_grids}, acts as a
+lower bound for the number of points per radial shell (specified grids
+will be increased accordingly). 
+
+For self-adapting angular grids, use together with the
+\subkeyword{species}{angular} and \subkeyword{species}{angular\_acc}
+keywords. 
+
+In practice, \option{value} will be reduced to the next-highest
+available Lebedev integration grid (see
+\keyword{force\_lebedev} tag for possible values). 
+
+\subkeydefinition{species}{cut\_free\_atom}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{cut\_free\_atom} \option{type} [\option{radius}]
+    \\[1.0ex]
+  Purpose: Adds a cutoff potential to the initial, non-spinpolarized
+    free-atom calculation that yields free-atom densities and
+    potentials for many basic tasks.\\[1.0ex]
+  \option{type} : A string, either \texttt{finite} or
+    \texttt{infinite}. Default: \texttt{finite} for DFT-LDA/GGA and
+      for \keyword{RI\_method} \texttt{LVL};
+    \texttt{infinite} for Hartree-Fock, hybrid functionals, $GW$, etc. 
+      if \keyword{RI\_method} \texttt{V} is used.\\
+  \option{radius} : A real number, in {\AA}: Onset radius for the
+    cutoff potential, as defined in the \subkeyword{species}{cut\_pot}
+    tag. Default: For DFT-LDA/GGA, $r_\text{onset}$ as given by the
+    \texttt{onset} parameter in \subkeyword{species}{cut\_pot} .\\
+}
+Although this is a technical parameter (ideally, no influence on
+self-consistent, converged results), it has important implications for
+a variety of numerical tasks in the code:
+\begin{itemize}
+  \item It influences (slightly) the basis-defining potential for the
+    minimal basis, and for \subkeyword{species}{confined} basis
+    functions.
+  \item It limits the radius of the free-atom density, which in turn
+    limits the extent of the default integration partition table. For
+    DFT-LDA/GGA, this extent need must not be smaller than the radius
+    of the most extended basis function, but it also need not be
+    larger, since all integrands are zero outside anyway. This is
+    \emph{not} the case for the two-electron Coulomb operator, which
+    is needed for Hartree-Fock, hybrid functionals, $GW$, etc, in
+    which case the default is currently \texttt{infinite} (no cutoff
+    potential applied).
+  \item It also limits the extent of the partition table used for the
+    Hartree potential.Especially in periodic calculations, it is vital
+    that the real-space part of the Hartree potential is kept
+    small. In that case, it is thus critical to keep \option{radius}
+    as small as possible.
+\end{itemize}
+Usually, the default specified in the code should be accurate for all
+requirements. If, however, you suspect some kind of integration noise
+which is not related to the grid, increasing the
+\subkeyword{species}{cut\_free\_atom} value may be a good test. 
+
+\subkeydefinition{species}{division}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{division} \option{radius}
+    \option{points} \\[1.0ex]
+  Purpose: For \texttt{specified}
+    \subkeyword{species}{angular\_grids}, the number of angular points 
+    on all radial shells that are within \option{radius}, but not
+    within another, \emph{smaller} division. \\[1.0ex]
+  Restrictions: Meaningful only in a block immediately following an
+    \subkeyword{species}{angular\_grids} \texttt{specified}
+    line. \\[1.0ex]
+  \option{radius} : Outer radius (in {\AA}) of this division. \\
+  \option{points} : Integer number of angular points requested in this
+    division (see \keyword{force\_lebedev} tag for
+    possible values). \\
+}
+Use the \subkeyword{species}{outer\_grid} tag to specify the number of
+angular grid points used outside the outermost division \option{radius}.
+
+\subkeydefinition{species}{innermost\_max}{control.in}
+{
+  \noindent 
+  Usage: \subkeyword{species}{innermost\_max} \option{number} \\[1.0ex]
+  Purpose: Monitors the quality of the radial integration
+    grid. \\[1.0ex]
+  \option{number} is an integer number, corresponding to a radial grid 
+  shell. Default: 4. \\
+}
+If, after on-site orthonormalization, a radial function's innermost
+extremum is inside the radial grid shell \option{number}, counting from the
+nucleus, that radial function is rejected in order to prevent
+inaccurate integrations.
+
+\subkeydefinition{species}{logarithmic}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{logarithmic} \option{r\_min}
+    \option{r\_max} \option{increment} \\ [1.0ex]
+  Purpose: Defines the dense one-dimensional ``logarithmic'' grid for
+    the direct solution of all radial equations (free atom quantities,
+    Hartree potential). \\[1.0ex]
+  \option{r\_min} is a real number (in bohr); the innermost point 
+    of the logarithmic grid is defined as $r(1)$=\option{r\_min}/$Z$,
+    where $Z$ is the atomic number of the
+    \subkeyword{species}{nucleus} of the \keyword{species}. Default:
+    0.0001 bohr. \\ 
+  \option{r\_max} is a real number (in bohr), the outermost point of
+    the logarithmic grid, $r(N)$. Default: 100 bohr. \\
+  \option{increment} is a real number, the increment factor $\alpha$
+    between successive grid points, $r(i) = \alpha \cdot
+    r(i-1)$. Default: 1.0123. \\
+}
+The number of logarithmic grid shells, $N$, is uniquely determined by
+\option{r\_min}, \option{r\_max}, and \option{increment}. Specifying a
+dense logarithmic grid is not performance-critical.
+
+\subkeydefinition{species}{outer\_grid}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{outer\_grid} 
+    \option{points} \\[1.0ex]
+  Purpose: For \texttt{specified}
+    \subkeyword{species}{angular\_grids}, the number of angular points 
+    on all radial shells outside the largest
+    \subkeyword{species}{division}. \\[1.0ex] 
+    Restrictions: Meaningful only in a block immediately following an
+    \subkeyword{species}{angular\_grids} \texttt{specified}
+    line. \\[1.0ex]
+  \option{points} : Integer number of angular points (see
+    \keyword{force\_lebedev} tag for possible values). \\ 
+}
+Use the \subkeyword{species}{division} tag to specify the number of 
+angular grid points used for radial shells within specified radii.
+
+\subkeydefinition{species}{radial\_base}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{radial\_base} \option{number}
+    \option{radius} \\[1.0ex]
+  Purpose: Defines the basic grid of radial integration shells
+    according to Ref. \cite{Baker94} \\[1.0ex]
+  \option{number} is an integer number (the total number of grid points,
+    $N$). \\
+  \option{radius} is a positive real number which specifies the outermost
+    shell of the basic grid, $r_\text{outer}$, in~\AA. \\
+}
+The location of the \option{number} radial shells is given by
+\begin{equation}
+  r(i) = r_\text{outer} \cdot \frac{\log\{1-[i/(N+1)]^2\}}{\log\{1-[N/(N+1)]^2\}}
+\end{equation}
+With this prescription, shell $i$=0 would be located exactly at
+$r(i)=0$, and shell $i$=$N+1$ would be located exactly at
+$r(i)=\infty$, i.e., this provides an exact mapping of the interval
+[0,$\infty$]. 
+
+The FHI-aims \texttt{species\_default} files provide values for
+\option{number} according to the formula
+$N$=1.2$\times$14(\subkeyword{species}{nucleus}+2)$^{1/3}$, as
+determined empirically in Ref. \cite{Baker94}. These ``basic'' grids are
+can then be augmented by adding uniform subdivisions, using the
+\subkeyword{species}{radial\_multiplier} keyword described below. 
+
+
+\subkeydefinition{species}{radial\_multiplier}{control.in}
+{
+  Usage: \subkeyword{species}{radial\_multiplier} \option{number} \\[1.0ex]
+  Purpose: Systematically increases the radial integration grid
+  density. \\[1.0ex]
+  \option{value} is an integer, number specifying the number of
+    added subdivisions per basic grid spacing. Default: \option{value}
+    = 2 \\
+}
+The basic grid of $N$ radial shells (see
+\subkeyword{species}{radial\_base} definition) is evenly subdivided
+\option{number}-1 times, to yield \option{number}$\cdot (N+1) - 1$
+shells in the \emph{actually used} integration grid. Thus, the
+\subkeyword{species}{radial\_multiplier} tag allows to systematically
+increase the number of radial shells (by factors). For example,
+\option{number}=2 (the default) would yield $2N+1$ shells total.
+
+Note that some all-electron Gaussian basis sets contain either very
+high or very low exponents. If such basis sets are used for test
+purposes, it may be necessary to test the convergence of the radial
+integration grid directly by increasing the
+\subkeyword{species}{radial\_multiplier}. 
+
+The effect of the\subkeyword{species}{radial\_multiplier} is explained
+in Ref. \cite{Zhang2013} 
+(open access at \url{http://iopscience.iop.org/1367-2630/15/12/123033/article})
+Look at Figure A.1 and the accompanying explanation in that reference.

@@ -1,0 +1,197 @@
+\section{Hubbard corrected DFT (DFT+U)}
+Standard semi-local DFT functionals like LDA or GGA suffer from improper self-interaction error (SIE) cancellation. As a results this functional utterly fail when it comes to the description of systems which are characterized by localized electron states. One specific approach cure for this drawback is to use \textit{hubbard corrected} DFT also known as DFT+U or LDA+U. In this approach one adds a correction to the LDA or GGA Hamiltonian which is inspired by the Hubbard Model \cite{Hubbard238}. The correction allows to reduce the self-interaction error in systems, which are characterized by correlated states, significantly \cite{anisimov_1}. Its great strength lies in the simplicity of its corrective term and in the fact that its computational cost is only marginally higher compared to LDA or GGA. Thus, the ability to localize electrons and its computational efficiency make DFT+U to a suitable tool for studying systems in PBC supercell calculations \cite{QUA:QUA24521}.
+
+In the following some of the main features of DFT+U, which are specific to the implementation in FHI-aims, are addressed.
+
+Incorporation of the Hubbard model into the normal approximate DFT description leads to the following  DFT+U energy functional:
+   \begin{align}
+   \label{total_dft+u_energy}
+      E_{\rm DFT+U} \left[ \rho\left( \mathbf{r}\right) \right] = E_{\rm DFT} \left[ \rho\left( \mathbf{r}\right) \right] + E_{\rm U}^{\rm 0} \left[  n_{Im} \right] - E_{\rm dc}\left[  n_{Im} \right].
+   \end{align}
+Here, $E_{\rm DFT}$ is the standard DFT energy functional on a LDA or GGA level of theory. $E_{\rm U}^{\rm 0}$ depends on the orbital occupancy $n_{Im}$ of the correlated states at site $I$ and represents the energy correction according to the Hubbard Hamiltonian. However, by simply adding $E_{\rm U}^{\rm 0}$ to $E_{\rm DFT}$, one runs into a double-counting issue of the coulomb interaction, because all the electron-electron interactions are already taken into account in LDA or GGA. Furthermore, the DFT Hamiltonian explicitly depends on the charge density, while the Hubbard Hamiltonian is written in the orbital representation. Therefore, one can not build a direct link between both descriptions and a simple subtraction of the double-counting is not possible. As a consequence, the dc functional $E_{\rm dc}$  is not uniquely defined and different formulations of $E_{\rm dc}$ can lead to different results of the calculation \cite{PhysRevB.79.035103}.  Within FHI-aims we offer three different double-counting correction strategies (see \keyword{plus\_u\_petukhov\_mixing}), the fully-localized limit (FLL), the around mean field (AMF) approximation and a interpolation scheme where the double counting correction is calculated in a self-consistent manner \cite{Petukhov03}. We strongly recommend  to choose the FLL as double-counting correction, as it is the most common one used in literature.
+
+The last two terms on the r.h.s.\ of eq.\ \ref{total_dft+u_energy} are usually combined to one energy correction, $E_{U}$. One arrives at following expression,
+   \begin{align}
+   \label{general_pu}
+      E_{\rm DFT+U} \left[ \rho\left( \mathbf{r}\right) \right] = E_{\rm DFT} \left[ \rho\left( \mathbf{r}\right) \right] + E_{\rm U}\left[  n_{Im} \right].
+   \end{align}
+As briefly mentioned, the orbital occupancies $n_{Im}$ are the occupation numbers of localized orbitals, where $m$ is the state index which usually runs over the eigenstates of $L_z$ for a certain angular momentum $l$. With other words, $n_{Im}$ are the occupation numbers of a specific shell of orbitals, located at a certain atom. The definition of a shell is best explained by using an example. If a DFT+U treatment is requested for the $3d$ electrons of a single first row transition metal, then a shell represents the five $3d$-orbitals for each spin type.
+%
+\subsection{ DFT+U correction as it is implemented in FHI-aims}
+So far this was just a brief sketch of the DFT+U approach in general. In the following we present the precise definition of DFT+U how it is implemented in FHI-aims. Without loss of generality we only show the equations with FLL as double-counting correction.
+\begin{align}
+\label{FLL}
+E_{\rm U}^{\rm FLL}\left[ \left\lbrace n^{\sigma}_{Imm'}\right\rbrace \right]\nonumber   &= E_{\rm U}^{\rm 0} \left[ \left\lbrace n^{\sigma}_{Imm'}\right\rbrace \right] - E_{\rm dc} \left[ \left\lbrace n^{\sigma}_{Imm'}\right\rbrace \right] \nonumber \\ &= \frac{1}{2}\sum _{\sigma,I} U^I_{\rm eff} Tr\left[ \mathbf{n}_I^{\sigma}\left( 1 - \mathbf{n}_I^{\sigma}\right) \right] \nonumber \\ & = \frac{1}{2}\sum _{\sigma,I} U^I_{\rm eff} \left[  Tr\left(  \mathbf{n}_I^{\sigma}\right)  - Tr\left(  \mathbf{n}_I^{\sigma}\mathbf{n}_I^{\sigma}\right)\right]  .
+\end{align}
+These functional is known as the spherically averaged form of DFT+U. It was first proposed by Dudarev  \textit{et al.}\cite{dudarev} and it is also rotational invariant. In this formulation, the effective on-site interactions enter via their spherical atomic averages. This is justified by the fact, that localized states still have atomic character and hence, spherical symmetry. In fact, for most materials this definition gives good results.
+
+It should be pointed out, that $U_{\rm eff}$ can be seen as an effective value of the coulomb interaction that also includes exchange corrections. This parameter has to be specified by hand, so far, no possibility is implemented to calculate this parameter self-consistently. Common to all approaches is that all the calculated results sensitively depend on the applied $U_{\rm eff}$ value. This value not only depends on the atom for which DFT+U is applied. It also depends on the surroundings of the atom, the lattice parameters and physical conditions. Furthermore, it also depends on the localized basis set of the underlying quantum DFT code. This limits the comparability of different values in a strong way. In general, for each DFT+U implementation and system, one should recalculate $U_{\rm eff}$.
+
+The most important quantity in equation \ref{FLL} is the so called DFT+U occupation matrix $\mathbf{n}$. This matrix simply tells us how many electrons are in a certain shell on a certain atom. The problem here is the inability to break down the total charge density into atom specific contributions. Or in other words, there is no proper operator for counting the number of electrons on an atom. Hence, the choice of the occupation matrix will affect the outcome of a calculation. Within FHI-aims we offer two specific choices: the on-site representation of the occupation matrix 
+\begin{align}
+   \label{general_occ_mat}
+n^{\sigma}_{Imm'} ({\rm on-site}) = D^{\sigma}_{Im,Im'}
+   \end{align}
+and 
+\begin{align}
+n_{Imm'}^{\sigma} ({\rm dual}) = \frac{1}{2} \sum _{Jk} \left[ D^{\sigma}_{Im,Jk}S_{Jk,Im'} + S_{Im,Jk}D^{\sigma}_{Jk,Im'}\right] .
+\end{align}
+The latter is known as the dual representation \cite{dual_paper}. Within the dual representation the occupation numbers are calculated in a similar way as in the Mulliken analysis. The main difference between both is that the on-site version only accounts for overlaps within a specific sub shell on an certain atom. The dual representation also accounts for the overlap with the surrounding atoms. It is emphasized that all general aspects of DFT+U are met by all matrix representations. Furthermore, more detailed studies regarding the performance of the occupation matrix for various transition metal oxides revealed that  in principle there is no definition which is clearly the best  \cite{tablero}. Unfortunately, we only offer forces for the on-site representation. The on-site version is also the default occupation matrix in FHI-aims and we strongly recommend to use it.
+
+By now, one might have noticed that DFT+U is by far not a black box method and it gets even worse if one considers in detail how the occupation matrix is constructed. In general, each occupation matrix can be expressed in terms of a local projector operator, $\hat{P}^{\sigma}_{Imm'}$. The ($m$,$m'$)-th element of a occupation matrix at site $I$ is then given by
+   \begin{align}
+   \label{general_occ_mat}
+      n^{\sigma}_{Imm'} = \sum _{\gamma} f_{\gamma} \braket{\Psi _{\gamma}^{\sigma} |\hat{P}^{\sigma}_{Imm'}|\Psi _{\gamma}^{\sigma}}.
+   \end{align}
+For example for the on-site projection operator this would lead to
+\begin{align}
+\hat{P}^{\sigma}_{Imm'}(on\text{-}site) = \ket{\tilde{\phi}^{\sigma} _{Im'}}\bra{\tilde{\phi}^{\sigma} _{Im}}.
+\end{align}
+Here, $\tilde{\phi}_{Im}$ denotes the dual basis functions which are defined in terms of the inverse overlap matrix $\mathbf{S}^{-1}$,
+   \begin{align}
+      \ket{\tilde{\phi}^{\sigma} _{m}} = \sum _{I'm'} S^{-1}_{Im,I'm'} \ket{\tilde{\phi}^{\sigma} _{m'}}.
+  \end{align}
+The question now is which basis functions should be used in the projection? As default we are using the \textit{atomic} type basis functions of the minimal basis set in FHI-aims. Here we automatically assume, as they are \textit{atomic} like basis functions, that they will contribute most to the localized states. However, in general it is not known if other basis functions should also be included in the DFT+U projection e.g. \textit{tier1} $3d$ if one deals with first row transition metals. Usually one can notice that by a strange behavior of the occupation matrix during the scf-cycle (occupation numbers drop to zero as the electrons occupy other basis functions). For that purpose we offer to include also other basis functions in the description of DFT+U (see \keyword{plus\_u\_use\_hydors}). We also like to highlight the corresponding paper related to our implementation where we address fundamental issues of DFT+U in a LCAO electronic structure code. However, do not panic, for most of the systems the default settings should be sufficient enough.
+
+So far, we presented DFT+U in quite some detail. However, we just wanted to highlight that DFT+U is far from being a black box method. However, the handling of a actual  DFT+U calculation in FHI-aims is quite easy. One just have to specify  the double-counting correction first via the \keyword{plus\_u\_petukhov\_mixing}. Afterwards one can specify the U value and the angular momentum shell to which DFT+U should be applied for each species. Of course one can specify different U values for different species in a simulation. Only for hard cases where convergence can not be reached easily, it is quite useful to checkout the other keywords. Some of them can be quite useful such as the \keyword{plus\_u\_matrix\_control}. Here, one first converges the density with help of a fixed occupation matrix which can be edited by hand. Afterwards one can use the restart information to calculate everything self-consistently. This can be quite useful as it turns out that DFT+U is quite sensitive to the initial guess of a calculation. Furthermore, it is quite useful also to start from a LDA or GGA ground state density.
+
+\keydefinition{plus\_u\_petukhov\_mixing}{control.in}
+{
+  \noindent
+  Usage: \keyword{plus\_u\_petukhov\_mixing} \option{mixing\_factor} \\[1.0ex]
+  Purpose: \emph{only for DFT+U.} Allows to fix the mixing
+    factor between AMF and FLL contribution of the double counting
+    correction~\cite{Petukhov03}. \\[1.0ex] 
+  \option{mixing\_factor} is a floating point value, specifying the mixing
+    ratio between 0.0 and 1.0. A value of 0.0 selects the Around Mean Field
+    (AMF) contribution. A value of 1.0 selects the Fully Localized Limit
+    (FLL). If unspecified, the value is determined self-consistently according
+    to Ref.~\cite{Petukhov03}. \\ 
+    We strongly recommend to use the FLL.\\
+}
+
+There are two common schemes for dealing with the double counting problem in DFT+U: The AMF method
+assumes that the effect of the DFT+U term on the actual occupations remains small, so that the
+occupations can be assumed to be equal within each shell for the purpose of the double counting
+correction. The FLL method, on the other hand, assumes a maximal effect of the DFT+U term on the
+occupation numbers, handling double counting correctly in the case that all orbitals with in the
+shell are either fully occupied or empty. The self consistent mixing of both limits improves the
+handling of the intermediate range (see Ref.~\cite{Petukhov03}).
+
+\keydefinition{plus\_u\_use\_mulliken}{control.in}
+{
+  \noindent
+  Usage: \keyword{plus\_u\_use\_mulliken} \\[1.0ex]
+  Purpose: \emph{only for DFT+U.} Allows to switch from on-site representation
+     to the dual representation of the occupation matrix. \\[1.0ex] 
+     Default is the on-site representation. Forces are not provided for
+     the dual representation. \\ 
+}
+
+\keydefinition{plus\_u\_out\_eigenvalues}{control.in}
+{
+  \noindent
+  Usage: \keyword{plus\_u\_out\_eigenvalues} \\[1.0ex]
+  Purpose: \emph{only for DFT+U.} Allows to calculate the eigenvalues
+     of the self-consistent DFT+U occupation matrix at the end of 
+     a run.\\ 
+}
+
+\keydefinition{plus\_u\_matrix\_control}{control.in}
+{
+  \noindent
+  Usage: \keyword{plus\_u\_matrix\_control} \\[1.0ex]
+  Purpose: \emph{only for DFT+U.} Allows to write the self-consistent
+     occupation matrix to a file \texttt{occupation\_matrix\_control.txt}.
+     If the file is already present in the calculation folder, the occupation
+     matrix is not calculated during the run. It will be read out from that file
+     instead. The occupation matrix is then fixed during the complete run.\\ 
+}
+
+This is extremely useful because one can simply edit the file and manipulate the matrix according to
+some specific spin configuration. Consider to use it with restart options.
+
+\keydefinition{plus\_u\_matrix\_release}{control.in}
+{
+  \noindent
+  Usage: \keyword{plus\_u\_matrix\_release} \option{convergence\_accuracy} \\[1.0ex]
+  Purpose: \emph{only for DFT+U.} If this keyword is present in combination with  \keyword{plus\_u\_matrix\_control}
+     the occupation matrix is first fixed to the matrix from the \texttt{occupation\_matrix\_control.txt}
+     file until some certain convergence criteria of the total energy is fulfilled. Afterwards
+     the occupation matrix is calculated self-consistently again. \\[1.0ex]
+     \option{convergence\_accuracy} this threshold specifies the convergence in total energy
+     from which point on the occupation matrix should be calculated self-consistently.
+     The value is a floating point number. \\
+}
+
+\keydefinition{plus\_u\_use\_hydros}{control.in}
+{
+  \noindent
+  Usage: \keyword{plus\_u\_use\_hydros} \\[1.0ex]
+  Purpose: \emph{experimental --- only for DFT+U.} If this keyword is present also hydrogen like basis functions
+     are included in the DFT+U correction. \\[1.0ex]
+     The code builds up a simple linear combination of all basis functions which contribute
+     to the angular momentum channel to which DFT+U is applied. All basis functions will 
+     contribute equally (see also \keyword{hubbard\_coefficient}).\\
+}
+
+\keydefinition{plus\_u\_matrix\_error}{control.in}
+{
+  \noindent
+  Usage: \keyword{plus\_u\_matrix\_error} \\[1.0ex]
+  Purpose: \emph{experimental --- only for DFT+U.} Calculates the idempotence error of the occupation matrix 
+     $\mathrm{Tr}\left(\mathbf{n} - \mathbf{n}\mathbf{n}\right)$ \\[1.0ex]
+}
+
+\keydefinition{plus\_u\_ramping\_accuracy}{control.in}
+{
+  \noindent
+  Usage: \keyword{plus\_u\_ramping\_accuracy} \option{convergence\_accuracy} \\[1.0ex]
+  Purpose: \emph{experimental --- only for DFT+U.} If this keyword is present the calculation starts at U = 0 eV.
+     If the specified convergence accuracy of the total energy is reached, the U value is slightly increased. 
+     This is will be done until the final U value is reached.  \\[1.0ex]
+     \option{convergence\_accuracy} Floating point number. Defines the convergence accuracy from which on the U value
+     is increased stepwise by a certain increment. The increment can be specified with the
+     \keyword{plus\_u\_ramping\_increment} keyword.\\
+     
+}
+\subsubsection*{Subtags for \emph{species} tag in \texttt{control.in}:}
+
+\subkeydefinition{species}{plus\_u}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{plus\_u} \option{n} \option{l} \option{U} \\[1.0ex]
+  Purpose: \emph{only for DFT+U.} Adds a +U term to one
+    specific shell of this species. \\[1.0ex] 
+  \option{n} the (integer) radial quantum number of the selected shell. \\
+  \option{l} is a character, specifying the angular momentum (
+    \emph{s}, \emph{p}, \emph{d}, \emph{f}, ...) of the selected shell. \\
+  \option{U} the value of the U parameter, specified in eV. \\[1.0ex]
+  The U here defined equals U$_{\rm eff}$ in eq. \ref{FLL}.\\
+}
+\subkeydefinition{species}{hubbard\_coefficient}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{hubbard\_coefficient} \option{c$_1$} \option{c$_2$} \option{c$_3$} \option{c$_4$} \\[1.0ex]
+  Purpose: \emph{experimental --- only for DFT+U.} Only works in combination with the \keyword{plus\_u\_use\_hydros}
+    keyword. Allows the user to specify his one projector function for DFT+U as long as this function can be
+    represented by basis functions contributing to a specific angular momentum which is given by the
+    \keyword{plus\_u} keyword. Only four basis functions are allowed in the expansion and the order corresponds to
+    their appearance in the control in. \\[1.0ex] 
+    \option{c$_1$} expansion coefficient of the first basis function\\
+    \option{c$_2$} expansion coefficient of the second basis function\\
+    \option{c$_3$} expansion coefficient of the third basis function\\
+    \option{c$_4$} expansion coefficient of the 4th basis function\\[1.0ex]
+    If a basis function should not be part of the linear combination the corresponding coefficient should be set to 0.
+    Keep in mind that aims performs an on-site orthogonalization of all basis function located at a certain atom. This means
+    that the radial shape of a basis function might be different from that, one would expect from the \texttt{control.in}
+    definition. Within DFT+U all basis functions are orthogonalized w.r.t. the \textit{atomic} basis functions.\\
+}
+\subkeydefinition{species}{plus\_u\_ramping\_increment}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{plus\_u\_ramping\_increment} \option{increment} \\[1.0ex]
+  Purpose: \emph{experimental --- only for DFT+U.} Specifies the the step by which the
+    U value should be increased. Works only in combination with \keyword{plus\_u\_ramping\_accuracy}\\[1.0ex]
+  \option{increment} specified in eV. \\
+}

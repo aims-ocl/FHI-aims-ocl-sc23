@@ -1,0 +1,143 @@
+#
+# A test set up for the M11 Long-range correct hybrid meta-GGA functional.
+# Currently this functional only works with RI-V. Once implemented, this benchmark should be swapped to RI-LVL
+# At that stage forces can also be calculated. For now this is not possible.
+#
+# This is designed to mimic the distributed test in the MFM package, v1.9, for the M11 functionals
+#------------------------------------------
+    xc               m11
+    charge           0 
+    spin             none
+    relativistic     none
+
+    charge_mix_param 0.75 
+
+    sc_accuracy_rho  1E-6
+    sc_accuracy_eev  1E-6
+    sc_accuracy_etot 1E-8
+    sc_iter_limit    100 
+
+################################################################################
+#
+#  Suggested "6-31+G**" defaults for H atom (to be pasted into control.in file)
+#
+################################################################################
+  species        H
+#     global species definitions
+    nucleus             1
+    mass                1.00794
+#
+    l_hartree           8 
+#
+    cut_pot             4.0  2.0  1.0
+    basis_dep_cutoff    0e-0
+#     
+    radial_base         24 7.0
+    radial_multiplier   8 
+    angular_grids       specified
+      division   0.1930   50
+      division   0.3175  110
+      division   0.4293  194
+      division   0.5066  302
+      division   0.5626  434
+      division   0.5922  590
+      division   0.6227  974
+      division   0.6868 1202
+      outer_grid  770
+#      outer_grid  434
+################################################################################
+#
+#  Definition of "minimal" basis
+#
+################################################################################
+#     valence basis states
+    valence      1  s   1.
+#     ion occupancy
+    ion_occ      1  s   0.5
+################################################################################
+#
+#   For exact comparison with all GTO-based codes, one or more of
+#   the following flags are needed:
+#
+    include_min_basis   .false.
+#    pure_gauss          .true.
+#
+# H 6-31+G**
+ gaussian 0 3
+        18.7311370            0.03349460  
+         2.8253937            0.23472695  
+         0.6401217            0.81375733  
+ gaussian 0 1 0.1612778
+ gaussian 1 1 1.1000000
+
+################################################################################
+#
+#  Suggested "6-31+G**" defaults for O atom (to be pasted into control.in file)
+#
+################################################################################
+  species        O
+#     global species definitions
+    nucleus             8
+    mass                15.9994
+#
+    l_hartree           8
+#
+    cut_pot             4.0  2.0  1.0
+    basis_dep_cutoff    0e-0
+#
+    radial_base         36 7.0
+    radial_multiplier   8
+    angular_grids       specified
+      division   0.1817   50
+      division   0.3417  110
+      division   0.4949  194
+      division   0.6251  302
+      division   0.8014  434
+      division   0.8507  590
+      division   0.8762  770
+      division   0.9023  974
+      division   1.2339 1202
+      outer_grid 974
+#      outer_grid 770
+#      outer_grid  434
+################################################################################
+#
+#  Definition of "minimal" basis
+#
+################################################################################
+#     valence basis states
+    valence      2  s   2.
+    valence      2  p   4.
+#     ion occupancy
+    ion_occ      2  s   1.
+    ion_occ      2  p   3.
+################################################################################
+#
+#   For exact comparison with all GTO-based codes, one or more of
+#   the following flags are needed:
+#
+    include_min_basis   .false.
+#    pure_gauss          .true.
+#
+# O 6-31+G**
+ gaussian 0 6
+      5484.6717000            0.0018311  
+       825.2349500            0.0139501  
+       188.0469600            0.0684451  
+        52.9645000            0.2327143  
+        16.8975700            0.4701930  
+         5.7996353            0.3585209  
+ gaussian 0 3
+        15.5396160           -0.1107775  
+         3.5999336           -0.1480263  
+         1.0137618            1.1307670  
+ gaussian 1 3
+        15.5396160            0.0708743  
+         3.5999336            0.3397528  
+         1.0137618            0.7271586  
+ gaussian 0 1 0.2700058
+ gaussian 1 1 0.2700058
+ gaussian 0 1 0.0845000
+ gaussian 1 1 0.0845000
+ gaussian 2 1 0.8000000
+

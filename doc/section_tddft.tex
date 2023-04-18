@@ -1,0 +1,138 @@
+\section{TDDFT - linear response}\label{Sec:TDDFT}
+
+\emph{These routines are not completed yet. For now it is only possible do use $f_{xc}$ kernels from LDA.
+The development goes on and more funcionality will be added.}
+When publishing results obtained from this routine, please do cite me, Jan Kloppenburg as the author, as well as of course the
+usual people in the aims references. When problems, questions or suggestions arise, feel free to contact me at {\tt kloppenburg@fhi-berlin.mpg.de}.
+Only use there routines if you know what you are doing!
+
+\subsection*{Theory}
+The goal is to calculate excitation energies $\omega_I$ and corresponding oscillator strengths $f_I$ from
+\begin{align}
+{\mathbf\Omega}\mathbf{F}_I=\omega^2_I\mathbf{F}_I\;.
+\end{align}
+Linear response theory (see \cite{casida96}) is the basis for this calculation. We construct
+\begin{align}
+{\mathbf\Omega}_{ias,jbt} = \delta_{i,j}\delta_{a,b}\delta_{s,t}(\epsilon_a-\epsilon_i)^2 + 2\sqrt{\epsilon_{as}-\epsilon_{is}}\mathbf{K}_{ias,jbt}\sqrt{\epsilon_{bt}-\epsilon_{jt}}
+\end{align}
+with the coupling kernel
+\begin{align}\label{casidakernel}
+\mathbf{K}_{ias,jbt} = \int\int\varphi^*_{i}(\mathbf{r})\varphi_{a}(\mathbf{r})
+\left[\frac{1}{\left|\mathbf{r}-\mathbf{r}'\right|}+f_{xc}(\mathbf{r},\mathbf{r}')\right]
+\varphi^*_{j}(\mathbf{r}')\varphi_{b}(\mathbf{r}')d\mathbf{r}d\mathbf{r}'\;.
+\end{align}
+In this notation I refer with the indices $i,j$ to occupied and with $a,b$ to virtual orbitals, while $s$ and $t$ denote the spin.
+The input energies $\epsilon$ are obtained from either ground state {\em Hartree-Fock} or DFT calculations. Going by this rule we contruct the matrix
+$\mathbf{\Omega}$ which then is solved for eigenvalues and eigenvectors. The excitation energies $\omega_I$ then follow from
+From the eigenvectors $\mathbf{F}_I$ the oscillator strengths $f_I$ can be obtained from
+\begin{align}
+f_I=\frac{2}{3}\omega_I\Big[\big|\left<\Psi_0\big|\hat{\bf{X}}\big|\Psi_I\right>\big|^2+
+\big|\left<\Psi_0\big|\hat{\bf{Y}}\big|\Psi_I\right>\big|^2+\big|\left<\Psi_0\big|\hat{\bf{Z}}\big|\Psi_I\right>\big|^2\Big]\;,
+\end{align}
+with the $\hat{\bf{X}}$ being the spatial operator for the X direction and the others respectively with $\Psi_0$ being the all electron ground state wave function
+and $\Psi_I$ being the all electron excited state wave function for the state $I$ with excitation energy $\omega_I$.
+
+For the TDHF calculation mode, the kernel $\mathbf{K}_{ias,jbt}$ is modified to become
+\begin{align}\label{tdhfcalcmode}
+\mathbf{K}_{ias,jbt} = (ias|jbt) + \delta_{s,t}(ij|ab)
+\end{align}
+that has only the bare {\em Coulomb} part $(ia|jb)$ and the exact exchange part $(ij|ab)$ from {\em Hartree-Fock} theory. This {\em Hartree-Fock} Kernel 
+creates a non-Hermitian matrix $\mathbf{\Omega}$. Please not that this calculation mode
+is as yet only available for single processor runs due to the lack of a non-Hermitian parallel eigenvalue solver.
+
+\subsection*{Available Kernels and \textit{libxc}}
+As of now, there is only the \texttt{pw-lda} $f_{xc}$ kernel available for the TDDFT calculation in aims. If the user wants to make use of
+additional $f_{xc}$ kernels he is requested to install \textit{libxc}. \textit{libxc} is a library of exchange-correlation functionals for 
+density-functional theory (see \cite{libxcpaper12}) available free under the LGPL license v3 from the internet.
+\footnote{\url{http://www.tddft.org/programs/octopus/wiki/index.php/Libxc}} 
+Additionally, for the full TDDFT calculation it is possible to choose functionals at will that are available from this {\em libxc}. It is not required to
+have the DFT level calculation that generates the input energies $\epsilon$ for \ref{casidakernel} using the same XC functional as the TDDFT calculation.
+You should really know what you are doing when you choose to experiment with different functionals and always keep in mind that the results might be
+unpredictable and not necessarily have any physical meaning at all. Nevertheless it might come in handy to be able to mix different hybrid functionals
+or do a DFT ground state calculation with a functional that does not provide and $f_{xc}$ and still be able to do a TDDFT calculation on top of that
+when switching to functionals that do provide an $f_{xc}$.
+
+\subsection*{Tags for general section of \texttt{control.in}}
+
+\keydefinition{neutral\_excitation}{control.in} {
+\noindent
+Usage: \keyword{neutral\_excitation} \option{type}\\
+Purpose: Triggers the calculation of neutral excitations.\\
+\option{type}: String that defines the type of calculation to be performed.
+\begin{itemize}
+\item tddft: Full TDDFT calculation
+\item tdhf: Full TDHF calculation (Kernel from \ref{tdhfcalcmode}, serial CPU only)
+\item rpa: random phase approximation only (set $f_{xc}=0$ in \ref{casidakernel})\\
+\end{itemize}
+}
+With the keyword \keyword{neutral\_excitation} the user can specify the calculation mode for the linear response theory.\\
+Also the keyword \keyword{empty\_states} should be set to 1000, or the keyword \keyword {calculate\_all\_eigenstates} should be used, to make sure the code generates all
+possible empty states provided from the basis set. This number will also be reduced automatically by the code to the maximum number that can be generated from the basis set.
+
+\keydefinition{tddft\_kernel}{control.in} {
+\noindent
+Usage: \keyword{tddft\_kernel} \option{string}\\
+Purpose: Specify the origin of the TDDFT kernel for \ref{casidakernel}\\
+\option{string}: pw-lda/pz-lda or libxc
+
+Both pw-lda or pz-lda are built-in options in FHI-aims. They are equivalent to the keywords defined in \keyword{xc}.\\
+When using libxc, one must specify the desired kernels through keywords \keyword{tddft\_x} and \keyword{tddft\_c}. Note that libxc is only possible when the user has compiled aims with libxc binding.
+}
+
+\keydefinition{tddft\_x}{control.in} {
+\noindent
+Usage: \keyword{tddft\_x} \option{string}\\
+Purpose: Set the desired exchange kernel to use from libxc. The definition is from libxc's manual and can be found at the 
+libxc\footnote{\url{http://www.tddft.org/programs/octopus/wiki/index.php/Libxc:manual}} website.\\
+\option{string}: The name of the selected exchange functional, i.e. XC\_LDA\_X
+}
+
+\keydefinition{tddft\_c}{control.in} {
+\noindent
+Usage: \keyword{tddft\_c} \option{string}\\
+Purpose: Set the desired correlation kernel to use from libxc. The definition is from libxc's manual and can be found at the 
+libxc website as well.\\
+\option{string}: The name of the selected correlation functional, i.e. XC\_LDA\_C\_PW
+}
+
+\keydefinition{excited\_mode}{control.in} {
+\noindent
+Usage: \keyword{excited\_mode} \option{string}\\
+Purpose: Select which excitations will be calculated.\\
+\option{string}: one of \{singlet|triplet|both\}. To calculate both singlets and triplets is set as the default when this keyword is omitted.
+}
+
+\keydefinition{excited\_states}{control.in} {
+\noindent
+Usage: \keyword{excited\_states} \option{n}\\
+Purpose: Specify the number of excited state energies and oscillator strengths to be printed.\\
+\option{n}: Integer number $\mathtt{n}\in\mathbb{N},\;\mathtt{n}\ge 0$
+}
+
+With the keyword \keyword{excited\_states} the user can specify the number of excited states that
+will be printed in the output. The default for this is 50 if there are that many. Normal production runs will generally have many more (depending on the
+basis set and the number of electrons involved) that can easily reach beyond 10000. So to avoid a really huge output from this routine this defaut is
+set rather low. Feel free to choose any number of your liking, if it should be too large it will automatically be defaulting to all excited states. At the end
+of a calculation the file TDDFT\_LR\_Spectrum\_(singlet/triplet).dat will be written into the directory the FHI-aims program was run in.
+It contains all computed excitation energies and the corresponding oscillator strengths.
+
+\keydefinition{casida\_reduce\_matrix}{control.in} {
+\noindent
+Usage: \keyword{casida\_reduce\_matrix} \option{boolean}\\
+Purpose: Set to .true. if you want to reduce the energy range for the Kohn-Sham eigenvalues to be included in the computation.\\
+\option{boolean}: .true. or .false.\\
+}
+
+\keydefinition{casida\_reduce\_occ}{control.in} {
+\noindent
+Usage: \keyword{casida\_reduce\_occ} \option{x}\\
+Purpose: Specify the energy in Hartree below which the occupied states are cut off.\\
+\option{x}: Cutoff energy in Hartree
+}
+
+\keydefinition{casida\_reduce\_unocc}{control.in} {
+\noindent
+Usage: \keyword{casida\_reduce\_unocc} \option{x}\\
+Purpose: Specify the energy in Hartree above which the virtual states are cut off.\\
+\option{x}: Cutoff energy in Hartree
+}

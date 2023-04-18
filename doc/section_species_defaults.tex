@@ -1,0 +1,200 @@
+\section{Defaults for chemical elements: species\_defaults}
+\label{Sec:species}
+
+FHI-aims requires exactly two input files, located in the same directory where
+a calculation is started: \texttt{control.in} and \texttt{geometry.in}. Both
+files can
+in principle be specified from scratch for every new calculation, using the
+keywords listed in Chapter \ref{Ch:full}. However, choosing the central
+computational settings consistently for series of calculations greatly
+enhances the accuracy of any resulting energy differences (error cancellation).
+
+In FHI-aims, the key parameters regarding computational accuracy are actually
+subkeywords of the \keyword{species} keyword of \texttt{control.in},
+controlling the basis set, all integration grids, and the accuracy of the
+Hartree potential. These settings should of course not be retyped from scratch
+for every single calculation; on the other hand, they should remain obvious
+to the user, since these are the central handles to determine the accuracy and
+efficiency of a given calculation. 
+
+FHI-aims therefore provides preconstructed default definitions for the
+important subkeywords associated with different \keyword{species} (chemical
+elements) from $Z$=1-102 (H-Md). These can be found in the
+\emph{species\_defaults} subdirectory of the distribution, and are built for
+inclusion into a \texttt{control.in} file by simple copy-paste. 
+
+For all elements, FHI-aims offers three or four different levels of
+\emph{species\_defaults}: 
+\begin{itemize}
+  \item \emph{light} :
+    Out-of-the-box settings for fast prerelaxations, structure searches,
+    etc. In our own work, no obvious geometry / convergence errors resulted
+    from these settings, and we now recommend them for many household
+    tasks. For ``final'' results (meV-level converged energy differences between
+    large molecular structures etc), any results from the \emph{light} level
+    should be verified with more accurate post-processing calculations,
+    e.g. \emph{tight}. 
+  \item \emph{intermediate} :
+    This level is presently only available for a few elements, but can
+    play an important role for large and expensive calculations,
+    especially for hybrid functionals. \emph{Intermediate} settings
+    use most of the  
+    numerical settings from \emph{tight}, but includes basis functions
+    between \emph{light} and \emph{tight}. The cost of hybrid
+    functionals scales heavily with the number of basis functions
+    found on a given atom. Full \emph{tight} settings, which were
+    designed with the much cheaper semilocal functionals in mind, can
+    be prohibitively expensive for large structures and hybrid density
+    functionals. Hybrid DFT results from \emph{intermediate} settings
+    are typically completely sufficient for production results, much
+    cheaper, and we hope to produce \emph{intermediate} defaults for a
+    wider range of elements in coming years.
+  \item \emph{tight} : 
+    Regarding the integration grids, Hartree
+    potential, and basis cutoff potentials, the settings specified here are
+    rather safe, intended to provide meV-level accurate energy
+    \emph{differences} also for large structures. In the \emph{tight} settings,
+    the basis set level is set to \emph{tier} 2 for the light elements 1-10, a
+    modified \emph{tier} 1 for the slightly heavier Al, Si, P, S, Cl (the first
+    \emph{spdfgd} radial functions are enabled by default),
+    and \emph{tier} 1 for all other elements. This reflects the fact that, for
+    heavy elements, \emph{tier} 1 is sufficient for tightly converged ground
+    state properties in DFT-LDA/GGA, but for the light elements (H-Ne),
+    \emph{tier} 2 is, e.g., required for meV-level converged energy
+    differences. For convergence
+    purposes, the specification of the basis set itself (\emph{tier}
+    1, \emph{tier} 2, etc.) may still be 
+    decreased / increased as needed. Note that especially for hybrid functionals,
+    \emph{tight} can already be very expensive and specific reductions
+    of the number of radial functions may still provide essentially
+    converged results at a much more affordable cost (see
+    \emph{intermediate} settings).
+  \item \emph{really\_tight} : 
+    Same basis sets (radial functions and cutoff radii) as in the
+    \emph{tight} settings, but for the other numerical aspects (grids,
+    Hartree potential), settings that are \emph{strongly
+    overconverged} settings for most purposes. The idea is that
+    \emph{really\_tight} can be used for very specific, manual
+    convergence tests of the basis set and other settings -- if really
+    needed. \\ 
+    Note that the \emph{``tight''} settings are intended to
+    provide reliably accurate results for most DFT production
+    purposes; and they are not cheap. The absolute total energies for
+    \emph{tight} and DFT are in practice converged to some tens of
+    meV/atom for most elements. To go beyond, take the
+    \emph{really\_tight} settings and increase the basis set or other
+    numerical aspects step by step. (Radial function by radial 
+    function may often be a good strategy to go.) \emph{We emphasize
+    that the \emph{really\_tight} settings should only ever be
+    needed for individual, specific tests. They should not be
+    needed for any standard production tasks unless you have
+    seriously too much CPU time to spend.} \\ Specific differences
+    between \emph{tight} 
+    and the unmodified \emph{really\_tight} settings: The
+    \subkeyword{species}{basis\_dep\_cutoff} keyword is set to zero, a
+    prerequisite to approach the converged basis limit. Regarding the
+    Hartree potential, \subkeyword{species}{l\_hartree} is set to 8,
+    and the maximum number of angular grid points per radial
+    integration shell is increased to 590. \\  
+    Note that there can still
+    be corner cases where you may want to test some numerical setting
+    beyond \emph{really\_tight}. Mostly, these are custom scenarios or
+    things beyond standard FHI-aims calculations of DFT total
+    energies. Examples include: The confinement radius for surface
+    work functions (should be checked), use of very extended or
+    extremely tight Gaussian-type orbital basis functions (e.g., from
+    very large Dunning-type basis sets -- the density of the radial
+    and angular grids should be checked), or RPA and MP2 calculations,
+    which can need very different and often much larger basis sets
+    (again, radial and angular grids should be checked). 
+\end{itemize}
+
+A separate group of species defaults for light elements (H-Ar) is
+available especially for calculations involving explictly correlated
+methods (methods other than semilocal and hybrid density functionals): 
+\begin{itemize}
+  \item \emph{NAO-VCC-nZ} : NAO type basis sets for H-Ar by Igor Ying
+    Zhang and coworkers \cite{Zhang2013}. These basis sets
+    are constructed according to Dunning's ``correlation consistent''
+    recipe. Their intended application is for methods that invoke
+    the continuum of unoccupied orbitals explicitly, for instance MP2,
+    RPA or $GW$. Note that they were constructed for valence-only
+    correlation (hence ``VCC'', valence correlation consistent), i.e.,
+    they work best in frozen-core correlated approaches following a
+    full s.c.f. cycle (core and valence) to generate the
+    orbitals. While NAO-VCC-nZ can be used for ``normal'' density
+    functional theory (LDA, GGA, or hybrid functionals), the normal
+    ``light'', ``intermediate'', ``tight'' and ``really\_tight'' species defaults are
+    more effective in those cases. The advantage of NAO-VCC-nZ over
+    GTO basis sets such as the Dunning ``cc'' basis sets is that with
+    NAOs, both the behaviour near the nucleus as well as that for the
+    tails of orbitals far away from atoms is much more physical. This
+    means that we can use more efficient integration grids than for
+    GTO basis sets to obtain systematic convergence of the unoccupied
+    state space. 
+\end{itemize}
+
+The \textit{NAO-J-n} basis sets are designed for the calculation of indirect spin-spin coupling constants (J-couplings):
+\begin{itemize}
+\item \textit{NAO-J-n} : The basis sets are available for most light elements from H to Cl. Since these are more expensive (tighter grids) than other basis sets, they should only be used for J-couplings. Even then, they should only be placed on atoms of interest, while cheaper basis sets can be used on other atoms. They are constructed by adding tight Gaussian orbitals to the NAO-VCC-nZ basis sets. In order to describe the Gaussian orbitals correctly near the nucleus, tighter grids than normally are required (with \keyword{radial\_multiplier} 8 and \keyword{l\_hartree} 8, among other parameters). Other stages of the calculation, such as geometry relaxation, should be performed with basis sets more suitable for the particular task (using, e.g., the default tight settings).
+\end{itemize}
+
+In addition, the \emph{species\_defaults} directory contains a few
+more sets of species defaults for special purposes. These can be found
+in the \emph{non-standard} subdirectory and include:
+\begin{itemize}
+  \item \emph{gaussian\_tight\_770} : Species defaults that allow to
+    perform calculation with some standard published Gaussian-type
+    orbital (GTO) basis sets for elements H-Ar (including basis sets due to
+    Pople, Dunning, Ahlrichs and their coworkers). These species
+    defaults are meant to allow for exact benchmarks against
+    GTO codes such as NWChem. The other
+    numerical settings (especially grids) are thus much tighter than
+    needed for ``normal'' NAO-type calculations. Note that FHI-aims is
+    not optimized for GTO basis sets. We recommend
+    NAO-type basis sets, not GTO basis sets, for production
+    calculations -- NAO-type basis sets are much easier to handle
+    with our techniques and give better accuracy at lower cost. That
+    said -- the grid settings in the \emph{gaussian\_tight\_770}
+    species defaults are rather overconverged for benchmark
+    purposes. One could create much more efficient species defaults for
+    GTO basis sets -- but GTOs still would not be as efficient as NAO
+    basis sets (at the same level of accuracy).
+  \item \emph{Tier2\_aug2} : Example, pioneered by Jan Kloppenburg, of
+    basis sets that merge FHI-aims' tier2 basis sets with a very
+    reduced set of Gaussian augmentation functions taken from
+    Dunning's augmented correlation-consistent basis sets. This
+    prescription appears to provide a remarkably accurate but affordable
+    foundation to compute neutral (optical) vertical molecular
+    excitation energies by linear-response time-dependent density
+    functional theory, as well as (thanks to Chi (Garnett) Liu) the
+    Bethe-Salpeter Equation.
+  \item \emph{light\_194} : This is just an example of how to tune
+    down the normal ``light'' basis sets of FHI-aims by reducing the
+    integration grid even further. For things like fast
+    molecular-dynamics type screening of many structures, this is a
+    perfectly viable approach. Examples are provided for
+    H-Ne. Obviously, do test the impact of such modifications for your
+    own purposes.
+\end{itemize}
+
+For calculations that involve the excited state spectrum directly (this
+includes $GW$, MP2, or RPA, among others), the numerical settings
+from \emph{tight} still perform rather well \emph{if} a
+counterpoise correction is performed (i.e., for energy
+differences). Still, the basis set size and/or cutoff radii
+\emph{must} be converged and carefully verified beyond the settings
+specified in \emph{tight}.
+
+To extrapolate the absolute total energy of methods which rely on the
+unoccupied state continuum explicitly, e.g., RPA or MP2, 
+we recommend using the NAO-VCC-nZ basis sets. These basis sets are
+presently available for light elements (H-Ar). 
+A popular completeness-basis-set extrapolation scheme is two-point
+extrapolation:
+\begin{equation*}
+	E[\infty]=\frac{E[n_1]n_1^3-E[n_2]n_2^3}{n_1^3-n_2^3}
+\end{equation*}
+where ``n$_1$'' and ``n$_2$'' are the indicies of NAO-VCC-nZ.
+This $1/n^3$ formula was originally proposed for the correlation energy,
+but was also used directly for the total energy.

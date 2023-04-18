@@ -1,0 +1,236 @@
+\section{Hartree-Fock and hybrid functionals, including periodic systems}
+\label{Sec:periodic_hf}
+
+Periodic versions of the Hartree-Fock method and of and hybrid density
+functionals are implemented in FHI-aims. Generally, our experiences are
+very good. The implementation is stable and seems to scale well
+towards large systems. However, we still ask you to exercise some
+care. If you encounter any unexpected difficulties, 
+consult the developers.
+
+\emph{Periodic versions of MP2, RPA and $GW$ are not yet part of the 
+main FHI-aims 
+distribution, as they are in various stages of development. Please feel
+free to ask at aimsclub regarding these methods for periodic systems.
+They are very important to us, and we will be happy to share them as
+they become ready and more usable.}
+
+Complete descriptions of the material described below, as well as
+extensive benchmarks, are summarized in Ref. \cite{Levchenko2015}, as
+well as Ref. \cite{Ihrig2015} (for the non-periodic implementation of
+the ``LVL'' approach). Forces and the stress tensor are also
+implemented, with a clear description of the stress tensor given in
+Ref. \cite{Knuth2015}. 
+
+There are two specific issues from a usability point of view which
+should be considered:
+\begin{itemize}
+\item The \keyword{RI\_method} ``LVL'' described below is
+    implemented in a linear scaling and is therefore the only reasonable
+    pathway for large and/or periodic systems. It is, however, slightly less
+    accurate (for formal reasons) than the non-linear-scaling version for non-periodic
+    systems, RI-V. Please bear this in mind. For standard solids and
+    hybrid functionals, the effects seem very small. See
+    reference \cite{Ihrig2015} for quantitative tests. In general,
+    RI-LVL has been extremely reliable for us.
+  \item For band structure output, the
+    \keyword{exx\_band\_structure\_version} keyword  allows to toggle
+    between a faster real-space version that works only when a relatively dense
+    $k$-space grid has been used during the regular s.c.f. cycle and
+    a slow(!) fallback version that is calculated in reciprocal space.
+    The underlying reason is that the real-space Born-von Karman cell of
+    the regular s.c.f. cycle may become too small to accommodate some
+    $k$-vectors that are not exact reciprocal lattice vectors of the
+    Born-von Karman cell. The slow fallback version should not simply be
+    used by default since it can easily become the computational bottleneck --
+    both regarding time and memory.
+\end{itemize}
+
+In periodic Hartree-Fock (and hybrid functional) implementations, the key
+quantity that needs to be evaluated is the exact-exchange matrix, 
+%
+ \begin{equation}
+   K_{ij}(\bfk) = \sum_{kl,\bfq} D_{kl}(\bfq) \iint d\bfr d\bfrp 
+  \frac{\phi_{i\bfk}^\ast(\bfr)\phi_{k\bfq}(\bfr)\phi_{l\bfq}^\ast(\bfrp)\phi_{j\bfk}(\bfrp)} 
+       {|\bfr - \bfrp|} \,
+  \label{eq:exact_exchange_kspace}
+ \end{equation}
+%
+where $\bfk,\bfq$ are the Bloch vectors,  $\phi_{i\bfk}(\bfr)$ is the Bloch
+summation of the $i$-th atomic orbital $\phi_i(\bfr -\bfR)$ living in the unit cell
+$\bfR$, and $D_{kl}(\bfq)$ is the density matrix. $K_{ij}(\bfk)$ can be obtained
+from its Fourier transform,
+ \begin{equation}
+  K_{ij}(\bfk) = \sum_{\bfR} e^{i\bfk \bfR} X_{ij}(\bfR)\, ,
+ \end{equation}
+where 
+%
+ \begin{equation}
+  X_{ij}(\bfR) =\sum_{kl} \sum_{\bfRp} D_{kl}(\bfRp) \sum_{\bfRpp} \iint d\bfr d\bfrp
+   \frac{\phi_i(\bfr)\phi_k(\bfr+\bfRpp)\phi_j(\bfrp+\bfR)\phi_l(\bfrp+\bfRp+\bfRpp)}
+        {|\bfr - \bfrp|}
+  \label{eq:exact_exchange_realspace}
+ \end{equation}
+%
+
+In FHI-aims, periodic Hartree-Fock and hybrid density functionals are implemented in two
+different ways. One implementation is based on the ``k-space'' formulation, where one 
+computes $K_{ij}(\bfk)$ directly from Eq.~(\ref{eq:exact_exchange_kspace}). An 
+alternative, and more efficient implementation is based on the``real-space'' formulation, 
+where one first computes $X_{ij}(\bfR)$ from Eq.~(\ref{eq:exact_exchange_realspace}), 
+and then Fourier transform it to $K_{ij}(\bfk)$.  The ``real-space'' implementation is used 
+in the code by default, and the ``k-space'' implementation is only used for crossing-check
+purposes.
+
+Both implementations are based on a localized resolution-of-identity approximation,
+which we termed as ``RI-LVL'', in analogy to ``RI-SVS'' and ``RI-V'' introduced in
+Sec.~\ref{Sec:auxil}. Under ``RI-LVL'', the products of two normal basis functions 
+$(i,j)$ centering at atoms $A_i$ and $A_j$ are expanded only in terms of auxiliary 
+functions centering on these two atoms. Possible contributions of auxiliary functions 
+from a third center are excluded in this approximation, in contrast to ``RI-V''. 
+Specifically, one has
+  \begin{equation}
+    \phi_i(\bfr - A_i) \phi_j(\bfr - A_j) =
+    \sum_\mu C_{i(A_i),j(A_j)}^{\mu(A_i)} P_\mu(\bfr-A_i) + 
+    \sum_\nu C_{i(A_i),j(A_j)}^{\nu(A_j)} P_\nu(\bfr-A_j) \, ,
+  \end{equation}
+where $\mu$ and $\nu$ enumerate the auxiliary basis functions centering 
+on atom $A_i$ and $A_j$ respectively. This approximation has been extensively benchmarked
+with respect to the more accurate ``RI-V'' approximation for finite systems, and with
+respect to other independent implementations for molecular systems. The achieved accuracy 
+is remarkable and should be sufficiently good for production calculations.
+
+Periodic Hartree-Fock and hybrid-functional calculations can be run
+in the same manner as the periodic LDA and GGA cases, by setting the keyword 
+\keyword{xc} to \option{hf} or desired hybrid functionals, and setting the 
+\keyword{k\_grid} mesh to appropriate values. As mentioned above, by default
+the ``real-space'' periodic Hartree-Fock implementation will be invoked. There are two
+thresholding parameters (detailed below) which control the balance between the 
+computational load and accuracy in the calculation.  One may also switch to the 
+``k-space'' implementation of periodic Hartree-Fock and hybrid functionals for testing or 
+comparison purposes by setting the keyword \texttt{use\_hf\_kspace} to be true 
+(see below).  The thresholding parameters do not apply to the ``k-space'' implementation,
+however.
+
+\newpage
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{coulomb\_threshold}{control.in}
+{ \noindent
+  Usage: \texttt{periodic\_hf} \keyword{coulomb\_threshold} \option{value} \\[1.0ex]
+  Purpose: This sets a threshold \option{value} for a key ingredient in the construction
+  of the exact-exchange matrix -- the Coulomb matrix. 
+  The Coulomb matrix elements below the specified threshold
+  \option{value} are discarded in the calculation. Suggested values
+  are between $10^{-6}$ and 0. The default value is $10^{-10}$.
+}
+
+\keydefinition{exx\_band\_structure\_version}{control.in}
+{ \noindent
+  Usage: \texttt{exx\_band\_structure\_version} \option{value}
+  \\[1.0ex]
+  Purpose: A periodic band structure calculation can be performed
+    either using a real-space version (\texttt{value}=1) or a
+    reciprocal-space version (\texttt{value}=2).  No default -- user 
+    must decide.  \\[1.0ex]
+  \option{value} is an integer, either 1 or 2. \keyword{exx\_band\_structure\_version}
+    \texttt{1} is \underline{preferred} (but see below).\\
+}
+
+The distinction between real-space and reciprocal-space pertains to the method used to 
+calculate the Fock matrix; in both cases, the coordinate system used when specifying the 
+k-path via the \keyword{output} \subkeyword{output}{band} keyword is expressed in terms 
+of reciprocal coordinates.
+
+If \keyword{output} \subkeyword{output}{band} is requested for a periodic Hartree-Fock
+or hybrid functional calculation, adhere to the following rules:
+\begin{itemize}
+  \item Do not use excessively many $k$ points in each band segment,
+    for instance no more than 11. We also note that 21 is a reasonable value 
+    to sample the fine features of a band structure.
+  \item \keyword{exx\_band\_structure\_version}
+    \texttt{1} is \underline{preferred}. The real-space band structure
+    version \texttt{value}=1 has low overhead and is
+    accurate IF a reasonably dense \keyword{k\_grid} is used
+    during the preceding
+    s.c.f. calculation. \keyword{exx\_band\_structure\_version} 
+    \texttt{1} is therefore the \underline{recommended} approach. For
+    very sparse s.c.f. \keyword{k\_grid} settings, it can, however,
+    fail. In that case, the failure is so obvious that one cannot miss
+    it. For better results, please avoid particularly
+    \keyword{k\_grid} dimensions of 1 (one) in the s.c.f. part of the
+    calculation. We apologize for this inconvenience. On the bright
+    side, if you use \keyword{exx\_band\_structure\_version}
+    \texttt{1} correctly, it will give reliable results without much
+    overhead compared to the underlying s.c.f. calculation.
+    We recommend to test to be sure.
+  \item \keyword{exx\_band\_structure\_version} 2 is a
+    \underline{fallback} method that will always work but comes with
+    significant time and memory overhead. 
+    If the plotted band structure from the real-space version
+    \keyword{exx\_band\_structure\_version} \texttt{value}=1 has
+    obvious numerical problems, please switch to 
+    a denser \keyword{k\_grid} during s.c.f. Only if this
+    approach is not successful or possible, consider
+    \keyword{exx\_band\_structure\_version} 2. The latter will always
+    work, as the critical part of the work is handled in reciprocal
+    space. As a consequence, though, sparsity in real space can no
+    longer be exploited, and the band structure calculation becomes
+    much slower than the real-space version.
+  \item In case of doubt, the band structure ONLY at $k$-points used
+    during the s.c.f. cycle itself can also be printed along certain
+    directions by using the \keyword{output} 
+    \subkeyword{output}{band\_during\_scf} keyword, which ensures that
+    only the information that went into the s.c.f. cycle is actually
+    used. This is mainly useful for debugging purposes.
+\end{itemize}
+We apologize that this decision process is a bit rough around
+the edges and leaves an essential decision up to the user (because we
+want you to know). However, consider this: The above
+procedure provides a simple way to make band structure output work,
+and works safely. It is now generally not a problem to produce band 
+structures with hybrid functionals in FHI-aims and this functionality
+has produced much successful science. 
+
+\keydefinition{screening\_threshold}{control.in}
+{ \noindent
+  Usage: \texttt{periodic\_hf} \keyword{screening\_threshold} \option{value} \\[1.0ex]
+  Purpose: This sets a screening parameter in a periodic Hartree-Fock (or hybrid 
+  functional) calculation. The real-space exact-exchange matrix elements below the specified
+  threshold \option{value} are neglected in the calculation. Suggested values are between
+  $10^{-6}$ and 0. Smaller values mean better accuracy but heavier computational loads.
+  The default value is $10^{-7}$.
+}
+
+\keydefinition{use\_hf\_kspace}{control.in}
+{ \noindent
+  Usage: \keyword{use\_hf\_kspace} \option{flag} \\[1.0ex]
+  Purpose: The ``k-space'' periodic HF implementation can be invoked
+  by setting \option{flag} to be \texttt{.true.} This is, however,
+  very expensive.
+}
+
+
+\keydefinition{split\_atoms}{control.in}
+{ \noindent
+  Usage: \keyword{split\_atoms} \option{flag} \\[1.0ex]
+  Purpose: The ``split\_atoms'' periodic HF implementation can be switched off
+  by setting \option{flag} to be \texttt{.false.}
+}
+
+
+The keyword \texttt{split\_atoms} helps to reduce the peak memory and increases
+performance for systems with heavy elements or systems containing atoms of
+different size (that is the number of basis functions). Internally, the number
+of basis functions per atoms are split into smaller batches. The batch size is
+ calculated according to \texttt{basis\_functions\_per\_atom/split\_batch}, where the
+default value of \texttt{split\_batch} is 14. Its value can be changed in
+\texttt{control.in} with \texttt{split\_batch value}, where \texttt{value} is a positive
+integer number.
+
+The implementation seemed to improve the performance of systems containing heavy
+ elements. If you encounter performance problems, especially systems with many
+atoms, it might be worth to switch-off the \texttt{split\_atoms} feature and test the
+ old routine. However, we could not find systems where the current implementation
+ significantly harms the performance. In the case you do, please report the issue.

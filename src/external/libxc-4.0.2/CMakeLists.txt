@@ -1,0 +1,256 @@
+# Copyright: Max-Planck-Gesellschaft zur Foerderung der Wissenschaften
+# e.V. Please note that any use of the "FHI-aims-Software" is subject
+# to the terms and conditions of the respective license agreement.
+
+if (USE_LIBXC)
+  if (NOT USE_C_FILES)
+    message(FATAL_ERROR "USE_C_FILES must be enabled for LibXC")
+  endif()
+  if (LIBXC_VERSION)
+    # If a specific version was requested, download it from tddft.org.
+    set(INSTALL_LOCATION ${PROJECT_BINARY_DIR}/libxc-${LIBXC_VERSION})
+    ExternalProject_add(libxc-external
+      URL
+      "http://www.tddft.org/programs/libxc/down.php?file=${LIBXC_VERSION}/libxc-${LIBXC_VERSION}.tar.gz"
+      PREFIX libxc-${LIBXC_VERSION}
+      CONFIGURE_COMMAND
+      ${CMAKE_CURRENT_BINARY_DIR}/libxc-${LIBXC_VERSION}/src/libxc-external/configure
+      --prefix=${INSTALL_LOCATION}
+      CC=${CMAKE_C_COMPILER}
+      "CFLAGS=${ALL_C_FLAGS}"
+      FC=${CMAKE_Fortran_COMPILER}
+      "FCFLAGS=${ALL_Fortran_FLAGS}"
+      BUILD_COMMAND make -j
+      BUILD_BYPRODUCTS
+      ${INSTALL_LOCATION}/lib/libxc.a
+      ${INSTALL_LOCATION}/lib/libxcf90.a
+      ${INSTALL_LOCATION}/lib/libxcf03.a)
+    # Use an INTERFACE library to collect the results of
+    # ExternalProject_add.
+    add_library(libxc-custom INTERFACE)
+    add_dependencies(libxc-custom libxc-external)
+    add_dependencies(aims1 libxc-custom)
+    target_include_directories(libxc-custom
+      INTERFACE ${INSTALL_LOCATION}/include)
+    foreach(_lib libxcf03 libxcf90 libxc)
+      target_link_libraries(libxc-custom
+        INTERFACE ${INSTALL_LOCATION}/lib/${_lib}.a)
+    endforeach()
+  else()
+    # Else use the local version. Here we include the source files
+    # directly into the target in order to avoid autotools.
+    target_include_directories(aims1 PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+    target_sources(aims1 PRIVATE
+      ${CMAKE_CURRENT_LIST_DIR}/func_reference.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_bcgp.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_bmk.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_cs1.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_gapc.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_gaploc.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_hcth_a.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_op_b88.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_op_g96.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_op_pbe.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_op_pw91.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_op_xalpha.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_pbeloc.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_regtpss.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_revtca.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_scan_e0.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_sg4.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_w94.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_zpbeint.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_zvpbeint.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_k_thakkar.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_beefvdw.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_xc_th1.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_xc_th2.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_xc_th3.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_gg99.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_hjs_b88_v2.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_lag.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_pbeint.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_pbepow.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_pbetrans.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_rge2.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_sg4.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_vmt84.c
+      ${CMAKE_CURRENT_LIST_DIR}/hyb_gga_xc_wb97.c
+      ${CMAKE_CURRENT_LIST_DIR}/hyb_mgga_xc_b88b95.c
+      ${CMAKE_CURRENT_LIST_DIR}/hyb_mgga_xc_kcis.c
+      ${CMAKE_CURRENT_LIST_DIR}/hyb_mgga_xc_wb97mv.c
+      ${CMAKE_CURRENT_LIST_DIR}/hyb_mgga_x_dldf.c
+      ${CMAKE_CURRENT_LIST_DIR}/hyb_mgga_x_m05.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_chachiyo.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_lp96.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_pk09.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_vwn_1.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_vwn_2.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_vwn_3.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_vwn_4.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_vwn_rpa.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_k_zlp.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_xc_1d_ehwlrg.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_x_erf.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_x_rel.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_c_b88.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_c_kcis.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_c_lp90.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_c_m05.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_c_m06l.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_c_revtpss.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_c_tpss.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_c_tpssloc.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_k_pc07.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_xc_cc06.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_xc_hle17.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_gx.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_m11.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_m11_l.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_mbeefvdw.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_pbe_gx.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_sa_tpss.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_tm.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_vt84.c
+      ${CMAKE_CURRENT_LIST_DIR}/references.c
+      ${CMAKE_CURRENT_LIST_DIR}/special_functions.c
+      ${CMAKE_CURRENT_LIST_DIR}/bessel.c
+      ${CMAKE_CURRENT_LIST_DIR}/expint_e1.c
+      ${CMAKE_CURRENT_LIST_DIR}/integrate.c
+      ${CMAKE_CURRENT_LIST_DIR}/util.c
+      ${CMAKE_CURRENT_LIST_DIR}/mix_func.c
+      ${CMAKE_CURRENT_LIST_DIR}/func_info.c
+      ${CMAKE_CURRENT_LIST_DIR}/functionals.c
+      ${CMAKE_CURRENT_LIST_DIR}/version.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_x.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_x_1d.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_x_2d.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_wigner.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_gombas.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_rpa.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_hl.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_vwn.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_pz.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_pw.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_ml1.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_rc04.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_xc_teter93.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_1d_csc.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_1d_loos.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_2d_amgb.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_c_2d_prm.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_k_tf.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_xc_zlp.c
+      ${CMAKE_CURRENT_LIST_DIR}/lda_xc_ksdt.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_lg93.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_pbe.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_rpbe.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_pbea.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_mpbe.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_herman.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_b86.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_b88.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_g96.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_pw86.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_pw91.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_optx.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_airy.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_c09x.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_dk87.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_ft97.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_wc.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_am05.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_bayesian.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_kt.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_htbs.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_pbe.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_lyp.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_p86.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_pw91.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_am05.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_lm.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_wl.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_wi.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_lb.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_xc_b97.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_xc_edf1.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_xc_1w.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_optc.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_tca.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_bpccac.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_sogga11.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_sogga11.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_wpbeh.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_hjs.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_ityh.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_sfat.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_ev93.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_ak13.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_q2d.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_q2d.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_ssb_sw.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_c_ft97.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_n12.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_lv_rpw86.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_2d_b86.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_2d_b86_mgc.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_2d_b88.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_2d_pbe.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_k_tflw.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_k_pearson.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_k_ol1.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_k_ol2.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_k_dk.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_k_meyer.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_vmt.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_hcth_a.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_x_cap.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_xc_oblyp_d.c
+      ${CMAKE_CURRENT_LIST_DIR}/hyb_gga_xc_b3lyp.c
+      ${CMAKE_CURRENT_LIST_DIR}/hyb_gga_xc_o3lyp.c
+      ${CMAKE_CURRENT_LIST_DIR}/hyb_gga_xc_pbeh.c
+      ${CMAKE_CURRENT_LIST_DIR}/hyb_gga_xc_b1wc.c
+      ${CMAKE_CURRENT_LIST_DIR}/hyb_gga_xc_hse.c
+      ${CMAKE_CURRENT_LIST_DIR}/hyb_gga_xc_cam_b3lyp.c
+      ${CMAKE_CURRENT_LIST_DIR}/hyb_gga_xc_camy_blyp.c
+      ${CMAKE_CURRENT_LIST_DIR}/hyb_gga_xc_camy_b3lyp.c
+      ${CMAKE_CURRENT_LIST_DIR}/hyb_gga_xc_lcy_pbe.c
+      ${CMAKE_CURRENT_LIST_DIR}/hyb_gga_xc_lcy_blyp.c
+      ${CMAKE_CURRENT_LIST_DIR}/gga_xc_vv10.c
+      ${CMAKE_CURRENT_LIST_DIR}/hyb_gga_xc_edf2.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_lta.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_tpss.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_br89.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_gvt4.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_m06l.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_tau_hcth.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_2d_prhg07.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_pkzb.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_m08.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_ms.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_mn12.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_mk00.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_c_vsxc.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_c_pkzb.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_c_bc95.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_c_m08.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_c_cs.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_xc_otpss_d.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_xc_zlp.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_mbeef.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_xc_b97mv.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_scan.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_c_scan.c
+      ${CMAKE_CURRENT_LIST_DIR}/hyb_mgga_xc_tpssh.c
+      ${CMAKE_CURRENT_LIST_DIR}/mgga_x_mvs.c
+      ${CMAKE_CURRENT_LIST_DIR}/hyb_mgga_x_mvsh.c
+      ${CMAKE_CURRENT_LIST_DIR}/xc_f.c
+      ${CMAKE_CURRENT_LIST_DIR}/libxc_funcs_m.f90
+      ${CMAKE_CURRENT_LIST_DIR}/xc_f03_lib_m.f90
+      ${CMAKE_CURRENT_LIST_DIR}/xc_f90_types_m.f90
+      ${CMAKE_CURRENT_LIST_DIR}/xc_f90_lib_m.f90)
+  endif()
+endif()

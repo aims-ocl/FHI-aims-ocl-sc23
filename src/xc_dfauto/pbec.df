@@ -1,0 +1,24 @@
+# vim: set syntax=maple:
+
+read "basics.mpl";
+read "pw92c.df";
+
+epsilon[Cpbe] := proc(n, zeta, grad)
+    epsilon[Cunif](r[s](n), zeta)+H(r[s](n), zeta, T(n, zeta, grad))
+end;
+
+H := proc(rs, zeta, t)
+    gama*phi(zeta)^3
+    *ln(1+beta/gama*t^2*((1+A(rs, zeta)*t^2)/(1+A(rs, zeta)*t^2+A(rs, zeta)^2*t^4)))
+end;
+A := proc(rs, zeta)
+    beta/gama*1/(exp(-epsilon[Cunif](rs, zeta)/(gama*phi(zeta)^3))-1)
+end;
+gama := (1-ln(2))/pi^2;
+beta := 0.066725;
+
+f := rho*epsilon[Cpbe](rho, (rho(a)-rho(b))/rho, sqrt(sigma));
+g := 0;
+G := rho(s)*epsilon[Cpbe](rho(s), 1, sqrt(sigma(ss)));
+
+title := "PBE correlation functional";

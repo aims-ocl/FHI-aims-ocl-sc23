@@ -1,0 +1,117 @@
+\section{The mandatory input files: \texttt{control.in} and \texttt{geometry.in}}
+
+As discussed in Sec. \ref{Sec:running}, FHI-aims requires exactly two input
+files---\texttt{control.in} and \texttt{geometry.in}---located in
+the same directory from which the FHI-aims binary is invoked. To start
+FHI-aims, no further input should be needed.\footnote{A few specific keywords
+  (e.g., a restart of an existing calculation from an earlier wave function
+  or density matrix) may require
+  additional input that simply can not be included in user-edited file. Such
+  input files will be described with the appropriate tasks.}
+
+\begin{figure}
+  \small
+  \begin{verbatim}
+# Geometry for water -- needs to be relaxed as the water molecule 
+# described here has a 90degree bond angle and a 
+# 1 Angstrom bond distance ... 
+atom    0.00000000    0.00000000    0.00000000    O
+atom    0.70700000   -0.70700000    0.00000000    H 
+atom   -0.70700000   -0.70700000    0.00000000    H 
+  \end{verbatim}
+  \normalsize
+  \caption{\label{Fig:geometry.in}
+    Example input file \texttt{geometry.in}, provided with the simple
+    test case (relaxation of H$_2$O) described in Sec. \ref{Sec:running}.
+  }
+\end{figure}
+
+\begin{figure}
+  \small
+  \begin{verbatim}
+#########################################################################################
+#
+#  Volker Blum, 2017 : Test run input file control.in for simple H2O
+#
+#########################################################################################
+#
+#  Physical model
+#
+  xc                 pbe
+  spin               none
+  relativistic       none
+  charge             0.
+#
+#  Relaxation
+#
+  relax_geometry   bfgs 1.e-2
+#
+################################################################################
+#
+#  FHI-aims code project
+#  VB, Fritz-Haber Institut, 2009
+#
+#  Suggested "light" defaults for H atom (to be pasted into control.in file)
+#  Be sure to double-check any results obtained with these settings for post-processing,
+#  e.g., with the "tight" defaults and larger basis sets.
+#
+################################################################################
+  species        H
+#     global species definitions
+    nucleus             1
+    mass                1.00794
+
+[...]
+
+  \end{verbatim}
+  \normalsize
+
+  \vspace*{-4.0ex}
+
+  \caption{\label{Fig:control.in}
+    Excerpts from the example input file \texttt{control.in}, provided with the simple
+    test case (relaxation of H$_2$O) described in Sec. \ref{Sec:running}. A
+    section of \emph{general} (system-wide) run-time settings is separate from
+    individual sections that describe settings specific to certain
+    \emph{species} (chemical elements).
+  }
+\end{figure}
+
+Figures \ref{Fig:geometry.in} and \ref{Fig:control.in} show as examples the
+\texttt{geometry.in} and \texttt{control.in} files used for the simple test
+case (relaxation of a water molecule) described in Sec. \ref{Sec:running}. The
+philosophy of their separation is simple:
+\begin{itemize}
+  \item \texttt{geometry.in} contains only information directly related to the
+    atomic structure for a given calculation. This obviously includes atomic
+    positions, with a description of the particulars of each element (or
+    \emph{species}) expected in \texttt{control.in}. In addition, lattice
+    vectors may be defined if a periodic calculation is required. Any other
+    information is only given here if it is \emph{directly} tied to the atom
+    in question, such as an initial charge, initial spin moment, relaxation
+    constraint etc. The order of lines is irrelevant, except that information
+    specific to a given atom must follow \emph{after} the line specifying that
+    atom, and \emph{before} any following atom is specified.
+  \item \texttt{control.in} contains all other runtime-specific
+    information. Typically, this file consists of a \emph{general} part,
+    where, again, the particular order of lines is unimportant. In addition,
+    this file contains \emph{species} subtags that are references by
+    \texttt{geometry.in}. Within the description of a given species, the order
+    of lines is again unimportant, but \emph{all} information concerning the
+    same species must follow the initial \emph{species} tag in one block.
+\end{itemize}
+In both files, the choice of units is {\AA} for length parameters, and eV for
+energies; derived quantities are handled accordingly. Lines beginning with a \#
+symbol are treated as comments, and empty lines are ignored. Finally, each
+non-comment line has the following, free-format structure:
+
+\begin{verbatim}
+  keyword value <value> <value>
+\end{verbatim}
+
+Generally, all keywords and values are case sensitive: Do not expect FHI-aims
+to understand an ``XC'' keyword if the specified syntax is ``xc''. 
+
+It is the objective of the \emph{next} chapter, Chapter \ref{Ch:full},
+to list all legitimate keywords in FHI-aims, and to describe their
+function. 

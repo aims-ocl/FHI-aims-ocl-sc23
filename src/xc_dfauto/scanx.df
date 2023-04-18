@@ -1,0 +1,41 @@
+# vim: set syntax=maple:
+
+read "basics.mpl";
+read "diracx.df";
+
+epsilon[Xscan] := proc(n, grad, kin)
+    epsilon[Xunif](n)*F[Xscan](S(n, grad), Alpha1(n, 0, grad, kin))
+end;
+F[Xscan] := proc(s, a)
+    (Hx1(s, a)+Fx(a)*(hx0-Hx1(s, a)))*Gx(s)
+end;
+Fx := proc(a)
+    exp(-c1x*a/(1-a)*step(a/(1-a)))*step(1-a)-dx*exp(c2x/(1-a)*step(-1/(1-a)))*step(a-1)
+end;
+Hx1 := proc(s, a)
+    1+k1-k1/(1+x(s, a)/k1)
+end;
+x := proc(s, a)
+    muak*s^2*(1+(b4*s^2/muak)*exp(-abs(b4)*s^2/muak))
+    +(b1*s^2+b2*(1-a)*exp(-b3*(1-a)^2))^2
+end;
+Gx := proc(s)
+    1-exp(-a1/sqrt(s))
+end;
+a1 := 4.9479;
+muak := 10/81;
+b2 := sqrt(5913/405000);
+b1 := (511/13500)/(2*b2);
+b3 := 0.5;
+hx0 := 1.174;
+b4 := muak^2/k1-1606/18225-b1^2;
+c1x := 0.667;
+c2x := 0.8;
+dx := 1.24;
+k1 := 0.065;
+
+f := 0;
+g := rho(s)*epsilon[Xscan](2*rho(s), 2*sqrt(sigma(ss)), 2*tau(s)/2);
+G := rho(s)*epsilon[Xscan](2*rho(s), 2*sqrt(sigma(ss)), 2*tau(s)/2);
+
+title := "SCAN exchange functional";

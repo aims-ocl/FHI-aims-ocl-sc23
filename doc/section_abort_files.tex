@@ -1,0 +1,52 @@
+\section{Stopping a run: Files \texttt{abort\_scf} and \texttt{abort\_opt}}
+\label{section:abort}
+
+Sometimes, you may wish to stop a running FHI-aims calculation
+prematurely, but in an organized way.
+
+Of course, with any running instance of FHI-aims, there is always the
+option to stop a run by invoking the Unix 'kill' command on every
+single running 'aims' process, and this will normally end the run
+right where it is.
+
+To obtain a slightly more civilized stop (to allow the code to finish
+in a defined location and stop after writing some more output), you
+may instead create one of two specific files:
+\begin{enumerate}
+  \item \keyword{abort\_scf}
+  \item \keyword{abort\_opt}
+\end{enumerate}
+The code simply checks for the existence of either of these files
+periodically. No input is needed. Thus, simply change to the directory
+in which the code is running, and type (at the command line)
+\begin{verbatim}
+  touch abort_scf
+\end{verbatim}
+or
+\begin{verbatim}
+  touch abort_opt
+\end{verbatim}
+After a while, the run will stop.
+
+The existence of \keyword{abort\_scf} will stop the code after the
+current s.c.f. \emph{iteration} is finished, i.e., the solution of the
+Kohn-Sham equations will not be self-consistent even for the present
+geometry.
+
+The existence of \keyword{abort\_opt} will stop the code after the
+current s.c.f. \emph{cycle} is converged during a geometry relaxation,
+i.e., the electronic structure will be converged for the present
+geometry, but the forces will not be zero.
+
+In either case, the stop of FHI-aims will not happen
+immediately. Depending on the nature of the run, it may take quite
+some time until the 'abort' takes effect, since the code needs to
+reach the appropriate state first. If you are interested in an
+immediate stop, the Unix 'kill' command is still your best bet.
+
+One can also envision numerous refinements or alternative
+scenarios where an 'abort' file could be useful. If you really need
+such a case, please create the appropriate check where you need it. If
+it does the trick for you, we will be happy to incorporate the change
+into the mainline version of FHI-aims.
+

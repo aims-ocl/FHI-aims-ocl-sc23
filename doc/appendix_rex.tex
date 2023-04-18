@@ -1,0 +1,132 @@
+
+\section{Script based parallel tempering (a.k.a. replica exchange)}
+\label{appendix_rex}
+
+A script based parallel tempering implementation is available. Part of the script is dependent on the particular batch-queueing system in use; with the distribution, we provide a solution that has been tested on linux machines with SGE batch-queueing system. Whereas the overall structure of the batch script would not change by changing the batch-queueing, few crucial lines might need intervention.\\
+
+\subsection{Usage}
+In order to run the parallel tempering the batch script ``\texttt{submit.rex}'' must be submitted to the queueing system. The batch script:
+
+\begin{enumerate}
+ \item creates a subdirectory ``rex\_??'' for each replica, 
+ \item copies the files needed for the FHI-aims run and runs them
+ \item manages the swaps between replicas.
+ \item prints outputs
+\end{enumerate}
+
+The files that have to be present in the working directory are:\\
+\texttt{control.in.basic\\
+control.in.rex\\
+geometry.in.basic\\}
+optional: \texttt{list\_of\_geometries\\
+rex.AIMS.pl\\
+submit.rex\\}
+The last two files are provided with the distribution and are contained in the subdirectory \texttt{utilities/REX}.
+
+\begin{itemize}
+
+\item \texttt{control.in.rex}, it must contain the following lines:\\
+ \texttt{n\_rex}  number of replicas\\
+ \texttt{temps} list of target T separated by a space; the number of T's must agree with the above line\\
+ \texttt{freq}  time interval between rex swaps, in ps, as in control.in\\
+ \texttt{MAX\_steps} maximum number of replica exchange steps (i.e., the whole simulation will contain MAX\_steps*freq ps per replica)\\
+
+
+ \item \texttt{control.in.basic}, as in FHI-aims. Note, though, that the script will delete any keywords about geometry relaxation and MD, with the exception of MD\_time\_step, and appends at the end of each control.in in each subdirectory the MD\_settings for the replica exchange. In detail, the following are the lines which are managed by the script:\\
+\texttt{  MD\_run \$t NVT\_parrinello \$temp[\$i+1] 0.1 \\
+  MD\_MB\_init \$temp[\$i+1] \\
+  MD\_restart .true. \\
+  MD\_clean\_rotations .true. \\
+  output\_level MD\_light\\} 
+where \texttt{\$t} is a multiple of the ``\texttt{freq}'' keywords in \texttt{control.in.rex}, updated at each MD substep between swaps, and \texttt{\$temp[\$i+1]} is the target temperature for the particular replica and parallel tempering step.
+These lines are hard coded in the perl script \texttt{rex.AIMS.pl}.
+
+
+\item \texttt{geometry.in.basic}, written in the geometry.in format. It will be copied into each subdirectory, so that each replica would start form the same geometry.
+
+
+\item optional: \texttt{list\_of\_geometries}
+If present, it must contain a list of geometry files (each in the geometry.in format), one line each, that must be present in the working directory. The script will copy the file in the first line into the first subdirectory (i.e. related to the first temperature in \texttt{control.in.rex}), and so on. In case \texttt{list\_of\_geometries} contains less lines than the defined number of replicas, the ``exceeding'' replicas will start with the geometry contained in \texttt{geometry.in.basic}.
+
+
+\item \texttt{rex.AIMS.pl}, managing perl script. Nothing to be done here, in principle. If invoked as \\
+\texttt{perl rex.AIMS.pl stat <log\_file>}\\
+in a directory that contains a log\_file created by rex.AIMS.pl itself (see next section), it provides useful statistics (even on the fly).
+
+
+\item \texttt{submit.rex} is the batch script. Some attention form the user is required here, too.
+\begin{itemize}
+	\item select the total number of slots with the keyword "\texttt{\# \$ -pe impi}", according to the number of replicas. For performance reasons only, it is a good idea to have the number of slots be a multiple of the number of replicas (\texttt{n\_rex} in \texttt{geometry.in.rex}). Informations and warnings concerning this issue will be written to \texttt{log\_rex}.
+
+\item give the variable \texttt{type} the value `\texttt{init}' or `\texttt{restart}', according to the kind of run. Note that by running a `\texttt{restart}', the script will complete the possibly interrupted parallel tempering steps (also only in some of the subdirectories) and then will continue with the replica exchange algorithm. 
+
+\item set the proper name and path for the aims binary
+
+\item set the number of slots per node (host) with \texttt{ncpupn=<\#SlotsPerNode>}. This is particularly important for the right distribution of available slots. For performance reasons only, it is a good idea to have the number of slots per replica be a multiple of the number of slots per node (\texttt{ncpupn}) or vice versa. Informations and warnings concerning this issue will be written to \texttt{log\_rex}.
+
+\end{itemize}
+Below, the relevant area for the settings is reported:\\
+\texttt{\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\# to be taken care of by the user \#\#\#\#\#\#\#\#\#\#\#\#\#\#\# \\
+binary='<binary path and name>' \\
+\# put  type='init', if initializing, 'restart' if restarting \\
+type='init' \\
+\# type='restart' \\
+\# number of CPU per node (host)\\
+ncpupn=<\#SlotsPerNode>\\
+\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\# \\
+}
+
+\item \texttt{run\_rex.sh} is a bash script in order to run locally
+\begin{itemize}
+  \item serves as a substitution for \texttt{submit.rex} if the SGE is not available
+  \item if possible, use \texttt{submit.rex} because of performance reasons due to the more sophisticated distribution of jobs over the available slots (CPU)
+\end{itemize}
+
+% 
+% rm -f $hostfile hostlist* rex_*/hostlist EXIT || exit $
+% 
+ \end{itemize}
+% 
+\subsection{Output}
+
+\begin{itemize}
+
+\item in each of the subdirectories \texttt{rex\_??} there are the files:
+\begin{itemize}
+ \item \texttt{temp.out} full FHI-aims output for the parallel tempering tempering step
+ \item \texttt{control.in} and \texttt{control.in}, the usual FHI-aims input files. They will change at each parallel tempering step, managed by the script.
+ \item \texttt{energy.trajectory}. Cumulative (i.e. appended after each attempted swap) energy trajectory for the replica.
+ \item \texttt{out.xyz}. Cumulative geometry trajectory, in \texttt{xyz} format.
+\end{itemize}
+
+ \item in the working directory: \texttt{log\_rex}. It contains useful information on the swapping process. Below there is a commented example for a four replicas run. \\
+
+\texttt{> Mon Apr  5 03:51:05 CEST 2010}\\
+The time at the attempeted swap\\
+\texttt{> Tt        100.0 200.0 150.0 250.0}\\
+The list of the running target temperatures, first place for \texttt{rex\_00}, and so on\\
+\texttt{> map       1 3 2 4}\\
+Map of the temperatures in the ``\texttt{Tt}'' line, into the original list given in \texttt{control.in.rex}\\
+\texttt{> TE      -6963471.3877  -6963471.2516  -6963471.4951  -6963471.3286  }\\
+Total Energy (``\texttt{Total energy (el.+nuc.)}'') in each replica (first item in \texttt{rex\_00} and so on)\\
+\texttt{> swapping        3       1        @T     150.0   100.0   accepted}\\
+\texttt{> swapping        4       2        @T     250.0   200.0   rejected}\\
+Detail of attempeted swaps, with outcome\\
+\texttt{> temp      150.0 200.0 100.0 250.0 }\\
+List of running target temperatures, after swaps.\\
+\texttt{> vfact     1.04880884817015 1 0.9534625892455937218 1}\\
+Rescaling coefficients for the velocities in each replica, for the next step\\
+\texttt{> \#\#\#\#\#\#\# End of rex step \#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#}\\
+ 
+WARNING: when wall-clock ends in the middle of a prallel tempering step, it will always be printed the message:\\
+\texttt{ \* WARNING: rex\_??/temp.out Not converged?\\
+ Please check this problem before continuing.}\\
+If the reason that any of temp.out's does not reach not the end of the parallel tempering step is the end of the wall-clock time, then the run can be safely restarted by putting `\texttt{type=restart}` in \texttt{submit.rex}
+
+\item It is also possible to restart (prolong) a job that has been completed successfully, i.e. after the desired number of Replica Exchange steps has been performed. In order to do so, set `\texttt{type=restart}` in \texttt{submit.rex}, set `\texttt{MAX\_steps  <\#MaxSteps>}` in \texttt{control.in.rex} according to the (new) desired maximum number of steps, and replace the third number in \texttt{rex\_par} with that same number `\texttt{<\#MaxSteps>}.
+
+\item in the working directory: \texttt{out.????}, where \texttt{????} is a temperature, in 4 digits. Constructed by appending the \texttt{temp.out} temporary outputs at the same temperature, each \texttt{out.????} contains the full FHI-aims output at the given temperature. 
+
+
+\end{itemize}
+

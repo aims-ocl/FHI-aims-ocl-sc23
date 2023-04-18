@@ -1,0 +1,41 @@
+This directory contains an example of a transport calculation for a
+system with two leads. The system is a chain of Au atoms. The
+directory contains also two run-scripts that can be used to run the
+example after adding a path to the local aims binary.
+
+The work-flow executed by the two run-scripts is as follows:
+
+1. Copy control.lead12 to control.in and geometry.lead1 to geometry.in.
+2. Run aims to get the self-energy for the first lead. This will be in
+the file 'lead_self_energy'.
+3. Rename the file 'lead_self_energy' to lead_1.
+4. Repeat the lead calculation for the second lead. The control.in can
+stay the same but the geometry is from the file geometry.lead2.
+5. Copy control.system to control.in and geometry.system to geometry.in.
+6. Run aims to perform the transport calculation. The tunneling
+probability will be written in the file 'tunne'.
+
+Reference outputs for the runs are in files 'Au_chain_lead_1.out',
+Au_chain_lead_1.out' and 'Au_chain_system.out'.
+
+Notes:
+
+1. It is possible to calculate transport properties for systems having
+up-to four leads. In this case the steps 1.-3. needs to be repeated
+for every lead. Not all the leads need to be similar or consist of the
+same species.
+
+2. Both the lead calculations and the calculation for the system are
+periodic calculations. The direction of the transport is given by the
+third lattice vector and it can be any direction. The transport
+calculation uses only one k-point (Gamma) but in order to get
+well-converged starting point for the transport calculation a
+sufficient amount of k-points needs to be used for the
+s.c.f. calculation of the system. Consequently, also control.system in
+the test-case specifies a k-point grid.
+
+3. No k-points are used in the transport calculation. In particular it
+is not possible to use k-points in the directions perpendicular to the
+transport direction. This means that in order to calculate a transport
+through an interface of two infinite slabs large enough unit cell needs
+to be used. So far this issue has not been investigated.

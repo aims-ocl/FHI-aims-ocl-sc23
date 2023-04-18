@@ -1,0 +1,617 @@
+\section{Calculation of vibrational and phonon frequencies}
+\label{Sec:vib}
+
+Vibrations (for non-periodic structures) and phonons (for periodic
+structures) can be computed in FHI-aims via script-based finite
+difference approaches. Each tool first does all necessary DFT
+calculations and then calls a routine to set up and diagonalize the
+Hessian matrices. 
+
+We support vibrations in non-periodic systems and phonons in periodic
+systems using two different types of infrastructure:
+\begin{itemize}
+  \item Infrastructure for vibrations in non-periodic systems
+    (clusters or molecules). The relevant perl scripts and source code
+    for this step for the entire finite-difference calculation are
+    included with FHI-aims. To compile the tools, change into the
+    \emph{src/} directory, from which you also compiled the original
+    FHI-aims. With the same Makefile settings as for the main program,
+    type either \option{make vibrations}, \option{make
+    vibrations.mpi}, or (in most cases) \option{make vibrations.scalapack.mpi}.
+  \item Infrastructure for phonons in periodic systems, based on the GPL
+    \texttt{phonopy} tool (not distributed with FHI-aims
+    itself). Phonopy is a python-based utility to generate and process
+    finite-diffence generated phonon-related quantities from a variety
+    of codes. The infrastructure for FHI-aims support in phonopy was
+    mainly written by J\"org Meyer (now at Universiteit Leiden) and
+    contributed to the GPL'd phonopy project. We note that 
+    \texttt{phonopy} and its dependencies must be installed separately
+    (in addition to FHI-aims) on your system. \textbf{Only phonopy releases
+    with version numbers <= 1.12.8.4 are currently compatible with FHI-aims}.
+  \item A third level of infrastructure for vibrations and phonons in
+    non-periodic and periodic systems based on density functional
+    perturbatio theory (DFPT) is nearing readiness and usable to some
+    degree. However, parts of this implementation are not yet
+    optimized. The DFPT implementation should therefore still be
+    considered experimental at this time. 
+\end{itemize}
+
+
+\emph{Note that the former, native phonon infrastucture in FHI-aims is
+  no longer needed. The previous make targets \option{phonons} and
+    \option{phonons.mpi} still exist, but we no longer recommend them.
+    Phonopy is, simply, more stable and general.}
+
+The infrastructure for non-periodic vibrations is covered in the next
+section, followed by a section on phonons in periodic systems using
+phonopy. 
+
+\subsection*{Vibrations by finite differences within FHI-aims}
+
+For the FHI-aims vibrations target, we recommend the
+\texttt{vibrations.scalapack.mpi} make target. This will create two 
+files in the FHI-aims binary directory. One is the actual
+diagonalization subprogram, the other one the
+\option{perl}-wrapper. \textbf{You will need to edit the header of the
+  \option{perl}-wrapper scripts} and give three key parameters: The
+absolute location of the FHI-aims binary directory
+(\option{\$AIMS\_BINDIR}), the aims executable to be used
+(\option{\$EXE}), and the calling command for the executable
+(\option{\$CALLING\_PREFIX} and \option{\$CALLING\_SUFFIX}). The
+\option{\$CALLING\_PREFIX} is required for specification of 
+parallel runs, for example 
+
+\option{\$CALLING\_PREFIX = mpirun -np 2}
+
+for a two-core parallel run. In addition, some parallel environments
+(most notably IBM's \option{poe} require that the number of cores is
+specified after the executable is called, for those instances you can
+set \option{\$CALLING\_PREFIX}. Note that the postprocessing routines
+for the vibrations are also parallel. 
+
+Having compiled the vibrations script, running it is
+very simple. We use the same water molecule that was relaxed in the example section
+\ref{Sec:example-Etot}. This test case is
+contained in the directory \option{testcases/H2O-vibrations}. 
+
+We are here calculating a second derivative of the energy from the
+numerical change on the forces arising from small finite
+displacements $\delta$, in the following way:
+\begin{equation}
+  \frac{\partial E}{\partial x_i \partial x_j} = \frac{\boldF_i(x_j+\delta)-\boldF_i(x_j-\delta)}{2 \delta}
+\end{equation}
+Here, $E$ is the total energy as a function of all atomic coordinates
+$x_i$ ($i$=1,...,3$M$ for $M$ individual atoms), and $\boldF_i$ are the
+components of the analytical first derivatives (forces) on each atom
+(again, $i$=1,...,3$M$) due to a displacement of coordinate another
+$x_j$ by an amount plus or minus $\delta$. 
+
+Since we are interested in the Hessian in a local minimum of the potential
+energy surface (ideally, $\boldF_i(\{x_j\})$=0 for all $i$ at the
+local minimum geometry $\{x_j\}$), this expression is the difference
+of two force values that are themselves already near zero. The smaller
+the displacement $\delta$, the smaller the absolute magnitude of the
+forces to be subtracted, giving greater weight to any residual
+numerical noise in the calculation. The larger the displacement
+$\delta$, the larger does the difference become, but at the same time,
+we will also move out of the region of the potential energy surface
+that is exactly harmonic, and introduce systematic errors into the
+Hessian. We are thus faced with a tradeoff between choosing a value
+$\delta$ that is large enough to be free of any potential numerical
+noise, yet small enough to avoid large systematic errors due to real
+anharmonicities. The default value for $\delta$ is 0.0025 {\AA}, but
+this value should be checked explicitly in any practical calculation.
+ 
+Since the vibrational frequencies depend strongly on the accuracy
+of the forces, and on any near-zero residual forces on the fully
+relaxed geometry itself, we apply the following changes to the
+earlier file \option{control.in}: 
+\begin{itemize}
+\item We use the \emph{tight} species defaults for elements H and
+  O. Among other things, these defaults prescribe denser integration
+  grids than \emph{light} and thus lead to more accurate
+  forces. Obviously, the previous optimum geometry from the
+  \emph{light} settings should be postrelaxed to the exact minimum for
+  the modified \emph{tight} settings, and our script does this
+  automatically (but check the output just in case).
+\item We increase the accuracy to which the forces are converged in
+  the self-consistency cycle, \keyword{sc\_accuracy\_forces}, to
+  \option{1E-5}. \emph{However}, be sure to check that the remaining
+  settings, especially \keyword{sc\_accuracy\_eev} are accurate
+  enough. You do \emph{not} want your FHI-aims calculation to spend
+  more than 1-2 s.c.f. cycles per geometry on actually converging the
+  forces, because each s.c.f. iteration with forces can be up to a
+  factor 10 more expensive than an s.c.f. iteration during which the
+  forces are not yet checked.
+\item We change the \keyword{relax\_geometry} \option{bfgs}
+  convergence criterion to
+  \option{1E-4}. This is, again, a rather harsh requirement, and one
+  should verify (especially for large molecules) that the
+  relaxation algorithm is not spending large amounts of time on
+  failed relaxation steps near the minimum, probing any residual
+  numerical noise of integration grids etc. rather than following an
+  actual, smooth potential energy surface.
+\end{itemize}
+These new settings contain all that is necessary to get close enough
+to the actual minimum. Again, the convergence settings quoted above
+should normally be fine, but in case of doubt, check. If, for some
+reason, those stringent criteria can not be reached exactly, it is
+still preferable to obtain a slightly less converged Hessian within an
+amount of CPU time that is actually finite.
+
+In order to run the calculation of the vibrations, change to the
+directory containing the input files \texttt{control.in} and
+\texttt{geometry.in} and run the aims.vibration.*.pl script in the
+directory. That's it. The calculation should take no more than a few
+minutes to complete. It first relaxes the structure to its minimum
+configuration and then applies six finite displacements to each of the
+atoms: 18 single-point calculations in total for the water
+molecule. The result (using the default settings for $\delta$) can be
+visited in subdirectory \texttt{test\_default}.
+
+The output stream contains all of the important data, which is
+additionally saved in a number of temporary and output files. The file
+basic.vib.out contains the output of the normal mode
+analysis, while the file basic.xyz contains the actual eigenmodes
+(vibrations), which can be read by a number of molecular viewers. 
+
+A short note on the actual physical output basic.vib.out: The
+frequencies are given in cm$^{1}$, the corresponding zero point
+energies in eV, and their cumulative total. It is important to ensure
+that the first six eigenmodes are close to zero, which means that the
+structure in question actually corresponds to a minimum on the
+potential energy surface. FHI-aims does not do an \emph{a priori}
+reduction of the translational and rotational eigenmodes, which allows
+an explicit check on the quality of the strucure.
+
+In the default version (no command line options specified), the
+vibration script automatically assumes a jobname \option{basic}. This
+name, as well as the finite difference displacement $\delta$, can be
+changed on the command line, leading to the following complete calling
+form of the script:
+
+\option{aims.vibrations.*.pl $\langle$jobname$\rangle$ delta}
+
+$\langle$jobname$\rangle$ is a name of choice that will be
+appended to all output files produced during the run. One can thus
+run the same job with different settings $\delta$ multiple times in
+the same directory, starting from the same input files.
+
+The second parameter, \option{delta}, is the finite
+displacement $\delta$ used for calculating the Hessian matrix. Its default is
+0.0025 \AA, which has been doing a good job for all the cases we are
+aware of, but still, please verify that it works for your particular
+system. (See the brief discussion above). 
+
+For example, for our test case, subdirectory
+\texttt{test\_delta\_0.001} contains a second example run with the
+following command line:
+
+\option{aims.vibrations.*.pl test\_0.001 0.001}
+
+For the default settings, our resulting frequencies look like this:
+{\footnotesize
+\begin{verbatim}
+  Mode number      Frequency [cm^(-1)]   Zero point energy [eV]   IR-intensity [D^2/Ang^2]
+            1             -12.66044778              -0.00078485                 1.89406419
+            2              -0.15559990              -0.00000965                 0.00266735
+            3              -0.00081379              -0.00000005                 0.00000000
+            4               0.04885082               0.00000303                 0.00002821
+            5               6.58934967               0.00040849                 0.00000000
+            6               7.01167236               0.00043467                 5.41560478
+            7            1592.96295435               0.09875111                 1.63341394
+            8            3708.86739272               0.22992045                 0.04298854
+            9            3813.74446188               0.23642200                 1.07616306
+\end{verbatim}
+}
+
+In contrast, the smaller value $\delta$=0.001~{\AA} produces the
+following results:
+{\footnotesize
+\begin{verbatim}
+  Mode number      Frequency [cm^(-1)]   Zero point energy [eV]   IR-intensity [D^2/Ang^2]
+            1              -5.13719038              -0.00031847                 1.89407621
+            2              -0.06616895              -0.00000410                 0.00323346
+            3              -0.00073155              -0.00000005                 0.00000000
+            4               0.01938144               0.00000120                 0.00002697
+            5               2.47172391               0.00015323                 0.00000000
+            6               2.70760068               0.00016785                 5.41498492
+            7            1593.00852915               0.09875393                 1.63340808
+            8            3708.82166272               0.22991761                 0.04299176
+            9            3813.70936996               0.23641982                 1.07615430
+\end{verbatim}
+}
+
+So, in this case, the rather tight relaxation and force convergence
+settings do produce a set of translations and rotations that are
+closer to zero for $\delta$=0.001~{\AA} than the default.
+
+However, once again be warned that for larger molecules the same harsh
+convergence criteria may not be applicable, and a too small value
+$\delta$ can in fact inflate any residual noise. So, a small value
+$\delta$=0.001~{\AA} or even less should not be blindly expected to improve
+numerical accuracy. 
+
+It should also be noted that the ``physical'' vibrational frequencies
+7-9, above the six translations and rotations, remain completely unimpressed
+by the change of $\delta$, either way. This is generally true, and
+would even remain true for a yet larger value $\delta$=0.005~{\AA},
+which would also be a reasonable default choice.
+
+
+In the following you find the description of tags defining the output of free energies.
+\keydefinition{vibrations}{control.in}
+{ 
+Usage: \keyword{vibrations} \option{[subkeywords and their options]}\\[1.0em]
+  Purpose: allows to choose temperature/pressure range for output of free energies.
+  It has the subkeywords \subkeyword{vibrations}{free\_energy},
+  \subkeyword{vibrations}{trans\_free\_energy},
+  as detailed below.\\ }
+
+  \subkeydefinition{vibrations} {free\_energy}{control.in}
+  {Usage: \keyword{vibrations} \subkeyword{vibrations}{free\_energy} \option{Tstart Tend Tpoints} \\[1.0em]
+  Purpose: governs the calculation of the free energies of vibration and rotation (rigid rotor approximation)\\}
+The calculation of the free energy of vibration and rotation (rigid rotor approximation) can be requested with this keyword. They are calculated between the temperatures \option{Tstart} (K) and \option{Tend} (K) with a total of \option{Tpoints} steps. The implemented equations read: 
+\begin{equation}
+   F_{\text{vib}}(T) = \sum_i^{3N-6} \left[ \frac{\hbar \omega_i}{2} + k_B T \ln \left(1-e^{\frac{-\hbar\omega_i }{k_B T}} \right)\right] \quad ,
+\end{equation}
+with N being the number of atoms in the molecule and $\omega_i$ depicting the vibrational frequencies.
+\begin{equation}
+   F_\text{rot}(T) = -\frac{3}{2} k_B T \ln \left[ \frac{2k_BT}{\hbar^2} (I_A I_B I_C)^{1/3} \pi^{1/3}\right] \quad ,
+\end{equation}
+where $I_A$, $I_B$, and $I_C$ depict the moments of inertia of the molecule.
+
+  \subkeydefinition{vibrations}{trans\_free\_energy}{control.in}
+  {Usage: \keyword{vibrations} \subkeyword{vibrations}{trans\_free\_energy} \option{pstart pend ppoints} \\[1.0em]
+  Purpose: governs the calculation of the translational free energy\\}
+The calculation of the free energy of translation can be requested with this keyword. 
+It only works if \keyword{vibrations} \subkeyword{vibrations}{free\_energy} is used as well.
+The free energy of translation is calculated within the temperature range given with
+\keyword{vibrations} \subkeyword{vibrations}{free\_energy} and between pressures \option{pstart} (Pa) and
+\option{pend} (Pa) with \option{ppoints} steps. The equation reads:
+\begin{equation}
+   F_\text{trans} = -k_B T \left[ \ln \frac{k_B T}{p} + 1 + \ln(\frac{m k_B T}{2\pi \hbar^2})^{3/2}\right] \quad,
+\end{equation}
+with $p$ denoting the partial pressure.
+
+\subsubsection*{Harmonic Raman spectra}
+
+A third optional argument is available in the vibrations script, which allows for the calculation of harmonic Raman spectra.
+In order to obtain such spectra, one should type the following,
+
+\option{aims.vibrations.*.pl $\langle$jobname$\rangle$ delta polar} \,.
+
+The polarizabilities are obtained with DFPT, and the derivatives with respect to the displacement are then calculated
+in a similar way as for IR spectra.
+All the formulae can be found in the following reference: Neugebauer et al., J. Comput. Chem. 23: 895-910, 2002.
+In particular, Eq.~(43) is used to produce the final Raman intensities.
+Keep in mind that Raman spectra obtained in such fashion are much more time-consuming than IR spectra, the latter requiring only DFT.
+Note that Raman spectra for solids can also be calculated in this manner (only $\Gamma$-point is involved).
+
+\subsection*{Vibrations by density-functional perturbation theory (DFPT) within FHI-aims}
+\keydefinition{DFPT vibration}{control.in}
+{
+Usage: \keyword{DFPT vibration} \option{[subkeywords and their options]}\\[1.0em]
+  Purpose:  Allows to calculate vibrations using density-functional perturbation theory, use Acoustic Sum Rule (ASR) to get Hessian matrix, do not use moving-grid-effect.\\
+
+
+Usage: \keyword{DFPT vibration\_with\_moving\_grid\_effect} \option{[subkeywords and their options]}\\[1.0em]
+  Purpose: give the results for vibrations with moving-grid-effect, do not use ASR for Hessian matrix.\\ 
+
+Usage: \keyword{DFPT vibration\_without\_moving\_grid\_effect} \option{[subkeywords and their options]}\\[1.0em]
+  Purpose: give the results for vibrations without moving-grid-effect, ONLY served as comparison with vibration\_with\_moving\_grid\_effect.\\ }
+
+
+
+\keydefinition{DFPT vibration\_reduce\_memory}{control.in}
+{
+Usage: \keyword{DFPT vibration\_reduce\_memory} \option{[subkeywords and their options]}\\[1.0em]
+  Purpose: Allows to calculate vibrations density-functional perturbation theory by using nearly the same memory as DFT.  At present, functionals LDA, PBE are supported, relativistic is also supported. It should be noted that PBE and PBE+TS is supported only for DFPT cycle (first-order-H), but not for Hessian.  Only linear-mix (no Pulay-mixer) can be used for DFPT vibration\_reduce\_memory at present.\\ }
+
+Here is an example,  the following need to be added to control.in:
+\begin{verbatim} 
+DFPT vibration_reduce_memory
+DFPT_mixing   0.2       #default is 0.2
+DFPT_sc_accuracy_dm   1E-6  # default is 1.0d-6
+\end{verbatim}  
+
+
+
+\subsection*{Polarrizability by density-functional perturbation theory within FHI-aims}
+\keydefinition{DFPT polarizability}{control.in}
+{
+Usage: \keyword{DFPT polarizability} \option{[subkeywords and their options]}\\[1.0em]
+  Purpose: Allows to calculate polarizability for cluster systems using density-functional perturbation theory.\\  For "DFPT polarizability", functionals LDA, PBE, HF(RI-V) are supported, relativistic is also supported.  }
+  
+Here is an example for using DFPT polarizability,  the following need to be added to control.in:
+\begin{verbatim} 
+DFPT polarizability
+DFPT_mixing   0.5             #default is 0.2
+DFPT_sc_accuracy_dm   1.0d-6  # default is 1.0d-3
+dfpt_pulay_steps 6            # default is 8
+\end{verbatim}  
+
+
+
+\subsection*{Phonon(real space) by density-functional perturbation theory within FHI-aims}
+\keydefinition{DFPT phonon}{control.in}
+{
+Usage: \keyword{DFPT phonon} \option{[subkeywords and their options]}\\[1.0em]
+  Purpose: Allows to calculate phonon (real space method) for PBC systems using density-functional perturbation theory. This method could get force constants using real space method and give the phonon band structures. At present, only functionals LDA without relativistic is supported.\\ }
+
+Here is an example for using DFPT phonon,  the following need to be added to control.in:
+\begin{verbatim} 
+DFPT phonon
+DFPT_mixing   0.5             #default is 0.2
+DFPT_sc_accuracy_dm   1.0d-6  # default is 1.0d-3
+dfpt_pulay_steps 6            # default is 8
+\end{verbatim}  
+  
+
+\subsection*{Phonon(reciprocal space) by density-functional perturbation theory within FHI-aims}
+\keydefinition{DFPT phonon\_reduce\_memory}{control.in}
+{
+Usage: \keyword{DFPT phonon\_reduce\_memory} \option{[subkeywords and their options]}\\[1.0em]
+  Purpose: Allows to calculate phonon (reciprocal space method) at q point for PBC systems using density-functional perturbation theory. At present, this keyword only works to get dynamic matrix at q = 0.  This feature is under developing. At present, functionals LDA, PBE are supported, relativistic is also supported. It should be noted that PBE and PBE+TS is supported only for DFPT cycle (first-order-H), but not for Hessian.\\}
+
+Here is an example for using DFPT phonon\_reduce\_memory,  the following need to be added to control.in:
+\begin{verbatim} 
+DFPT phonon_reduce_memory
+DFPT_mixing   0.5             #default is 0.2
+DFPT_sc_accuracy_dm   1.0d-6  # default is 1.0d-3
+dfpt_pulay_steps 6            # default is 8
+\end{verbatim}  
+
+
+
+\subsection*{Phonon calculations in general}
+
+To calculate the phonons, we use the so-called
+\emph{direct} or \emph{supercell} method, based on the approximations
+that the interactions necessary to calculate the phonons are
+finite [see e.g. Ref. \cite{Parlinski97} and references therein
+for details of the method]. 
+
+A phonon calculation proceeds as follows. A single (user-specified)
+unit cell is extended a number of times in the direction of all three
+basis vectors. A finite displacement technique as for the vibrations is then
+used to gather the necessary force response, which then makes up a
+basic force constant matrix. All finite displacement structures are
+investigated for their symmetry (within the octahedral group), such as
+to minimize the computations required and also to obtain properly
+symmetrized forces where applicable. Finally, the force constant matrix is
+diagonalized for a number of selected reciprocal lattice points
+(i.e. along the requested bands) and the eigenvalues give the phonon
+spectra. 
+
+Three things are really important:
+\begin{itemize}
+\item {\bf Converge your supercell size.} The minimum sensible cell
+  is $2\times 2\times 2$. It might be tempting to restrict a
+  calculation to this size, but the results will almost certainly be
+  insufficient. 
+\item {\bf The file geometry.in must contain only the primitive 1x1x1
+  cell of your lattice.} \texttt{phonopy-FHI-aims} constructs its own  
+  supercell. If, by accident, your \option{geometry.in} already
+  contains a $3\times3\times3$ supercell and you request phonons for a
+  $3\times3\times3$ supercell on top of that, you will end up with a 
+  $(9\times 9\times 9)$ supercell calculation. 
+\item Do not forget to run the actual FHI-aims calculations with the
+  right \keyword{k\_grid} for the supercell -- not for the primitive
+  cell. If your primitive cell requires a $(20\times 20\times 20)$
+  $k$-space grid, a $(5\times 5\times 5)$ supercell only requires
+  \keyword{k\_grid} \texttt{4 4 4}. If, by accident, you use a
+  $(20\times 20\times 20)$ $k$-grid for the $(5\times 5\times 5)$
+  supercell instead, you will pay with a disproportionately large
+  amoung of computer time, 125 times more time than what you should have
+  been using. 
+\end{itemize}
+
+\emph{Notes: (i)
+  FHI-aims does not (yet) provide support for long-range electrostatic
+  fields ionic compounds, which leads to splittings of the LO and TO
+  branches at the $\Gamma$ point. Phonopy supports this, but providing
+  the necessay derivatives within FHI-aims is a work in progress. (ii)
+  Tight s.c.f. convergence (\keyword{sc\_accuracy\_rho} etc.)} is a
+  strong requirement for phonons. If you see, e.g., non-zero
+  frequencies at the $\Gamma$ point, check your s.c.f. convergence.
+
+
+\subsection*{phonopy and FHI-aims}
+\textbf{WARNING:} \textit{The Phonopy 2.x releases are not fully compatible with FHI-aims. 
+We are currently working on that. Earlier versions, especially all releases with version numbers <= 1.12.8.4 
+are fully compatible. If you erroneously installed a newer version, you can easily downgrade
+again by typing:} \texttt{pip install --force-reinstall phonopy==1.12.8.4}
+
+
+There are roughly four steps to a calculation with phonopy:
+\begin{itemize}
+  \item On a convenient machine, e.g., your desktop, prepare an input
+    directory with the usual \texttt{control.in} and
+    \texttt{geometry.in} files. You should only specify the primitive
+    cell in \texttt{geometry.in}, all the rest may be handled by the
+    \keyword{phonon} keyword in \texttt{control.in} .
+  \item Change to that directory and run the \texttt{phonopy-FHI-aims}
+    command. This creates the supercell input geometry files with
+    displacements for the force calculations in FHI-aims.
+  \item Copy over the supercell input geometries and the
+    \texttt{control.in} file to your favorite production computer and
+    run FHI-aims. Do not forget to specify a $k$-grid that is
+    appropriate for the \text{supercell} -- else, if you specify an
+    unnecessarily dense $k$-grid, you will pay a high price. Run the
+    individual FHI-aims calculations.
+  \item Copy the FHI-aims output files for each displacement back to
+    the first machine. Run \texttt{phonopy-FHI-aims} again. This
+    should produce the output you were looking for.
+\end{itemize}
+
+To use the \texttt{phonopy-FHI-aims} infrastructure,
+\begin{itemize}
+\item[] python ($>=2.5$) http://www.python.org
+\item[] numpy http://numpy.scipy.org
+\item[] and a C compiler, e.g., gcc 
+\end{itemize}
+are required. The necessary symmetry analysis routines, wich are
+taken from {\it spglib} (https://atztogo.github.io/spglib/), are already
+included in the {\it phonopy} package. To obtain plots via the integrated 
+plotting functionality,
+\begin{itemize}
+\item[] matplotlib http://matplotlib.sourceforge.net/
+\end{itemize}
+has to be installed. The latter dependency is, however, not compulsory
+for running a calculation. 
+
+Since \texttt{phonopy-FHI-aims} completely decouples FHI-aims
+calculations and phonon pre- and post-processing operations, all the
+necessary packages can easily be installed via the package management
+system of a normal Linux desktop machine, e.g., for Ubuntu linux:\\  
+{\it apt-get install python python-numpy python-matplotlib}
+
+\textbf{The details:}
+
+\texttt{phonopy-FHI-aims} supports the \keyword{phonon} sub-keywords
+and output styles discussed above. When called from the command 
+line in a directory containing a correct \option{geometry.in} and
+\option{control.in} file, it generates $n=1,..,N$ subdirectories \\ 
+{\it
+  phonopy-FHI-aims-displacement-n}. \\ 
+Each of these directories contains
+correct input files for one specific displacement. The calculations
+for the generated inputs need to be done manually (and concurrently if
+desired) on any available computing machinery. The output has
+to be stored in the respective subdirectory in a file named {\it
+  basename.out}, e.g., {\it
+  phonopy-FHI-aims-displacement-01/phonopy-FHI-aims-displacement-01.out}. 
+
+Once the FHI-aims output files are available (at the right places), rerunning 
+\texttt{phonopy-FHI-aims} in the same directory as before will produce
+the output (band structure, DOS, thermodynamic properties) which has been
+requested in control.in. The calculated data is written to ASCII files
+which include comments describing their contents. Some plots are also
+generated in .pdf files if matplotlib is available. 
+
+Additionally, \texttt{phonopy-FHI-aims} supports some
+advanced features 
+that are still experimental at this point:
+\begin{itemize}
+\item Corrections for the long-range electrostatic fields in ionic crystals
+  ($\Gamma$ point splitting of optical modes) can be accounted
+  for. The required Born effective charges will be available from
+  FHI-aims soon, but not yet as of this writing (version
+  081213). Please check back with us if needed.
+\item The force constants for the whole supercell can be written out (a
+  prerequisite to use the thermodynamic integration routines for anharmonic
+  free energy calculations).
+\end{itemize}
+Additional information can be found in the README text file provided at
+http://www.fhi-berlin.mpg.de/aims/utilities.html .
+
+
+The usual \texttt{control.in} and \texttt{geometry.in} files are read
+by both \texttt{phonopy-FHI-aims} and \texttt{FHI-aims} itself. 
+
+\subsection*{The phonon keyword}
+
+We finally document the \keyword{phonon} keyword that is part of the
+usual input file \texttt{control.in}. 
+
+\keydefinition{phonon}{control.in}
+{
+  Usage: \keyword{phonon} \option{[subkeywords and their options]}\\[1.0em]
+  Purpose: Main driver keyword for the phonon calculation script. has
+  the subkeywords \subkeyword{phonon}{supercell},
+  \subkeyword{phonon}{band}, \subkeyword{phonon}{dos},
+  \subkeyword{phonon}{displacement}, as detailed below.\\ }
+
+\subkeydefinition{phonon}{band}{control.in}
+{ Usage: \keyword{phonon} \subkeyword{phonon}{band} \option{kstart1
+    kstart2 kstart3 kend1 kend2 kend3 npoints startname endname} \\[1.0em]
+  Purpose: To define a phonon band to be plotted explicitly. The
+  remaining syntax is kept the same as for the \keyword{output} option
+  \subkeyword{output}{band}: the first six parameters describe the
+  starting and ending point in RELATIVE \emph{k}-coordinates,
+  \option{npoints} is the number of points in the band, followed by
+  the names of the special points for starting and ending the band. \\}
+
+\subkeydefinition{phonon}{displacement}{control.in}
+{ Usage: \keyword{phonon} \subkeyword{phonon}{displacement}
+  \option{delta} \\[1.0em]
+  Purpose: To define the absolute displacement of each atom for the
+  finite difference calculation. \\[1.0em]
+  Default: 0.001 \AA\\}
+
+\subkeydefinition{phonon}{dos}{control.in}
+{ Usage: \keyword{phonon} \subkeyword{phonon}{dos} \option{fstart fend
+  fpoints broad qdensity}\\[1.0em]
+  Purpose: governs the output of the phonon density of states. \\ }
+This keyword defines the DOS output along a frequency
+axis in THz. \option{fstart}, \option{fend}, and \option{broad} give
+the starting and ending frequency as well as the broadening in units
+of THz, while \option{fpoints} is the number of points. Unlike the
+output option \subkeyword{output}{dos}, here we also have to specify a
+$k$-point density \option{qdensity}, which does the BZ integration on
+a \option{qdensity}$\times$\option{qdensity}$\times$\option{qdensity}
+grid. Normally, the dynamic matrix only contains a very small number
+of elements (3 in the example described below), which means that one
+can chose \option{qdensity} quite high in order to get a
+well-converged density of states. Notice that this value might be changed by the program
+if the DOS and $c_v$ calculations are requested at the same time. In
+that case, the higher of the two values for \option{qdensity}
+specified for the two calculations is chosen in order to minimize the
+computational effort. See also the \subkeyword{phonon}{free\_energy}
+description. 
+
+\subkeydefinition{phonon}{free\_energy}{control.in}
+{ Usage: \keyword{phonon} \subkeyword{phonon}{free\_energy} \option{Tstart Tend
+  Tpoints qdensity}\\[1.0em]
+  Purpose: governs the calculation of the phonon free energy, the
+  internal energy, and the specific heat for a given unit cell. \\ } 
+The phonon free energy and some derived quantities can be requested
+with this keyword. They are 
+calculated between the temperatures \option{Tstart} and \option{Tend}
+with a total of \option{Tpoints} steps. A $k$-point density \option{qdensity} is
+also required, as the calculation involves an integration over the
+Brillouin zone. Notice that this value might be changed by the program
+if the DOS and free energy calculations are requested at the same
+time. In that case, the higher of the two values for \option{qdensity}
+specified for the two calculations is chosen in order to minimize the
+computational effort. See also the \subkeyword{phonon}{dos}
+description. 
+
+Please refer to phonopy for the meaning of the exact quantities that
+are written out.
+
+\subkeydefinition{phonon}{frequency\_unit}{control.in}
+{ Usage: \keyword{phonon} \subkeyword{phonon}{frequency\_unit} \option{unit}\\[1.0em]
+  Purpose: Allows to specify the frequency output for the phonons by
+  setting \option{unit} to either \option{cm\^{}-1} or to
+  \option{THz}. Default is \option{cm\^{}-1} \\}
+
+\subkeydefinition{phonon}{supercell}{control.in}
+{ Usage: \keyword{phonon} \subkeyword{phonon}{supercell} \option{n1}
+  \option{n2} \option{n3}
+  \\[1.0em]
+  Purpose: To define a $n1\times n2\times n3$ supercell in which to
+  approximate the calculation of the dynamic matrix, based on the
+  lattice vectors provided in \option{geometry.in}. }
+The supercell keyword can also be used to prescribe a general (rotated)
+supercell in matrix notation. For instance,
+
+\texttt{phonon supercell -1 1 1  1 -1 1  1 1 -1}
+
+corresponds to a supercell matrix
+\begin{equation*}
+\begin{pmatrix}  
+-1 & 1 & 1 \\  1 & -1 & 1 \\  1 & 1 & -1 
+\end{pmatrix}  \, .
+\end{equation*}
+
+\subkeydefinition{phonon}{symmetry\_thresh}{control.in}
+{Usage: \keyword{phonon} \subkeyword{phonon}{symmetry\_thresh}
+  \option{thresh} \\[1.0em]
+Purpose: To define the maximally allowed coordinate difference (in
+\AA) for the phonon symmetry checker to decide that two atoms are at
+the same location. Default: 10$^{-6}$\\}
+This keyword should not have to be changed from its default.\\
+
+

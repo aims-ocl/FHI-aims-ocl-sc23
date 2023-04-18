@@ -1,0 +1,313 @@
+\section{Fragment molecular orbital DFT calculations}
+
+The fragment molecular orbital (FMO or FO) scheme allows the efficient calculation of transfer matrix
+elements for transport calculations. The two reference states are constructed from isolated calculations
+of the respective fragments (donor and acceptor). This circumvents the electron delocalistion error, but neglects any interactions between the fragments. 
+
+\emph{Important: This functionality is not yet available for periodic systems.}\\
+\emph{Important: The $\delta+$-FODFT scheme is not optimized for large systems.}
+
+\subsection*{FODFT flavours}
+Depending on the approximations done to implement the FODFT method we distinguish between three different flavours of FODFT. Please see \cite{Schober2015} for a detailed description and assessment of each. Within FHIaims it is possible to use all different FODFT-schemes. 
+
+\subsubsection*{$H^{2n}@DA$}
+This is the classic implementation by \cite{Senthilkumar2003}. The fragment calculations are always done for the neutral fragments and the Hamiltonian is constructed using a wrong number of electrons. $H_{ab} = H_{ba}$ even for hetero dimers. 
+
+To use this flavour, simply calculate neutral fragments and continue with the default FODFT options.
+
+\subsubsection*{$H^{2n-1}@DA$ / $H^{2n+1}@D^-A^-$}
+This implementation was first used within the CPMD code\cite{Oberhofer2012}. Here, neutral (double anionic) fragment calculations are combined for hole (electron) transfer with a reset of the occupation number in the highest occupied molecular orbital. This leads to the correct number of electrons for the construction of the Hamiltonian.
+
+To use this flavour, calculate neutral (or anionic) fragments and use the \keyword{fo\_flavour} keyword with the option \option{reset}. 
+
+\subsubsection*{$H^{2n\pm 1}@D^\pm A$}
+This scheme was first implemented within FHIaims and uses charged fragment calculations. This results in slightly different approximations with improved accuracy in the electronic coupling values. Please see \cite{Schober2015} for more details. 
+
+To use this flavour, calculate appropriately charged fragments and continue with the default FODFT options.
+
+\subsubsection*{$\delta+$-FODFT}
+The implementation of the $\delta+$-FODFT scheme is not optimized for large systems and considered \emph{experimental}. In our study\cite{Schober2015} we found no significant improvement when using this scheme. 
+
+\subsection*{Theoretical Background}
+The following section intends to give a quick overview over the theory and the implementation within FHIaims. For detailed theory we refer to the before mentioned publications. The following theory is for the charged FODFT flavour ($H^{2n\pm 1}@D^\pm A$). 
+
+In principle, the transfer matrix element for hole transport between the HOMO and the LUMO of two molecules is given by
+\begin{align}
+H_{AB} = \langle\Psi^{D}_{\text{HOMO}}|\hat{H}_{KS}|\Psi^A_{LUMO}\rangle.
+\end{align}
+
+\subsubsection*{Obtain the fragment wavefunctions}
+First, two standard-DFT calculations are done to obtain the fragment wavefunctions. Some additional output is needed for the subsequent combination of the fragments to the full system. 
+
+\subsubsection*{Combine the fragment wavefunctions and extract the transfer matrix element}
+The saved wavefunctions of both fragment calculations are used to obtain the full, non-interacting electron density of the combined system (D+A). Although FHIaims uses atom centered basis functions, it is not generally possible to re-use any restart file. If the ordering of the \option{atom}s in the \emph{geometry.in} files is identical, it is possible to use a restart file for any geometry with translational symmetry. If the geometry is rotated, it is necessary to rotate the wave function. 
+
+For this non self-consistent density the Hamiltonian is calculated and used to determine $H_{AB}$. We therefore use the non-interacting density, but the interacting Hamiltonian with the correct number of electrons. This is in contrast to other implementations, where only the Hamiltonian of the neutral fragment is used.
+
+The first step is a Loewdin-Orthogonalization of the Kohn-Sham-eigenvector.  
+%Solve the eigenwert-equation for S to get U and the diagonal matrix of eigenvalues s.
+\begin{align}
+\mathbf{U^\top SU} = \mathbf{s}
+\end{align}
+%
+%Do a Lowdin-orthogonalisation scheme, calculate X
+\begin{align}
+\mathbf{X} = \mathbf{S}^{-\frac{1}{2}} = \mathbf{Us}^{-\frac{1}{2}}\mathbf{U}^\top
+\end{align}
+%
+%Use X to get the transformed $H'$ and $C'$:
+\begin{align}
+\mathbf{C'} &= \mathbf{X}^{-1}\mathbf{C} \nonumber\\
+\mathbf{H'} &= \mathbf{X^\top HX}
+\end{align}
+%
+In the next step, the Hamiltonian is transformed,
+\begin{align}
+\mathbf{H'}_{\text{st.}} = \mathbf{C'^\top H'C},
+\end{align}
+and the overlap of states is calculated:
+\begin{align}
+\mathbf{S}_{\text{st.}} = \mathbf{C^\top\cdot C}.
+\end{align}
+%
+In the final step, the transfer matrix element $H_{AB}$ is calculated with
+\begin{align}\label{eq:hab_final}
+H_{AB} = \left(1-\mathbf{S}{_{\text{st.}}(\text{a,b})}^2\right)^{-1}\left[{\mathbf{H'}_{\text{st.}}(\text{a,b}) - \mathbf{S}_{\text{st.}}(\text{a,b})\left(\mathbf{H'}_{\text{st.}}(\text{a,a}) + \mathbf{H'}_{\text{st.}}(\text{b,b})\right)/2}\right]
+\end{align}
+
+\subsection*{Important technical hints}
+When creating the input geometries for the calculations, the \texttt{geometry.in} must mirror the actual fragmentation. This means, the order of atoms has to be consistent for the dimer and the fragments.
+
+\paragraph{Example:} Calculating the $H_{AB}$ for two methane molecules (CH$_4^+$ -- CH$_4$)
+
+\textbf{Complete System, CH$_4^+$--CH$_4$}
+\begin{verbatim}
+#fragment 1
+atom    12.7490 4.3034  0.0000  C
+atom    13.8413 4.3037  0.0000  H
+atom    12.3850 4.7804  -0.9128 H
+atom    12.3850 4.8558  0.8693  H
+atom    12.3851 3.2750  0.0435  H
+#fragment 2
+atom    -2.6946 4.4740  0.0002  C
+atom    -1.6023 4.4740  0.0000  H
+atom    -3.0586 3.6144  -0.5671 H
+atom    -3.0586 5.3949  -0.4609 H
+atom    -3.0585 4.4127  1.0278  H
+\end{verbatim}
+
+\textbf{Fragment 1, CH$_4^+$}
+\begin{verbatim}
+atom    12.7490 4.3034  0.0000  C
+atom    13.8413 4.3037  0.0000  H
+atom    12.3850 4.7804  -0.9128 H
+atom    12.3850 4.8558  0.8693  H
+atom    12.3851 3.2750  0.0435  H
+\end{verbatim}
+
+\textbf{Fragment 2, CH$_4$}
+\begin{verbatim}
+atom    -2.6946 4.4740  0.0002  C
+atom    -1.6023 4.4740  0.0000  H
+atom    -3.0586 3.6144  -0.5671 H
+atom    -3.0586 5.3949  -0.4609 H
+atom    -3.0585 4.4127  1.0278  H
+\end{verbatim}
+
+\subsection*{Folder structure for FODFT-calculation}
+At least three separate calculations (fragment1, fragment2 and combination step) are needed for a complete FODFT run. To maintain a clean structure and avoid copying of files, a special scheme is enforced. The folders can have arbitrary names, but need to be in the same root directory. This allows easy reuse of fragment calculations for different dimer calculations. 
+
+\begin{verbatim}
+- fodft\_something (main calculation folder)
+|
++-- dimer_01
+    |
+    +-- control.in 
+    +-- geometry.in
++-- frag1/
+    |
+    +-- control.in
+    +-- geometry.in
++-- frag2/
+    |
+    +-- control.in
+    +-- geometry.in
+
+\end{verbatim}
+
+
+\subsection*{$\delta^+$ FO-DFT - Inclusion of the local potential}
+In our implementation, an additional option is available to include interactions between the fragments by means of an embedding scheme, using the full local potential ($V_{loc}$) of the embedded fragment. In contrast to the standard implementation, the fragment wavefunction $\Psi_{A}$ is polarized by the potential of the second fragment $\Psi_{B}$ during the SCF cycle.
+
+The general procedure is:
+\begin{enumerate}
+\item Calculation of fragment wavefunctions
+    \begin{enumerate}
+        \item Calculate Fragment A, export potential A
+        \item Import potential A, calculate Fragment B, export new potential B
+        \item Import potential B, calculate Fragment A$^{**}$
+    \end{enumerate}
+\item Combination of fragment wavefunctions
+\item Determination of $H_{AB}$ 
+\end{enumerate}
+**: Please note that this step might not be necessary if fragment A was choosen wisely, depending on the polarizability of the fragments. 
+
+\vspace{0.2cm}
+The embedding can be used to iteratively converge towards a final solution, but as usual the first steps are the most important ones for the polarization.
+
+IMPORTANT: Since this method requires the reassignment of grid points from the fragment calculations for the local potential, the current implementation is not optimized towards large systems.
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{fo\_dft}{control.in}
+{
+  \noindent
+  Usage: \keyword{fo\_dft} \option{type}\\[1.0ex]
+  Purpose: This is the central control keyword for fragment orbital DFT. Its main purpose is the control of the desired calculation
+  step (fragment or combined system) and associated choices. Depending on \option{type}, further flags or lines are necessary. Those
+  are explained below.\\[1.0ex]
+  Options: Possible options are \option{fragment} and \option{final}.
+}
+
+\subkeydefinition{fo\_dft}{fragment}{control.in}
+{
+  \noindent
+  Usage: \keyword{fo\_dft} \subkeyword{fo\_dft}{fragment}\\[1.0ex]
+  Purpose: This keyword indicates that a fragment for FODFT will be calculated. The restart information (\texttt{restart.frag}) and an additional output file (\texttt{info.frag}) with information for the recombination of the fragments for the final FODFT run will be written.\\[1.0ex]
+}
+\subkeydefinition{fo\_dft}{final}{control.in}
+{
+  \noindent
+  Usage: \keyword{fo\_dft} \subkeyword{fo\_dft}{final}\\[1.0ex]
+  Purpose: This keyword indicates that this is the final FODFT run, where to wavefunctions of both fragments are combined and the
+  transfer matrix element is calculated.
+
+  IMPORTANT: This calculation can only be started \emph{after} both fragments have been calculated!
+}
+
+\keydefinition{fo\_orbitals}{control.in}
+{
+  \noindent
+  Usage: \keyword{fo\_orbitals} \option{state1} \option{state2} \option{range1} \option{range2} \option{type} \\[1.0ex]
+  Required input for the final FODFT step. Determines the actual states of interest for the calculation of the coupling elements.
+  \begin{itemize}
+    \item \option{state1}, \option{state2}: [Integer] -- Isolated fragment states for the determination of the respective matrix element. 
+    \item \option{range1}, \option{range2}: [Integer] -- Default 1. Gives a range for the selected states.\\[1.0ex]
+      ($\text{state}1 = 5$ and $\text{range}1 = 2$ will include state 5 and state 6 of fragment 1.)
+    \item \option{type}: [String] Determines whether the matrix element for the spin-up (\option{up} or \option{elec}) or spin-down (\option{dn} or \option{hole}) Hamiltonian is calculated. In most cases, spin down means hole transport (excess hole on fragment 1 to fragment 2) and spin up means electron transport (excess electron on fragment 1 to fragment 2).\\[1.0ex]
+Example Zn$^+$-Zn: \keyword{fo\_orbitals} \option{15} \option{15} \option{1} \option{1} \option{hole} \\
+will output the transfer matrix elements for hole transfer between the LUMO of Zn$^+$ (fragment 1) and the HOMO of Zn (fragment 2).
+  \end{itemize}
+  If not deactivated via \keyword{fo\_verbosity} \option{0}, the full $H_{ab}$ submatrix will be written to the file \texttt{full\_hab\_submatrix} and any matrix element can be retrieved from this file after the calculation.  
+}
+
+\keydefinition{fo\_folders}{control.in}
+{
+  \noindent
+  OPTIONAL Usage: \keyword{fo\_folders} \option{folder\_frag1} \option{folder\_frag2} \\[1.0ex]
+  Purpose: This keyword allows the specification of custom names for the folders with the fragment calculation. If not set, standard names (\texttt{frag1\_00} and \texttt{frag2\_00}) are used. 
+}
+
+\keydefinition{fo\_flavour}{control.in}
+{
+  \noindent
+  OPTIONAL Usage: \keyword{fo\_flavour} \option{flavour} \\[1.0ex]
+  Purpose: This keyword allows the specification of the FO-DFT flavour to be used for the calculation. See FODFT theory section for details.
+  Options: 
+  \begin{itemize}
+    \item \option{default} - no occupations are modified. For $H^{2n}@DA$ and $H^{2n \pm 1}@D^\pm A$ flavours. This is the default.
+    \item \option{reset} - selects the $H^{2n-1}@DA / H^{2n+1}@D^-A^-$ scheme.
+  \end{itemize}
+  Note: There is no option yet to calculate $H_{ab}$ and $H_{ba}$ within one FHIaims run. If the system is heterogeneous, two dimer steps with appropriate fragment ordering and charges are necessary!
+}
+
+\keydefinition{fo\_verbosity}{control.in}
+{
+  \noindent
+  Usage: \keyword{fo\_verbosity} \option{level}\\[1.0ex]
+  Purpose: Control the verbosity of the FO-DFT output. 
+  Options: 
+  \begin{itemize}
+    \item 0: Write minimal output to output file. No retrieval of arbitrary couplings without restarting the dimer calculation possible.
+    \item 1: Write calculated couplings to output file and the full $H_{ab}$ matrix to the file \texttt{full\_hab\_submatrix}. This is the default.
+    \item 2: Write all elements for selected states from eq.~\ref{eq:hab_final} ($S_{st}, H'_{st}, \ldots$) to aims output.
+   \end{itemize}
+}
+
+\keydefinition{fo\_deltaplus}{control.in}
+{
+  \noindent
+  Usage: \keyword{fo\_deltaplus} \texttt{.true.}\\[1.0ex]
+  Purpose: Enables the polarized $\delta^+$ fragment calculations.\\[1.0ex] 
+
+  With this keyword, the full local potential of the actual fragment (Hartree + nuclei) will be written to files (\texttt{output\_potential\_0000*}). In addition, if previous potential files are found within the calculation folder, they will be read in and added as an external potential to the current calculation.\\[1.0ex]
+  Important: In order to use this improved scheme, the (empty) atom positions of the other fragment have to be included in the \texttt{geometry.in} (see \ref{sec:add_fo}).\\[1.0ex]
+%
+  Important: The number of cores (determined by mpirun -n or similar) has to be the same for both fragments, or the calculation will fail!\\[1.0ex]
+%
+  Note: Due to differences in the partitioning of the FHIaims grid between these runs it is necessary to reassign the potential to each grid point. Depending on the system size and the number of MPI processes (communication!), this will take some time. 
+}
+
+\subsection*{Additional tags for polarized FODFT in \texttt{geometry.in} and \texttt{control.in}:}\label{sec:add_fo}
+
+The following changes are only necessary for polarized FODFT (\keyword{fo\_deltaplus}).
+In order to allow a polarization of the fragment wavefunction, the atom centered integration grids have to be extended to the region of the embedded fragment.
+\subsubsection*{\texttt{geometry.in}:}
+The atomic positions of the second, embedded fragment must be included as empty sites with the tag \keyword{empty} (instead of \keyword{atom}). In addition, even the minimal basis functions have to be disabled in the \texttt{species\_defaults} for this atom type in the \texttt{control.in} (see next section). To distinguish between real and empty atoms, the species name has to be changed.
+
+The following example for Zn$_2^+$ shows the 3 different \texttt{geometry.in}-files.
+
+\textbf{Fragment 1, Zn$^+$}
+\begin{verbatim}
+atom 0.00 0.00 0.00 Zn
+initial_charge 1
+empty 0.00 0.00 5.00 Zn_empty
+\end{verbatim}
+
+\textbf{Fragment 2, Zn}
+\begin{verbatim}
+empty 0.00 0.00 0.00 Zn_empty
+#initial_charge 1 #no charge for emtpy atoms
+atom 0.00 0.00 5.00 Zn
+\end{verbatim}
+
+\textbf{Complete System, Zn$_2^+$}
+\begin{verbatim}
+atom 0.00 0.00 0.00 Zn
+initial_charge 1
+atom 0.00 0.00 5.00 Zn
+\end{verbatim}
+
+\subsubsection*{\texttt{control.in}:}
+
+For every atom type of the embedded system, the species\_data part has to be included and the species name must be changed to \emph{species\_empty}. Disable the minimal basis with the keyword \keyword{species} \subkeyword{species}{include\_min\_basis} set to \texttt{.false.} and comment \textbf{all} tier basis function lines, as showed in the following example for Zn. 
+
+  \begin{verbatim}
+
+[...]
+  species        Zn_empty
+#     global species definitions
+    nucleus             30
+    mass                65.409
+#
+    l_hartree           4
+#
+    cut_pot             3.5          1.5  1.0
+    basis_dep_cutoff    1e-4
+#
+    include_min_basis .false.
+
+[...]
+
+#  "First tier" - improvements: -270.82 meV to -12.81 meV 
+     #hydro 2 p 1.7
+     #hydro 3 s 2.9
+     #hydro 4 p 5.4
+     #hydro 4 f 7.8
+     #hydro 3 d 4.5
+##  "Second tier" - improvements: -3.35 meV to -0.82 meV
+     #hydro 5 g 10.8
+     #hydro 2 p 2.4
+     #hydro 3 s 6.2
+     #hydro 3 d 3
+  \end{verbatim}

@@ -1,0 +1,60 @@
+\newcommand{\Fupr}{\text{F}}
+\newcommand{\qupr}{\text{q}}
+\newcommand{\coreupr}{\text{core}}
+\newcommand{\VBMupr}{\text{VBM}}
+\newcommand{\Cupr}{\text{C}}
+\newcommand{\Nupr}{\text{N}}
+\newcommand{\Hupr}{\text{H}}
+\newcommand{\Oupr}{\text{O}}
+\newcommand{\Mgupr}{\text{Mg}}
+\newcommand{\MgOupr}{\text{MgO}}
+\newcommand{\fupr}{\text{f}}
+\newcommand{\Dupr}{\text{D}}
+\newcommand{\perfupr}{\text{perf}}
+\newcommand{\totupr}{\text{tot}}
+\newcommand{\atomupr}{\text{atom}}
+\newcommand{\Vupr}{\text{V}}
+\newcommand{\bulkupr}{\text{bulk}}
+\newcommand{\gasupr}{\text{gas}}
+\newcommand{\Gupr}{\text{G}}
+\newcommand{\Eupr}{\text{E}}
+\newcommand{\iupr}{\text{i}}
+\newcommand{\eps}{\varepsilon}
+
+
+
+\section{Formation energies of charged defects}
+\label{appendix_charged_defects}
+
+The Gibbs free energy of formation of a defect is given by
+\begin{align}%\label{eq:Gf_backgr}
+\Delta {\Gupr}_{\fupr}^{\Dupr}={\Eupr}_{\totupr}^{\Dupr}-{\Eupr}_{\totupr}^{\perfupr}-\sum\limits_{\iupr}{\text{n}_{\iupr}{\mu}_{\iupr}^{\text{ref}}}+\text{q} {\varepsilon}_{\Fupr}^{\text{ref}}-\sum\limits_{\iupr}{\text{n}_{\iupr}\Delta {\mu}_{\iupr}}+\text{q} \Delta {\varepsilon}_{\Fupr},
+\end{align}
+where ${\Eupr}_{\totupr}^{\Dupr}$ and ${\Eupr}_{\totupr}^{\perfupr}$ are the total energies of the defected and the perfect sytem, n$_{\iupr}$ is the number of atoms of type i added ($>0$) or removed ($<0$), $\Delta {\mu}_{\iupr}$ are the corresponding atomic chemical potentials referenced to ${\mu}_{\iupr}^{\text{ref}}$, $\Delta {\varepsilon}_{\Fupr}$ is the Fermi level referenced to ${\varepsilon}_{\Fupr}^{\text{ref}}$ and 
+$\text{q}$ is the charge of the system.\\
+A common choice as a reference for the electron chemical potential ${\varepsilon}_{\Fupr}^{\text{ref}}$ is the valence band maximum (VBM), so that the Fermi level can be assumed in the range between the VBM and the conduction band minimum (CBM), but in principle the choice of references for the chemical potentials is arbitrary.\\
+FHI-aims uses the Ewald summation technique to calculate the electrostatic Hartree potential for a periodic system. For a charged periodic system (specified by the keyword \keyword{charge} in \texttt{control.in}) a neutralizing homogeneous background charge density is introduced to remove the divergent ${\bf G}=0$ component of the long-range part of the electrostatic potential.\\
+This scheme is not suitable for periodic surface models, because the background charge density would be spread over the whole unit cell including the vacuum region.
+Instead charged surface defects can be treated within a virtual crystal approach (VCA), which corresponds to distributed doping of the material. The following scheme can be used for an insulating system with a localized defect level in the bandgap. By modifying the charge of the atomic nuclei (using the keyword \subkeyword{species}{nucleus} in \texttt{control.in}), while keeping the system neutral, additional delocalized states can be introduced at the top of the valence band or at the bottom of the conduction band. The occupation of the defect levels can thus be tuned by the amount of charge distributed on the cations or anions in the system. 
+To ensure that the defect has the desired charge q, the sum of the modified nuclear charges $\text{Z}'_i$  should differ from the sum of the original nuclear charges $\text{Z}_i$ by the value of q:
+\begin{eqnarray*}
+\sum_i^{\text{N}_{\text{atoms}}}\text{Z}'_i= \sum_i^{\text{N}_{\text{atoms}}}\text{Z}_i-q.
+\end{eqnarray*}
+Note that for calculating the formation energy of a charged defect within the VCA the reference system should be the doped undefected system, not the perfect undoped system.
+Since doping pins the Fermi level $\Delta {\varepsilon}_{\Fupr}$ vanishes for this method.\\  
+For example, a way to model a positively charged oxygen vacancy at a metal oxide Me$_x$O$_y$ surface is to distribute the charge uniformly on the metal atoms Me by changing their nuclear charge from Z(Me) to 
+\begin{eqnarray*}
+\text{Z}(\text{Me}^{\text{VCA}})=\text{Z}(\text{Me})-\frac{\text{q}}{\text{N(Me)}},
+\end{eqnarray*}
+where N(Me) is the number of metal atoms in the system. This introduces vacant states at the VBM which in the defected system will be occupied by electrons from the defect level.  \\
+When using the neutralizing background method for bulk systems the additional term may introduce an arbitrary shift, so that it is necessary to find a common energy reference for the charged and the neutral periodic
+system to which the respective potentials can be aligned. 
+For example alignment of the core levels of an atom far away from the defect can be done according to
+\begin{eqnarray*}
+\Delta{\varepsilon}_{\Fupr}=({\varepsilon}_{\Fupr}-{\varepsilon}_{\text{core}}^{\Dupr})-({\varepsilon}_{\text{VBM}}^{\text{perf}}-{\varepsilon}_{\text{core}}^{\text{perf}}).
+\end{eqnarray*}
+ Plot the atom projected density of states (output option \keyword{output} \subkeyword{output}{atom\_proj\_dos} in \texttt{control.in}) for this atom for the charged defected and the neutral perfect system to visualize changes in the core states. (Be aware that in an all-electron approach the deeply lying core states are sensitive to local changes in electron density due to relaxation and
+charge redistribution, so that their shift in a defected system with respect to the perfect
+host system may not include only the average potential shift.)\\
+Due to spurious electrostatic interaction as a result of the employed periodic boundary conditions the formation energy of a charged defect depends on the dimensions of the supercell. The formation energy scales as $\Delta {\Gupr}_{\fupr}^{\Dupr}(L)\approx \text{a}\frac{1}{L}+\text{c}$ for sufficiently large supercells \cite{makov95}. For a simple cubic unit cell $L$ corresponds to the supercell lattice constant and can take up integer multiples of the unit cell lattice constant L$^{(0)}$. For differently shaped unit cells with lattice constants L$^{(0)}_{\text{1}}$, L$^{(0)}_{\text{2}}$, L$^{(0)}_{\text{3}}$ set for example L:=L$_\text{1}$ and build supercells $L_\text{1}=\text{n}\cdot \text{L}^{(0)}_\text{1}$, $L_\text{2}=\text{n}\cdot \text{L}^{(0)}_\text{2}$, $L_\text{3}=\text{n}\cdot \text{L}^{(0)}_\text{3}$ with integer n.
+The desired formation energy of a single defect in an infinite supercell $\Delta {\Gupr}_{\fupr}^{\Dupr}(L\rightarrow \infty)$ can then be obtained by extrapolation. Note, that the convergence of the extrapolated energy with respect to the supercell size should be tested carefully. Taking into account geometric relaxation can improve the convergence significantly. Alternatively postprocessing correction schemes that allow to remove the spurious interaction terms have been suggested in literature \cite{makov95,fre09}. 

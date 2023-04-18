@@ -1,0 +1,568 @@
+\chapter{Getting started with FHI-aims}
+\label{Ch:quickstart}
+
+\section{First step: Installation}
+\label{Sec:installation}
+
+FHI-aims comes as a gzipped tar archive that can be extracted in any directory
+of your choice, e.g., by typing
+
+\begin{verbatim}
+  gzip -d fhi-aims.tar.gz
+  tar -xvf fhi-aims.tar
+\end{verbatim}
+
+at the
+command line of any current Unix-like system.
+
+Note: You cannot simply type 'make'. To find out what to do for a
+successful build, please look at sections
+\ref{Sec:build-cmake}-\ref{Sec:cmake-variables}, which will tell you
+what to do. There are a few performance related decisions that we
+cannot make for you on an unknown computer system, and the description
+below will hopefully help you make those decisions.
+
+\begin{center}
+  \parbox[c]{0.8\textwidth}
+  {\small
+    Before you ask: FHI-aims is designed to run on any current Unix-based or
+    Unix-like system, such as Linux or Mac OS
+    X. However, we do \emph{not} support FHI-aims on Windows at this point. It
+    is certainly possible to make it run on a Windows platform using the
+    appropriate tools, but not simply out-of-the-box. 
+  } 
+\end{center}
+
+The full package then extracts itself into a directory \emph{./fhi-aims}, with the
+following subdirectories:
+\begin{itemize}
+  \item \emph{bin/} : Location for any FHI-aims binaries built using the
+    standard Makefile
+  \item \emph{doc/} : Contains possible further documentation.
+  \item \emph{species\_defaults/} : Grids, basis sets and other defaults for
+    chemical elements 1-102. These can be copy-pasted as ``species'' into the
+    FHI-aims input file \texttt{control.in}. FHI-aims provides three levels of
+    standard species defaults: ``light'', ``tight'',
+    and ``really\_tight'' (see Sec. \ref{Sec:species}). In addition,
+    some further preconstructed special-purpose species defaults are
+    provided in a ``non-standard'' subdirectory.
+  \item \emph{src/} : This directory, and its subdirectories, contain all of FHI-aims source code files.
+  \item \emph{testcases/} : Simple examples to test and illustrate the basic
+    functioning of the code. The input files provided here may also be used as
+    templates for any new electronic structure calculations, rather than
+    assembling them from scratch.
+  \item \emph{utilities/} : Some simple scripts to extract basic
+    information from the standard output of FHI-aims:
+    Visualization of geometries using the .xyz format, extracting a
+    series of geometries during relaxation as a movie, or extracting
+    the development of energies and forces during relaxation. There is
+    also some more sophisticated infrastructure here: Script-based
+    ab initio replica exchange molecular dynamics (Luca Ghiringhelli)
+    and a basin-hopping framework to predict the structure of small
+    clusters from scratch (Ralf Gehrke).
+  \item \emph{regression\_tests/} : This directory contains a set of small standard
+    test cases that can be run automatically using a script, \texttt{regressiontools.py} --
+    when run without any flags, it will provide its own self-documentation.
+    Unfortunately, running this script on a given platform and
+    queueing system is not always trivial. If you can figure this out, we do recommend running and
+    checking the regression tests on any new 
+    machine on which FHI-aims was installed. We have encountered 
+    rare but non-zero instances of compiler options (outside the
+    control of FHI-aims) that produce correct numbers \emph{almost}
+    always -- except for specific methods where the compiler has a
+    bug. The regression tests will catch such issues before they
+    strike in a production run. They 
+    will allow to check the compiled FHI-aims binary a little more
+    extensively, but they are not strictly necessary to run
+    FHI-aims. In particular, please do \emph{not} view the input files
+    of the regression tests as FHI-aims best practices. Follow the
+    manual, not simply the regression tests. In many cases,
+    they are not. Rather, what is tested may be a corner case that can
+    be handled differently (better) in normal practical scenarios.
+  \item \emph{benchmarks/} : This directory contains specific example
+    runs of calculations, including output files and specific timings,
+    illustrating how FHI-aims should perform and scale on a current
+    high-performance computer. They also include some essential
+    practices to get high performance and memory efficiency in
+    FHI-aims for large runs on very large computers. We highly
+    recommend trying to 
+    run these benchmarks after successfully building FHI-aims on a
+    parallel machine with sufficiently many CPUs. These benchmarks
+    will give you an indication of whether you are achieving the
+    expected performance of the code. This depends not only on
+    building FHI-aims correctly, but also on the correct setup of the
+    computing environment itself (not trivial). Running actual
+    benchmarks is the best way to find out.
+\end{itemize}
+A \texttt{README} file in that directory contains some of the quickstart information
+given here in condensed format. 
+
+\section{Prerequisites (libraries and software) you'll need}
+\label{Sec:prerequisites}
+
+Since FHI-aims is distributed in source code form, the first task is to
+compile an executable program. For this, the following \emph{mandatory
+prerequisites} are needed:
+\begin{itemize}
+\item A working Fortran 2003 (or later) compiler. A good example for x86 type
+  computers is Intel's \texttt{ifort} compiler.  A free but significantly slower
+  compiler for all platforms is \texttt{gfortran} from the GNU compiler
+  collection (\url{http://gcc.gnu.org/fortran}) or the \texttt{g95}
+  compiler (\url{http://www.g95.org}). Do not underestimate this
+  slowdown, though -- a factor of three or so is possible. 
+  \item A compiled version of the \texttt{lapack} library, and a library
+    providing optimized basic linear algebra subroutines (BLAS). Standard
+    commercial libraries such as Intel's \texttt{mkl} or IBM's \texttt{essl}
+    provide both \texttt{lapack} and BLAS support. \texttt{lapack} can also be found at
+    \url{http://www.netlib.org/lapack/}. \\
+    \emph{Having an optimized BLAS library for YOUR
+    specific computer system(s) is critical for the performance of FHI-aims.}
+    Very good free implementations include \texttt{ATLAS}
+    (\url{http://math-atlas.sourceforge.net/}). 
+\end{itemize}
+You should also have a version of GNU Make and CMake for compiling FHI-aims. If CMake is not present, it is also possible to work with just GNU Make, but it is worth the effort to obtain CMake. Typically, GNU Make will already be present on your system, either as \texttt{make}, or possibly
+as \texttt{gmake}. CMake should be available in the official repository of your Linux distribution.
+
+The next two prerequisites are \emph{optional}, but absolutely
+essential for any current use of FHI-aims: Support for parallel
+architectures, and (separately) support for fully parallel
+linear algebra. Thus, you will also
+need: 
+\begin{itemize}
+  \item A version of MPI libraries for parallel execution, often already
+    present on a parallel system (if not,
+    \url{http://www.open-mpi.org/} provides one of several free
+    implementations). Our experience is that Intel's MPI library is
+    a very worthwhile investment on x86 platforms (better performance).
+  \item Compiled versions of the \texttt{scalapack} library, and
+     basic linear algebra \emph{communication} subroutines (BLACS). Capable
+     implementations can be found at \url{http://www.netlib.org/}, but
+     are often provided already in the numerical libraries of many
+     vendors (e.g., Intel MKL on Linux).
+\end{itemize}
+Finally, the default compilation builds an executable which includes
+some parts of the code that are written in C. This may be turned off (see
+below), but we highly recommend compiling with C support as it introduces a
+number of useful features.  You need:
+\begin{itemize}
+  \item A C compiler -- available on every Unix platform. The C parts
+    are not performance critical and if you can, just use the GNU
+    project's gcc compiler. gcc is compatible with many Fortran
+    compilers, most importantly also Intel Fortran, and our experience
+    is that gcc presents fewer problems than other (commercial) C
+    compilers. 
+\end{itemize}
+  
+\textbf{The creation of a complete, MPI-, scalapack-, and C-enabled binary
+  is effort well spent. This should be the goal when compiling FHI-aims
+  for any production purposes. This means that you should ultimately
+  aim to build FHI-aims with the \texttt{USE\_MPI} and \texttt{USE\_SCALAPACK} CMake options enabled (see below).}
+
+To create an actually working FHI-aims build, please read sections~\ref{Sec:build-cmake}, \ref{Sec:cmake-variables} and (for much more information) perhaps appendix \ref{Sec:cmake}. Please also ask and consider helping out others by sharing settings that work on a given platform. This can be done via the FHI-aims slack channel, via the ``aimsclub'', via the FHI-aims gitlab server -- please see Section \ref{Sec:community} below for ways to reach us.
+
+\section{Managing the build process with CMake}
+\label{Sec:build-cmake}
+
+Building of FHI-aims is managed by CMake, which is a free and open-source build system generator. A build system generator is a tool that does not build anything by itself. Instead, it generates build scripts for a particular build system, e.g., Make, which are then used for the actual building. The build scripts, e.g., makefiles, are generated based on the user's environment and it is the job of CMake to ensure that the generation stage is as straightforward and failsafe as possible. In principle, CMake is completely platform agnostic (the C stands for cross-platform). The focus of the present is on supporting FHI-aims in a Linux or Unix environment.
+
+CMake was released in 2000 and is currently used in a large number of projects (including some big ones like HDF5, KDE, mySQL, and Netflix). One of the motivators for FHI-aims was a push from the ESL (Electronic Structure Library) project to adopt CMake as the build management standard. ESL is a collection of electronic structure codes with the aim of avoiding duplication of functionality by connecting different electronic structure codes with each other with minimal effort. That is one of the reasons to use CMake as it makes it relatively easy to include other CMake projects into a given project.
+
+\subsection{\label{sec:minimal_cmake}Example CMake usage}
+
+Here is a typical example to get started with CMake.
+\begin{enumerate}
+\item Go to the root directory of FHI-aims (the top-level directory
+  of the FHI-aims git repository or the distributed version of
+  FHI-aims - i.e., one level above \emph{src/}) and create a build directory:
+\begin{verbatim}
+mkdir build && cd build
+\end{verbatim}
+\item Create a file called \texttt{initial\_cache.cmake} in the build directory or make a copy of \texttt{initial\_cache.example.cmake} which is in the root directory. The following is example contents for that file,
+\begin{verbatim}
+set(CMAKE_Fortran_COMPILER "mpif90" CACHE STRING "")
+set(CMAKE_Fortran_FLAGS "-O3 -ip -fp-model precise" CACHE STRING "")
+set(Fortran_MIN_FLAGS "-O0 -fp-model precise" CACHE STRING "")
+set(CMAKE_C_COMPILER "icc" CACHE STRING "")
+set(CMAKE_C_FLAGS "-O3 -ip -fp-model precise" CACHE STRING "")
+set(LIB_PATHS "/opt/intel/mkl/lib/intel64" CACHE STRING "")
+set(LIBS "mkl_intel_lp64 mkl_sequential mkl_core
+mkl_blacs_intelmpi_lp64 mkl_scalapack_lp64" CACHE STRING "")
+set(USE_MPI ON CACHE BOOL "")
+set(USE_SCALAPACK ON CACHE BOOL "")
+set(USE_HDF5 OFF CACHE BOOL "")
+\end{verbatim}
+which you can edit to reflect your environment.
+
+As is evident,
+  setting the correct values for these flags requires knowledge of
+  several things: The Fortran and C compilers to be used, the Fortran
+  and C compiler optimizations (or, correspondingly, flags for parts of the
+  code that should not be optimized), the mathematical and MPI
+  libraries to be used and their locations. Note that these are few
+  items, but their choice is important for the performance of the code
+  on a given computer. There are many different setups and automated
+  tools do not always get these choices right. In the file above, we
+  here identify those specific pieces where we feel that a user
+  decision is necessary. Please ask for assistance (FHI-aims forums or
+  slack channel) if needed. 
+\item Issue
+\begin{verbatim}
+cmake -C initial_cache.cmake ..
+\end{verbatim}
+from the build directory to configure. In this example, the ``..''
+directory is used. In general, the directory given in this command
+should point to the directory where the ''CMakeLists.txt''
+file provided with FHI-aims is located.
+
+And yes -- it has to be ``\texttt{-C}'' (capital C). ``\texttt{-c}'' (lowercase)
+will NOT work but will produce an error message that is not, unfortunately, helpful.
+So, if cmake refuses to get to work at all, double-check the exact
+spelling of the above line first (and make sure that
+the ``initial\_cache.cmake'' file is in place and that ``..''
+indeed points to the correct directory).
+
+If you encounter any other errors during this step, we recommend correcting
+your \\ \texttt{initial\_cache.cmake} file, saving it, then deleting
+the build directory and restarting from the first step.
+\item Issue
+\begin{verbatim}
+make -j [number]
+\end{verbatim}
+to build. An executable whose name starts with \texttt{aims} is
+created in the same directory.
+
+The value of \texttt{[number]} should
+be the same or less than the number of physical CPU cores available on
+your computer. Choosing sufficiently many cores speeds up the build
+process but on shared computers with multiple users (e.g., the
+login node of a cluster) it is typically nice to use only as many as
+you need, not necessarily the full node.
+\item Move the newly generated FHI-aims binary to a directory where
+  your binary files are typically collected. For example, if your
+  FHI-aims top level directory contains a subdirectory \emph{bin/}, use:
+  \begin{verbatim}
+mv aims.<version> ../bin
+\end{verbatim}
+  In that command, replace the placeholder \texttt{<version>} with the
+  actual completion of the name of the FHI-aims binary that you had
+  just created.
+\end{enumerate}
+For more details on how to use CMake, see Sec.~\ref{Sec:cmake}.
+
+\section{CMake variables}
+\label{Sec:cmake-variables}
+
+Here are some of the commonly used CMake variables.
+
+\begin{itemize}
+\item \texttt{CMAKE\_Fortran\_COMPILER} --- Name of the Fortran compiler executable. Use a full path if location not automatically detected.
+\item \texttt{CMAKE\_Fortran\_FLAGS} ---  Compilation flags that control the optimization level and other features that the compiler will use. \item \texttt{LIB\_PATHS} --- List of directories to search in when linking against external libraries (e.g., ``/opt/intel/mkl/lib/intel64'')
+\item \texttt{Fortran\_MIN\_FLAGS} --- Compilation flags only for
+  files that should not be optimized because optimization is not
+  needed. For example, the source file ``read\_control.f90'' only
+  controls how the input file \texttt{control.in} is read - but some
+  compilers spend excessive amounts of time compiling this file if a
+  different optimization level than ``-O0'' is specified.
+\item \texttt{LIBS} --- List of libraries to link against \\
+  (e.g., ``mkl\_blacs\_intelmpi\_lp64 mkl\_scalapack\_lp64'')
+\item \texttt{USE\_MPI} ---  Whether to use MPI parallelization when building FHI-aims. This should always be enabled except for rare debugging purposes. (Default: automatically determined by the compiler)
+\item \texttt{USE\_SCALAPACK} --- Whether to use Scalapack's parallel linear algebra subroutines and the basic linear algebra communications (BLACS) subroutines. It is recommended to always use this option. In particular, large production runs are not possible without it. The Scalapack libraries themselves should be set in \texttt{LIB\_PATHS} and \texttt{LIBS}. (Default: automatically determined by \texttt{LIBS})
+\item \texttt{USE\_C\_FILES} ---  Whether source files written in C should be compiled into FHI-aims.  By default, this is \texttt{ON}, i.e. C files will be compiled.  These routines are not performance-critical but can access environment variables. They can thus provide useful additional output about the computer system environment used and also make a few other useful libraries accessible (like Spglib for symmetry handling). If not enabled, appropriate stub files are compiled instead.
+\item \texttt{CMAKE\_C\_COMPILER} --- C compiler. Usually gcc is fine here.
+\item \texttt{CMAKE\_C\_FLAGS} --- C compiler flags.
+\item \texttt{USE\_LIBXC} --- Whether additional subroutines for exchange correlation functionals, provided in the LibXC library, should be used. By default, this is \texttt{ON}, i.e. LibXC will be compiled into the executable.  It is advised to always use this. Please respect the open-source license of this tool and cite the authors if you use it.
+\item \texttt{USE\_SPGLIB} ---  Whether the Spglib library for symmetry handling will be used.  By deafult, this is \texttt{ON}, i.e. Spglib will be compiled into the executable.  Please respect the open-source license of this tool and cite the authors if you use it.
+\end{itemize}
+
+For all CMake variables, see Sec.~\ref{sec:CMake_variables}.
+
+\subsection{MPI parallelization}
+
+On current computers, there is never a reason to compile FHI-aims
+without support for MPI in productions. Nevertheless, for testing
+purposes, it may sometimes be useful to compile without MPI
+support. We therefore cover this possibility here, also exemplifying
+how to manipulate CMake in a slightly more refined way.
+
+In order to force MPI to be disabled, put
+\begin{verbatim}
+set(USE_MPI OFF CACHE BOOL "")
+\end{verbatim}
+into the initial cache file. In order to force MPI to be enabled, use
+\begin{verbatim}
+set(USE_MPI ON CACHE BOOL "")
+\end{verbatim}
+instead. If you want to enable/disable MPI support after the first configuration, issue
+\begin{verbatim}
+ccmake ~build
+\end{verbatim}
+where $\sim$\texttt{build} is the build directory. Move cursor to the field \verb+USE_MPI+ and hit enter. This toggles its state between \texttt{ON/OFF}. Hit 'c' to configure, 'g' to generate the build files, and rebuild the project.
+
+\section{Running FHI-aims}
+\label{Sec:running}
+
+As a simple test run to establish the correct functioning of FHI-aims and also
+to familiarize yourself with the basic structure of the input and output
+files, we suggest you change directories to the
+\emph{testcases/H2O-relaxation/} directory. The test run provided there relaxes
+a simple H$_2$O molecule from an initial (distorted) structure to the stable
+one, and computes total energies, eigenvalues etc. along the way. Notice that
+the key convergence settings (basis sets and grids) in this example are chosen
+to be fast. The results (particularly the relaxed geometry) are still
+trustworthy, but we encourage you already here to explore more
+stringent convergence settings later. In fact, \emph{always} explore the
+impact of critical convergence settings on the accuracy of key results in your
+own project.
+
+In the \emph{testcases/H2O-relaxation/} directory, type
+
+{
+  \verb+ ../../bin/aims.+\emph{version}\verb+ < /dev/null | tee H2O_test.own+
+}
+
+at the command line. For ``\emph{version}'', you must insert the code version stamp 
+that was actually downloaded and built (for example, \verb+171221+ or
+whichever code version you are building).\footnote{The  
+FHI-aims version stamp can be modified to whatever you wish in
+\texttt{version\_stamp.txt} in the \emph{src/} directory.} 
+For faster execution, you should use the appropriate binary including the necessary mpi command
+instead. On many (but not all) platforms, that command will be
+\texttt{mpirun}, and will also require you to specify the number of processors
+to be used by a flag. For 20
+CPU cores, this could look like
+
+{
+  \verb+ mpirun -np 20 ../../src/aims.+\emph{version}\verb+ < /dev/null | tee H2O_test.own+
+}
+
+The result will be an output stream on your computer screen (created by
+``tee'') which is also captured in an output file \texttt{H2O\_test.own}. 
+Any critical information regarding computational
+settings, results (total energies, forces, geometries, ...), errors
+etc. should be contained in this file, which we encourage you to look at (yes,
+it is \emph{meant} to contain human-readable and useful explanations). Any \emph{other} output files are  
+only written if requested, and will be covered in the later sections of this
+text.
+
+\begin{center}
+  \parbox[c]{0.8\textwidth}
+  {
+  \emph{The standard output stream or file contains any and all output that FHI-aims
+  writes by default. For later use, you must save this output stream to disk in some way, 
+  using standard Unix redirections such as the \texttt{tee} command above or a simple 
+  redirect.}
+  }
+\end{center}
+
+  Apart from the first expression given above, such 
+  redirections might look like this: 
+
+  {
+    \verb+ mpirun ../../bin/aims.+\emph{version}\verb+.scalapack.mpi.x < /dev/null > H2O_test.own+
+  }
+
+  or even like this: 
+
+  {
+    \verb+ nohup mpirun ../../src/aims.+\emph{version}\verb+ < /dev/null > H2O_test.own 2>&1 &+
+  }
+
+  The latter version decouples the FHI-aims run completely from your
+  current login shell and additionally
+  saves any system error messages to the standard output file as well. With the above command sequence,
+  you may safely log out from the computer in question, the code should keep running in the background. 
+
+  Take care to monitor your running processes using the \texttt{ps} Unix command. For instance, it is
+  highly unadvisable to run ten instances of FHI-aims at once in the background on a single CPU and expect
+  any reasonable performance of the computer at all. The above hints
+  are just examples of general Unix command-line sequences. For a complete treatment, we
+  recommend that beginners read a separate Unix textbook, or---often feasible---learn by doing and Google. 
+
+If successful (otherwise, consider the warnings three paragraphs below), you
+may wish to compare your results to those contained in our 
+own output from this run, which is contained in the file
+\texttt{H2O.reference.out}. You should obtain exactly the same total energies,
+forces, and geometries as given in this file. Any information regarding timing
+is, of course, specific to your computer environment, and not necessarily the
+same. 
+
+The directory \emph{testcases/H2O-relaxation/} contains two more files,
+\texttt{control.in} and \linebreak[4] \texttt{geometry.in}. These are the sole two input
+files required by FHI-aims, and are the most important files to learn about in
+the rest of this documentation. In brief, \texttt{geometry.in} contains any
+information related directly to a system's geometry -- normally, this will be
+atomic positions (in \AA) and perhaps lattice vectors for periodic
+calculations, but no more. Any other, method-related, input information is
+part of \texttt{control.in}. 
+
+In practice, we attempt to strike a balance
+between the information \emph{needed} by \linebreak[4] \texttt{control.in}, and information
+set to safe defaults unless specified explicitly. For example, you \emph{must}
+specify the level of theory (e.g., the fact that PBE exchange-correlation is
+used) and also the basis set and other numerical settings employed. While it is highly useful to
+have this relevant information openly accessible, this  
+would also create the need to personally edit a large amount of input before ever
+tackling the first run. For any information tied to the actual element (or
+``species''; arguably the most complex information required), we therefore provide
+ready-made template files for all elements (1-102) in the
+\emph{species\_defaults} directory. They are ready for copy-paste into
+\texttt{control.in}. These files will still benefit from some
+adjustment to your personal needs (for instance, the provided integration
+grids are set rather on the safe side, at the expense of more CPU time), but
+should greatly simplify the task. 
+
+Two final, important warnings regarding the execution of FHI-aims that are beyond
+our direct control:
+\begin{itemize}
+  \item FHI-aims \emph{requires} that the execution stack size available to
+    you be large enough for some initial internal operations. Spare us the
+    details (ample explanation of the meaning of the ``stack'' in Unix can be
+    found elsewhere), but for reasons unbeknownst to us, some vendors limit
+    the default user stack size to $\approx$5~MB at a time when the typical
+    available system memory per processor is 2 GB or more. If too little stack is
+    available, your FHI-aims run will \emph{segfault} shortly after the
+    command was launched. To avoid this, \texttt{always} type:
+    \begin{verbatim}
+        ulimit -s unlimited
+    \end{verbatim}
+    (when using the bash shell or similar), or
+    \begin{verbatim}
+        limit stacksize unlimited
+    \end{verbatim}
+    (when using the tcsh or similar). 
+    \begin{verbatim}
+        echo $SHELL
+    \end{verbatim}
+    will tell you which shell you are using. Ideally, this same setting should
+    be specified in your .profile, .bashrc, or .cshrc login profiles. If
+    ``unlimited'' is prohibited by your computer (e.g., on MacOS), try
+    setting a large value instead, e.g.,
+    \texttt{ulimit -s 500000}.
+  \item An important system settings for parallel execution is the environment
+    variable  
+    \begin{verbatim}
+      export OMP_NUM_THREADS=1
+    \end{verbatim}
+    (the syntax is correct for the bash shell). When using Intel's mkl, you
+    should additionally set \texttt{MKL\_NUM\_THREADS} to 1 and
+    \texttt{MKL\_DYNAMIC} to FALSE.
+  \item Do not try to use OpenMP with FHI-aims unless you know exactly
+    why you are doing this. FHI-aims is very efficiently
+    MPI-parallelized and large portions of the code do not support
+    OpenMP at all. (And they do not need to -- MPI is simple as effective
+    or more effective on practically all platforms in our experience.)
+\end{itemize}
+
+After startup, the first messages contain information about your computer's 
+environment: Code version, compiler information, host names, environment 
+variables which turned out to be useful and which should be set on
+your system (e.g.~\texttt{OMP\_NUM\_THREADS}), etc. The complete input
+files \texttt{control.in} and \texttt{geometry.in} are also repeated
+verbatim. Any FHI-aims run should thus be completely reproducible
+based on the standard output stream alone.
+
+Should you encounter further issues, consider also the troubleshooting
+information documented in Appendix \ref{appendix_trouble_shooting}. 
+
+All this said, after successfully running the test run, you should now be
+ready to go with FHI-aims. The remainder of this document is about the details
+-- available options, how to run aims most efficiently, etc. Happy computing!
+
+
+\section{Compiling faster versions of FHI-aims on specific platforms}
+\label{Sec:Platform}
+
+FHI-aims is intended to be a Fortran-only code, which -- for most of
+the code -- means that building the ``fastest'' version of FHI-aims on
+a given computer architecture is ``only'' a matter of finding the
+right Fortran compiler and compiler options for that processor. For
+some architectures, specific compiler options are collected in the
+FHI-aims club wiki -- please check there and please add any useful
+information that you may find.
+
+That said, one particular performance-critical area for large systems
+is the Kohn-Sham eigenvalue solver. In FHI-aims and on parallel
+computers, this problem is solved by the ELSI infrastructure and the
+ELPA library. ELPA, in fact, 
+allows its users to specify specific, platform-optimized so-called
+linear algebra ``kernels.'' By default, FHI-aims uses a generic kernel
+which will compile with any Fortran compiler and will give reasonable
+speed. However, if one knows which specific computer chip one is
+using, it is possible to substitute this kernel with an architecture
+specific kernel and compile a faster version of ELPA into
+FHI-aims. This is possible, for example, for the BlueGene/P,
+BlueGene/Q, Intel AVX and several other Intel architectures. For
+standard Intel x86 chips, there is even an ``assembler'' based kernel
+that will get fast performance regardless of the Fortran compiler
+above.
+
+Note that this choice can matter. For example, the ``generic'' ELPA
+kernel will produce fast code for the Intel Fortran compiler, but much
+slower code with certain versions of the PGI Fortran compiler (often
+found on Cray machines).
+
+At this time, please ask (see below) about the most effective strategy
+to link against the ``best'' ELSI and ELPA libraries. Ideally, this
+will require a user to build a separate (standalone) instance of ELPA
+and of ELSI first. This can be very worthwhile.
+
+\section{Finding the other FHI-aims developers and users (talk to us!)}
+\label{Sec:community}
+
+It can be surprisingly useful (and more fun) to find others who work with
+FHI-aims -- to help find out who might already have solved a specific
+problem, how a given problem might be solved, exchange experiences,
+devise new and cool functionality that could take electronic structure
+theory to the next level, and so on. Some of us also simply like to have
+a cup of coffee with others (see below). FHI-aims only functions as a code and
+science tool because of the community around it, and we're always
+happy to meet new users, developers, and generally find out how to do
+better science together.
+
+At the time of writing, we have a number of active communication
+channels. Anyone using or developing with FHI-aims is encouraged
+to frequent one or all of them:
+\begin{itemize}
+  \item The forums and wiki at \textit{aimsclub},
+    \url{https://aimsclub.fhi-berlin.mpg.de/} . This is a place where
+    questions can be asked, answered, and looked up, and anyone is
+    welcome and encouraged to share their experiences
+    there. Additionally, wiki entries are also encouraged. If nothing
+    else, the wiki is a place to let the rest of the world know of
+    successful build settings for FHI-aims on different platforms.
+  \item An active \textit{slack channel} (chat) at
+    \url{https://fhi-aims.slack.com/} . This is a place where a number of
+    developers and users hang out and can 
+    be easily reached for questions in public semi-private and private
+    conversations. Pretty effective. To join, you'll need an invitation from one of the
+    slack channel owners, which we'll happily provide. Just ask, for
+    example via aimsclub or by email (volker.blum@duke.edu is one
+    of the owners, and there are several others as well).
+  \item \textit{Monthly FHI-aims video meetings} for anyone with an
+    interest, usually announced on aimsclub and on the slack channel. 
+  \item \textit{FHI-aims Users' and Developers' meetings}, which we hold
+    roughly every two years.
+  \item For those who use the FHI-aims mainline (development)
+    version -- everyone with an FHI-aims license is welcome and
+    encouraged to ask for access to this usually very stable version
+    -- there is a \textit{``buildbot''} that shows the current status
+    of FHI-aims' regression tests for a variety of platforms,
+    compilers, and other choices at any given time. The buildbot can
+    be accessed at \url{http://www.theo.ch.tum.de/bbot/\#/} .
+  \item Finally, for those who are shy, you are also welcome to \textit{email}
+    us: \\
+    At aims-coordinators@fhi-berlin.mpg.de or (for those who are
+    even more shy) email Volker, the lead developer, at
+    volker.blum@duke.edu . Email is a productive avenue and Volker
+    answers to the best of his abilities and available human time. However,
+    bear in mind that one of the above channels will also reach Volker
+    and, in addition, the many others who make FHI-aims happen and who
+    might already have solved a  problem and have an answer
+    ... although you'd never have thought anyone did. 
+\end{itemize}
+In short -- please feel welcome and encouraged to talk to us if
+useful. FHI-aims is about science, and we're accessible. And if you're
+new to all this and someone helped you out especially, feel free to send
+them a Starbucks gift card (no one has ever done that, but hey, you
+could be the first :) or, even
+better, to cite their contribution to FHI-aims. 

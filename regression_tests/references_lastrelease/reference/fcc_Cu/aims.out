@@ -1,0 +1,2982 @@
+  MPI-parallelism will be employed.
+------------------------------------------------------------
+          Invoking FHI-aims ...
+
+          When using FHI-aims, please cite the following reference:
+
+          Volker Blum, Ralf Gehrke, Felix Hanke, Paula Havu,
+          Ville Havu, Xinguo Ren, Karsten Reuter, and Matthias Scheffler,
+          'Ab Initio Molecular Simulations with Numeric Atom-Centered Orbitals',
+          Computer Physics Communications 180, 2175-2196 (2009)
+
+          For any questions about FHI-aims, please visit the aimsclub website
+          with its forums and wiki. Contributions to both the forums and the
+          wiki are warmly encouraged - they are for you, and everyone is welcome there.
+
+------------------------------------------------------------
+
+
+
+  Date     :  20190817, Time     :  153235.844
+  Time zero on CPU 1             :   0.319770000000000E-01  s.
+  Internal wall clock time zero  :           335287955.844  s.
+
+  FHI-aims created a unique identifier for this run for later identification
+  aims_uuid : 08E970A8-245E-4032-A0E9-DA5DE87F3F01
+
+  Build configuration of the current instance of FHI-aims
+  -------------------------------------------------------
+  FHI-aims version      : 190813
+  Commit number         : 3da7baeb3
+  CMake host system     : Linux-4.4.180-94.97-default
+  CMake version         : 3.5.2
+  Fortran compiler      : /mpcdf/soft/SLE_12_SP3/packages/x86_64/intel_parallel_studio/2018.4/compilers_and_libraries_2018.5.274/linux/mpi/bin64/mpiifort (Intel) version 18.0.5.20180823
+  Fortran compiler flags: -O3 -ip -fp-model precise
+  C compiler            : /mpcdf/soft/SLE_12_SP3/packages/skylake/intel/18.0.5/bin/icc (Intel) version 18.0.5.20180823
+  C compiler flags      : -O3 -ip -fp-model precise
+  Architecture          :
+  Using MPI
+  Using Scalapack
+  Using C files
+  Using SPGlib
+  Using i-PI
+  Linking against: /mpcdf/soft/SLE_12_SP3/packages/x86_64/anaconda/3.5.1.0/lib/libmkl_intel_lp64.so
+                   /mpcdf/soft/SLE_12_SP3/packages/x86_64/anaconda/3.5.1.0/lib/libmkl_sequential.so
+                   /mpcdf/soft/SLE_12_SP3/packages/x86_64/anaconda/3.5.1.0/lib/libmkl_core.so
+                   /mpcdf/soft/SLE_12_SP3/packages/x86_64/anaconda/3.5.1.0/lib/libmkl_blacs_intelmpi_lp64.so
+                   /mpcdf/soft/SLE_12_SP3/packages/x86_64/anaconda/3.5.1.0/lib/libmkl_scalapack_lp64.so
+
+  Using        8 parallel tasks.
+  Task        0 on host co1631 reporting.
+  Task        1 on host co1631 reporting.
+  Task        2 on host co1631 reporting.
+  Task        3 on host co1631 reporting.
+  Task        4 on host co1631 reporting.
+  Task        5 on host co1631 reporting.
+  Task        6 on host co1631 reporting.
+  Task        7 on host co1631 reporting.
+
+  Performing system and environment tests:
+  | Environment variable OMP_NUM_THREADS correctly set to 1.
+  | Maximum stacksize for task 0: unlimited
+  | Maximum stacksize for task 1: unlimited
+  | Maximum stacksize for task 2: unlimited
+  | Maximum stacksize for task 3: unlimited
+  | Maximum stacksize for task 4: unlimited
+  | Maximum stacksize for task 5: unlimited
+  | Maximum stacksize for task 6: unlimited
+  | Maximum stacksize for task 7: unlimited
+  | Current stacksize for task 0: unlimited
+  | Current stacksize for task 1: unlimited
+  | Current stacksize for task 2: unlimited
+  | Current stacksize for task 3: unlimited
+  | Current stacksize for task 4: unlimited
+  | Current stacksize for task 5: unlimited
+  | Current stacksize for task 6: unlimited
+  | Current stacksize for task 7: unlimited
+  | Checking for scalapack...
+  | Testing pdtran()...
+  | All pdtran() tests passed.
+
+  Obtaining array dimensions for all initial allocations:
+  
+  -----------------------------------------------------------------------
+  Parsing control.in (first pass over file, find array dimensions only).
+  The contents of control.in will be repeated verbatim below
+  unless switched off by setting 'verbatim_writeout .false.' .
+  in the first line of control.in .
+  -----------------------------------------------------------------------
+  
+  #########################################################################################
+  #
+  #  Volker Blum, FHI 2010 : Input file for FHI-aims
+  #
+  #  Input file control.in : All computational details for structure geometry.in
+  #
+  #  Since this is out number one periodic test case, I have updated it to
+  #  reflect the current "light" settings as of 04/05/2010 . VB
+  #
+  #########################################################################################
+    #
+    #  Physical model settings
+    #
+      xc               pw-lda
+      charge           0.
+      spin             none
+      relativistic zora scalar 1e-12
+    #
+    #  SCF convergence settings
+    #
+      occupation_type  gaussian 0.1
+      mixer            pulay
+        n_max_pulay             10
+        charge_mix_param        0.2
+        # ini_linear_mixing     10
+        # ini_linear_mix_param  0.05
+        # preconditioner kerker 1.5
+        # precondition_max_l    4
+        # preconditioner turnoff charge 1e-4
+        # preconditioner turnoff sum_ev 1e-1
+      sc_accuracy_rho  1E-4
+      sc_accuracy_eev  1E-2
+      sc_accuracy_etot 1E-5
+      sc_iter_limit    100
+    #
+    #  Efficiency settings - no longer needed by default, so kept as comments only.
+    #
+    #  KS_method        lapack
+    #    empty_states     5
+    #    basis_threshold  1.e-5
+     distributed_spline_storage .true.  # use this for parallel runs / large systems
+    #
+    #  For periodic boundary conditions
+    #
+      k_grid 12 12 12 # this is not high for a metal. before economizing here,
+                      # note that the eigensolver-related part only takes about
+  		    # 10% of the time in this example even with 12x12x12. The
+                      # bulk of the time are real-space operations.
+      symmetry_reduced_k_grid .true.
+  
+      output k_point_list
+  
+    #
+    #  For relaxation:
+    #
+  #    relax_geometry bfgs 1.e-2
+    #
+    #  Output options:
+    #
+    #  output mulliken
+    #  output Hirshfeld
+    #  output dipole
+    #
+    #  High-symmetry k-points for fcc band structure output, if requested.
+    #
+    #  output l_proj_dos -20 30 1000 0.3
+    #  output band  0.25  0.50  0.75  0.5   0.5   0.5   100	W      L
+    #  output band  0.5   0.5   0.5   0.25  0.25  0.25  100	L      Lambda
+    #  output band  0.25  0.25  0.25  0     0     0     100	Lambda Gamma
+    #  output band  0     0       0   0.00  0.25  0.25  100	Gamma  Delta
+    #  output band  0.00  0.25  0.25  0     0.5   0.5   100	Delta  X
+    #  output band  0     0.5   0.5   0.125 0.5   0.625 100	X      Z
+    #  output band  0.125 0.5   0.625 0.25  0.50  0.75  100	Z      W
+    #  output band  0.25  0.50  0.75  0.375 0.375 0.75  100	W      K
+  ################################################################################
+  #
+  #  FHI-aims code project
+  #  VB, Fritz-Haber Institut, 2010
+  #
+  #  Suggested "light" defaults for Cu atom (to be pasted into control.in file)
+  #  Be sure to double-check any results obtained with these settings for post-processing,
+  #  e.g., with the "tight" defaults and larger basis sets.
+  #
+  ################################################################################
+    species        Cu
+  #
+      nucleus      29
+      mass         63.546
+  #
+      l_hartree    4
+  #
+      cut_pot      3.5  1.5  1.0
+      basis_dep_cutoff    1e-4
+  #
+      radial_base        53 5.0
+      radial_multiplier  1
+      angular_grids       specified
+        division   0.5231   50
+        division   0.8642  110
+        division   1.1767  194
+        division   1.5041  302
+  #      division   1.9293  434
+  #      division   2.0065  590
+  #      division   2.0466  770
+  #      division   2.0877  974
+  #      division   2.4589 1202
+        outer_grid   302
+  ################################################################################
+  #
+  #  Definition of "minimal" basis
+  #
+  ################################################################################
+  #     valence basis states
+      valence      4  s   1.
+      valence      3  p   6.
+      valence      3  d  10.
+  #     ion occupancy
+      ion_occ      4  s   0.
+      ion_occ      3  p   6.
+      ion_occ      3  d   9.
+  ################################################################################
+  #
+  #  Suggested additional basis functions. For production calculations,
+  #  uncomment them one after another (the most important basis functions are
+  #  listed first).
+  #
+  #  Constructed for dimers: 1.8, 2.2, 3.0, 4.0 Ang
+  #
+  ################################################################################
+  #  "First tier" - improvements: -211.42 meV to -9.17 meV
+       ionic 4 p auto
+       hydro 4 f 7.4
+       hydro 3 s 2.6
+       hydro 3 d 5
+  #     hydro 5 g 10.4
+  #  "Second tier" - improvements: -2.49 meV to -1.08 meV
+  #     hydro 4 p 5.8
+  #     hydro 3 d 2.7
+  #     hydro 6 h 15.2
+  #     hydro 5 s 10.8
+  #     hydro 4 f 16
+  #  "Third tier" - improvements: -0.50 meV to -0.21 meV
+  #     hydro 4 d 6
+  #     hydro 3 p 2.4
+  #     hydro 4 f 6.4
+  #     hydro 3 s 6.8
+  #     hydro 5 g 11.2
+  #  "Fourth tier" - improvements: -0.13 meV to -0.05 meV
+  #     hydro 4 p 7
+  #     hydro 4 s 4
+  #     hydro 6 h 14
+  #     hydro 4 d 8.6
+  #     hydro 5 f 15.2
+  
+  
+  -----------------------------------------------------------------------
+  Completed first pass over input file control.in .
+  -----------------------------------------------------------------------
+  
+  
+  -----------------------------------------------------------------------
+  Parsing geometry.in (first pass over file, find array dimensions only).
+  The contents of geometry.in will be repeated verbatim below
+  unless switched off by setting 'verbatim_writeout .false.' .
+  in the first line of geometry.in .
+  -----------------------------------------------------------------------
+  
+  #
+  #  fcc Cu
+  #  Equilibrium lattice parameter: 3.52 A (LDA, relativistic)
+  #
+    atom 0. 0. 0. Cu
+  #
+  # unit cell
+  #
+  lattice_vector  1.76 1.76 0.0
+  lattice_vector  0.0  1.76 1.76
+  lattice_vector  1.76 0.0  1.76
+  
+  -----------------------------------------------------------------------
+  Completed first pass over input file geometry.in .
+  -----------------------------------------------------------------------
+  
+
+  Basic array size parameters:
+  | Number of species                 :        1
+  | Number of atoms                   :        1
+  | Number of lattice vectors         :        3
+  | Max. basis fn. angular momentum   :        3
+  | Max. atomic/ionic basis occupied n:        4
+  | Max. number of basis fn. types    :        3
+  | Max. radial fns per species/type  :        7
+  | Max. logarithmic grid size        :     1406
+  | Max. radial integration grid size :       53
+  | Max. angular integration grid size:      302
+  | Max. angular grid division number :        8
+  | Radial grid for Hartree potential :     1406
+  | Number of spin channels           :        1
+
+------------------------------------------------------------
+          Reading file control.in.
+------------------------------------------------------------
+  XC: Using Perdew-Wang parametrisation of Ceperley-Alder LDA.
+  Charge =   0.000000E+00: Neutral system requested explicitly.
+  Spin treatment: No spin polarisation.
+  Scalar relativistic treatment of kinetic energy: ZORA.
+  Threshold value for ZORA:   0.100000E-11
+  Occupation type: Gaussian broadening, width =   0.100000E+00 eV.
+  Using pulay charge density mixing.
+  Pulay mixing - number of memorized iterations:   10
+  Charge density mixing - mixing parameter:     0.2000
+  Convergence accuracy of self-consistent charge density:  0.1000E-03
+  Convergence accuracy of sum of eigenvalues:  0.1000E-01
+  Convergence accuracy of total energy:  0.1000E-04
+  Maximum number of s.-c. iterations  :   100
+  Requested to store only required components of Hartree potential.
+  Found k-point grid:        12        12        12
+  Explicitly requesting symmetry reduced k-points.
+  Currently, only time-reversal symmetry is supported.
+  List of k-points will be written out.
+ 
+  Reading configuration options for species Cu                  .
+  | Found nuclear charge :  29.0000
+  | Found atomic mass :    63.5460000000000      amu
+  | Found l_max for Hartree potential  :   4
+  | Found cutoff potl. onset [A], width [A], scale factor :    3.50000    1.50000    1.00000
+  | Threshold for basis-dependent cutoff potential is   0.100000E-03
+  | Found data for basic radial integration grid :    53 points, outermost radius =    5.000 A
+  | Found multiplier for basic radial grid :   1
+  | Found angular grid specification: user-specified.
+  | Specified grid contains     5 separate shells.
+  | Check grid settings after all constraints further below.
+  | Found free-atom valence shell :  4 s   1.000
+  | Found free-atom valence shell :  3 p   6.000
+  | Found free-atom valence shell :  3 d  10.000
+  | Found free-ion valence shell :  4 s   0.000
+  | Found free-ion valence shell :  3 p   6.000
+  | Found free-ion valence shell :  3 d   9.000
+  | Found ionic basis function :  4 p , default cutoff radius.
+  | Found hydrogenic basis function :  4 f   7.400
+  | Found hydrogenic basis function :  3 s   2.600
+  | Found hydrogenic basis function :  3 d   5.000
+  Species Cu                  : Missing cutoff potential type.
+  Defaulting to exp(1/x)/(1-x)^2 type cutoff potential.
+  Species Cu: No 'logarithmic' tag. Using default grid for free atom:
+  | Default logarithmic grid data [bohr] : 0.1000E-03 0.1000E+03 0.1012E+01
+  | Will include ionic basis functions of  2.0-fold positive Cu                   ion.
+  Species Cu: On-site basis accuracy parameter (for Gram-Schmidt orthonormalisation) not specified.
+  Using default value basis_acc =  0.1000000E-03.
+  Species Cu                  : Using default innermost maximum threshold i_radial=  2 for radial functions.
+  Species Cu                  : Default cutoff onset for free atom density etc. : 0.35000000E+01 AA.
+  Species Cu                  : Basic radial grid will be enhanced according to radial_multiplier =   1, to contain    53 grid points.
+ 
+  Finished reading input file 'control.in'. Consistency checks are next.
+ 
+  MPI_IN_PLACE appears to work with this MPI implementation.
+  | Keeping use_mpi_in_place .true. (see manual).
+  Target number of points in a grid batch is not set. Defaulting to  100
+  Method for grid partitioning is not set. Defaulting to parallel hash+maxmin partitioning.
+  Batch size limit is not set. Defaulting to    200
+  By default, will store active basis functions for each batch.
+  If in need of memory, prune_basis_once .false. can be used to disable this option.
+  communication_type for Hartree potential was not specified.
+  Defaulting to calc_hartree .
+  Pulay mixer: Number of initial linear mixing iterations not set.
+  Defaulting to    0 iterations.
+  Work space size for distributed Hartree potential not set.
+  Defaulting to   0.200000E+03 MB.
+  Algorithm-dependent basis array size parameters:
+  | n_max_pulay                         :       10
+  Presetting      1001 iterations before the initial mixing cycle
+  is restarted anyway using the sc_init_iter criterion / keyword.
+  Presetting a factor      1.000 between actual scf density residual
+  and density convergence criterion sc_accuracy_rho below which sc_init_iter
+  takes no effect.
+  Calculation of forces was not defined in control.in. No forces will be calculated.
+  Geometry relaxation not requested: no relaxation will be performed.
+  No accuracy limit for integral partition fn. given. Defaulting to  0.1000E-14.
+  No threshold value for u(r) in integrations given. Defaulting to  0.1000E-05.
+  No accuracy for occupation numbers given. Defaulting to  0.1000E-12.
+  No threshold value for occupation numbers given. Defaulting to  0.0000E+00.
+  No accuracy for fermi level given. Defaulting to  0.1000E-19.
+  Maximum # of iterations to find E_F not set. Defaulting to  200.
+  Preferred method for the eigenvalue solver ('KS_method') not specified in 'control.in'.
+  Defaulting to serial version, LAPACK (via ELSI), since more k-points than CPUs available.
+  Will not use alltoall communication since running on < 1024 CPUs.
+  Threshold for basis singularities not set.
+  Default threshold for basis singularities:  0.1000E-04
+  partition_type (choice of integration weights) for integrals was not specified.
+  | Using a version of the partition function of Stratmann and coworkers ('stratmann_sparse').
+  | At each grid point, the set of atoms used to build the partition table is smoothly restricted to
+  | only those atoms whose free-atom density would be non-zero at that grid point.
+  Partitioning for Hartree potential was not defined. Using partition_type for integrals.
+  | Adjusted default value of keyword multip_moments_threshold to:       0.10000000E-11
+  | This value may affect high angular momentum components of the Hartree potential in periodic systems.
+  Angular momentum expansion for Kerker preconditioner not set explicitly.
+  | Using default value of   0
+  No explicit requirement for turning off preconditioner.
+  | By default, it will be turned off when the charge convergence reaches
+  | sc_accuracy_rho  =   0.100000E-03
+  | sc_accuracy_eev  =   0.100000E-01
+  | sc_accuracy_etot =   0.100000E-04
+  No special mixing parameter while Kerker preconditioner is on.
+  Using default: charge_mix_param =     0.2000.
+  No q(lm)/r^(l+1) cutoff set for long-range Hartree potential.
+  | Using default value of  0.100000E-09 .
+  | Verify using the multipole_threshold keyword.
+  Defaulting to new monopole extrapolation.
+  Density update method: automatic selection selected.
+  Using density matrix based charge density update.
+  Using density matrix based charge density update.
+  Using packed matrix style: index .
+  Charge integration errors on the 3D integration grid will be compensated
+  by explicit normalization and distribution of residual charges.
+  Use the "compensate_multipole_errors" flag to change this behaviour.
+------------------------------------------------------------
+
+
+------------------------------------------------------------
+          Reading geometry description geometry.in.
+------------------------------------------------------------
+  Input structure read successfully.
+  The structure contains        1 atoms,  and a total of         29.000 electrons.
+
+  Input geometry:
+  | Unit cell:
+  |        1.76000000        1.76000000        0.00000000
+  |        0.00000000        1.76000000        1.76000000
+  |        1.76000000        0.00000000        1.76000000
+  | Atomic structure:
+  |       Atom                x [A]            y [A]            z [A]
+  |    1: Species Cu            0.00000000        0.00000000        0.00000000
+
+  Lattice parameters for 3D lattice (in Angstroms) :     2.489016    2.489016    2.489016
+  Angle(s) between unit vectors (in degrees)       :    60.000000   60.000000   60.000000
+
+  | The smallest distance between any two atoms is         2.48901587 AA.
+  | The first atom of this pair is atom number                      1 .
+  | The second atom of this pair is atom number                     1 .
+  | Wigner-Seitz cell of the first atom image          -1     0     1 .
+  | (The Wigner-Seitz cell of the second atom is 0 0 0  by definition.)
+
+  Symmetry information by spglib:
+  | Precision set to  0.1E-04
+  | Number of Operations  : 48
+  | Space group           : 225
+  | International         : Fm-3m
+  | Schoenflies           : Oh^5
+
+  Quantities derived from the lattice vectors:
+  | Reciprocal lattice vector 1:  1.784996  1.784996 -1.784996
+  | Reciprocal lattice vector 2: -1.784996  1.784996  1.784996
+  | Reciprocal lattice vector 3:  1.784996 -1.784996  1.784996
+  | Unit cell volume                               :   0.109036E+02  A^3
+
+  Range separation radius for Ewald summation (hartree_convergence_parameter):      3.08239701 bohr.
+
+  Fractional coordinates:
+                         L1                L2                L3
+       atom_frac         0.00000000        0.00000000        0.00000000  Cu
+
+  Number of empty states per atom not set in control.in - providing a guess from actual geometry.
+  | Total number of empty states used during s.c.f. cycle:        6
+  If you use a very high smearing, use empty_states (per atom!) in control.in to increase this value.
+
+  Structure-dependent array size parameters: 
+  | Maximum number of distinct radial functions  :       11
+  | Maximum number of basis functions            :       31
+  | Number of Kohn-Sham states (occupied + empty):       21
+------------------------------------------------------------
+
+------------------------------------------------------------
+          Preparing all fixed parts of the calculation.
+------------------------------------------------------------
+  Determining machine precision:
+    2.225073858507201E-308
+  Setting up grids for atomic and cluster calculations.
+
+  Creating wave function, potential, and density for free atoms.
+
+  Species: Cu
+
+  List of occupied orbitals and eigenvalues:
+    n    l              occ      energy [Ha]    energy [eV]
+    1    0           2.0000      -328.025961     -8926.0405
+    2    0           2.0000       -39.024163     -1061.9015
+    3    0           2.0000        -4.189145      -113.9924
+    4    0           1.0000        -0.172644        -4.6979
+    2    1           6.0000       -33.720116      -917.5710
+    3    1           6.0000        -2.640767       -71.8589
+    3    2          10.0000        -0.190112        -5.1732
+
+  Creating fixed part of basis set: Ionic, confined, hydrogenic.
+ 
+  Cu                   ion:
+
+  List of free ionic orbitals and eigenvalues:
+    n    l      energy [Ha]    energy [eV]
+    1    0      -328.986260     -8952.1716
+    2    0       -39.979362     -1087.8938
+    3    0        -5.137523      -139.7991
+    2    1       -34.674612      -943.5442
+    3    1        -3.585296       -97.5609
+    3    2        -1.102046       -29.9882
+
+
+  List of ionic basis orbitals and eigenvalues:
+    n    l      energy [Ha]    energy [eV]    outer radius [A]
+    4    1        -0.564629       -15.3643       4.558700
+
+ 
+  Cu                   hydrogenic:
+ 
+  List of hydrogenic basis orbitals: 
+    n    l      effective z      eigenvalue [eV]  inner max. [A]     outer max. [A]     outer radius [A]   
+    4    3         7.400000       -46.5648           1.145240           1.145240           4.503309
+    3    0         2.600000        -9.1731           0.150509           2.473881           4.614772
+    3    2         5.000000       -37.7929           0.953362           0.953362           4.394539
+ 
+
+  Adding cutoff potential to free-atom effective potential.
+  Creating atomic-like basis functions for current effective potential.
+
+  Species Cu                  :
+
+  List of atomic basis orbitals and eigenvalues:
+    n    l      energy [Ha]    energy [eV]    outer radius [A]
+    1    0      -328.025961     -8926.0405       0.367398
+    2    0       -39.024163     -1061.9015       1.064244
+    3    0        -4.189145      -113.9924       3.120718
+    4    0        -0.172644        -4.6979       4.558700
+    2    1       -33.720116      -917.5710       1.117579
+    3    1        -2.640767       -71.8589       3.748807
+    3    2        -0.190112        -5.1732       4.503309
+
+  Assembling full basis from fixed parts.
+  | Species Cu :   atomic orbital   1 s accepted.
+  | Species Cu :   atomic orbital   2 s accepted.
+  | Species Cu :   atomic orbital   3 s accepted.
+  | Species Cu :   atomic orbital   4 s accepted.
+  | Species Cu :    hydro orbital   3 s accepted.
+  | Species Cu :   atomic orbital   2 p accepted.
+  | Species Cu :   atomic orbital   3 p accepted.
+  | Species Cu :    ionic orbital   4 p accepted.
+  | Species Cu :    hydro orbital   3 d accepted.
+  | Species Cu :   atomic orbital   3 d accepted.
+  | Species Cu :    hydro orbital   4 f accepted.
+ 
+  Basis size parameters after reduction:
+  | Total number of radial functions:       11
+  | Total number of basis functions :       31
+ 
+  Per-task memory consumption for arrays in subroutine allocate_ext:
+  |           2.970792MB.
+  Testing on-site integration grid accuracy.
+  |  Species  Function  <phi|h_atom|phi> (log., in eV)  <phi|h_atom|phi> (rad., in eV)
+           1        1              -8926.0405464823              -8926.0324181819
+           1        2              -1061.9014969702              -1061.9014031101
+           1        3               -113.9924266384               -113.9924245602
+           1        4                 -4.7078890827                 -4.7207550619
+           1        5                  5.3983504076                  5.2010101387 ***
+           1        6               -917.5710345973               -917.5710333962
+           1        7                -71.8589325808                -71.8589322217
+           1        8                  1.4234098779                  1.4188284180
+           1        9                  9.1518766907                  9.1519212934
+           1       10                  9.9918351617                  9.9915191410
+           1       11                 29.3619534588                 29.3616914156
+ * Note: Onsite integrals marked "***" above are less accurate than
+ * onsite_accuracy_threshold =    0.03000 eV. Usually, this is harmless.
+ * When in doubt, tighten the "radial" and/or "radial_multiplier" flags to check.
+
+  Preparing densities etc. for the partition functions (integrals / Hartree potential).
+
+  Preparations completed.
+  max(cpu_time)          :      0.206 s.
+  Wall clock time (cpu1) :      0.206 s.
+------------------------------------------------------------
+
+------------------------------------------------------------
+          Begin self-consistency loop: Initialization.
+
+          Date     :  20190817, Time     :  153236.116
+------------------------------------------------------------
+
+  Initializing index lists of integration centers etc. from given atomic structure:
+  Mapping all atomic coordinates to central unit cell.
+
+  Initializing the k-points
+          Using symmetry for reducing the k-points
+  | k-points reduced from:     1728 to      868
+  | Number of k-points                             :       868
+  The eigenvectors in the calculations are COMPLEX.
+  | K-points in task   0:       108
+  | K-points in task   1:       109
+  | K-points in task   2:       109
+  | K-points in task   3:       109
+  | K-points in task   4:       109
+  | K-points in task   5:       108
+  | K-points in task   6:       108
+  | K-points in task   7:       108
+  | k-point: 1 at     0.000000    0.000000    0.000000  , weight:   0.00057870
+  | k-point: 2 at     0.000000    0.000000    0.083333  , weight:   0.00115741
+  | k-point: 3 at     0.000000    0.000000    0.250000  , weight:   0.00115741
+  | k-point: 4 at     0.000000    0.000000    0.333333  , weight:   0.00115741
+  | k-point: 5 at     0.000000    0.000000    0.416667  , weight:   0.00115741
+  | k-point: 6 at     0.000000    0.000000    0.500000  , weight:   0.00057870
+  | k-point: 7 at     0.000000    0.000000    0.833333  , weight:   0.00115741
+  | k-point: 8 at     0.000000    0.083333    0.000000  , weight:   0.00115741
+  | k-point: 9 at     0.000000    0.083333    0.083333  , weight:   0.00115741
+  | k-point: 10 at     0.000000    0.083333    0.166667  , weight:   0.00115741
+  | k-point: 11 at     0.000000    0.083333    0.333333  , weight:   0.00115741
+  | k-point: 12 at     0.000000    0.083333    0.416667  , weight:   0.00115741
+  | k-point: 13 at     0.000000    0.083333    0.500000  , weight:   0.00115741
+  | k-point: 14 at     0.000000    0.083333    0.666667  , weight:   0.00115741
+  | k-point: 15 at     0.000000    0.083333    0.750000  , weight:   0.00115741
+  | k-point: 16 at     0.000000    0.083333    0.833333  , weight:   0.00115741
+  | k-point: 17 at     0.000000    0.166667    0.000000  , weight:   0.00115741
+  | k-point: 18 at     0.000000    0.166667    0.083333  , weight:   0.00115741
+  | k-point: 19 at     0.000000    0.166667    0.166667  , weight:   0.00115741
+  | k-point: 20 at     0.000000    0.166667    0.333333  , weight:   0.00115741
+  | k-point: 21 at     0.000000    0.166667    0.416667  , weight:   0.00115741
+  | k-point: 22 at     0.000000    0.166667    0.500000  , weight:   0.00115741
+  | k-point: 23 at     0.000000    0.166667    0.666667  , weight:   0.00115741
+  | k-point: 24 at     0.000000    0.166667    0.750000  , weight:   0.00115741
+  | k-point: 25 at     0.000000    0.166667    0.833333  , weight:   0.00115741
+  | k-point: 26 at     0.000000    0.250000    0.000000  , weight:   0.00115741
+  | k-point: 27 at     0.000000    0.250000    0.083333  , weight:   0.00115741
+  | k-point: 28 at     0.000000    0.250000    0.166667  , weight:   0.00115741
+  | k-point: 29 at     0.000000    0.250000    0.333333  , weight:   0.00115741
+  | k-point: 30 at     0.000000    0.250000    0.416667  , weight:   0.00115741
+  | k-point: 31 at     0.000000    0.250000    0.500000  , weight:   0.00115741
+  | k-point: 32 at     0.000000    0.250000    0.666667  , weight:   0.00115741
+  | k-point: 33 at     0.000000    0.250000    0.750000  , weight:   0.00115741
+  | k-point: 34 at     0.000000    0.250000    0.833333  , weight:   0.00115741
+  | k-point: 35 at     0.000000    0.333333    0.000000  , weight:   0.00115741
+  | k-point: 36 at     0.000000    0.333333    0.083333  , weight:   0.00115741
+  | k-point: 37 at     0.000000    0.333333    0.166667  , weight:   0.00115741
+  | k-point: 38 at     0.000000    0.333333    0.333333  , weight:   0.00115741
+  | k-point: 39 at     0.000000    0.333333    0.416667  , weight:   0.00115741
+  | k-point: 40 at     0.000000    0.333333    0.500000  , weight:   0.00115741
+  | k-point: 41 at     0.000000    0.333333    0.666667  , weight:   0.00115741
+  | k-point: 42 at     0.000000    0.333333    0.750000  , weight:   0.00115741
+  | k-point: 43 at     0.000000    0.333333    0.833333  , weight:   0.00115741
+  | k-point: 44 at     0.000000    0.416667    0.000000  , weight:   0.00115741
+  | k-point: 45 at     0.000000    0.416667    0.083333  , weight:   0.00115741
+  | k-point: 46 at     0.000000    0.416667    0.166667  , weight:   0.00115741
+  | k-point: 47 at     0.000000    0.416667    0.333333  , weight:   0.00115741
+  | k-point: 48 at     0.000000    0.416667    0.416667  , weight:   0.00115741
+  | k-point: 49 at     0.000000    0.416667    0.500000  , weight:   0.00115741
+  | k-point: 50 at     0.000000    0.416667    0.666667  , weight:   0.00115741
+  | k-point: 51 at     0.000000    0.416667    0.750000  , weight:   0.00115741
+  | k-point: 52 at     0.000000    0.416667    0.833333  , weight:   0.00115741
+  | k-point: 53 at     0.000000    0.500000    0.000000  , weight:   0.00057870
+  | k-point: 54 at     0.000000    0.500000    0.083333  , weight:   0.00115741
+  | k-point: 55 at     0.000000    0.500000    0.166667  , weight:   0.00115741
+  | k-point: 56 at     0.000000    0.500000    0.333333  , weight:   0.00115741
+  | k-point: 57 at     0.000000    0.500000    0.416667  , weight:   0.00115741
+  | k-point: 58 at     0.000000    0.500000    0.500000  , weight:   0.00057870
+  | k-point: 59 at     0.000000    0.500000    0.750000  , weight:   0.00115741
+  | k-point: 60 at     0.000000    0.583333    0.083333  , weight:   0.00115741
+  | k-point: 61 at     0.000000    0.583333    0.416667  , weight:   0.00115741
+  | k-point: 62 at     0.000000    0.583333    0.750000  , weight:   0.00115741
+  | k-point: 63 at     0.000000    0.666667    0.083333  , weight:   0.00115741
+  | k-point: 64 at     0.000000    0.666667    0.416667  , weight:   0.00115741
+  | k-point: 65 at     0.000000    0.666667    0.750000  , weight:   0.00115741
+  | k-point: 66 at     0.000000    0.750000    0.083333  , weight:   0.00115741
+  | k-point: 67 at     0.000000    0.750000    0.416667  , weight:   0.00115741
+  | k-point: 68 at     0.000000    0.750000    0.750000  , weight:   0.00115741
+  | k-point: 69 at     0.000000    0.833333    0.083333  , weight:   0.00115741
+  | k-point: 70 at     0.000000    0.833333    0.416667  , weight:   0.00115741
+  | k-point: 71 at     0.000000    0.833333    0.750000  , weight:   0.00115741
+  | k-point: 72 at     0.000000    0.916667    0.083333  , weight:   0.00115741
+  | k-point: 73 at     0.000000    0.916667    0.416667  , weight:   0.00115741
+  | k-point: 74 at     0.000000    0.916667    0.750000  , weight:   0.00115741
+  | k-point: 75 at     0.083333    0.000000    0.000000  , weight:   0.00115741
+  | k-point: 76 at     0.083333    0.000000    0.166667  , weight:   0.00115741
+  | k-point: 77 at     0.083333    0.000000    0.250000  , weight:   0.00115741
+  | k-point: 78 at     0.083333    0.000000    0.333333  , weight:   0.00115741
+  | k-point: 79 at     0.083333    0.000000    0.500000  , weight:   0.00115741
+  | k-point: 80 at     0.083333    0.000000    0.583333  , weight:   0.00115741
+  | k-point: 81 at     0.083333    0.000000    0.666667  , weight:   0.00115741
+  | k-point: 82 at     0.083333    0.000000    0.833333  , weight:   0.00115741
+  | k-point: 83 at     0.083333    0.000000    0.916667  , weight:   0.00115741
+  | k-point: 84 at     0.083333    0.083333    0.000000  , weight:   0.00115741
+  | k-point: 85 at     0.083333    0.083333    0.166667  , weight:   0.00115741
+  | k-point: 86 at     0.083333    0.083333    0.250000  , weight:   0.00115741
+  | k-point: 87 at     0.083333    0.083333    0.333333  , weight:   0.00115741
+  | k-point: 88 at     0.083333    0.083333    0.500000  , weight:   0.00115741
+  | k-point: 89 at     0.083333    0.083333    0.583333  , weight:   0.00115741
+  | k-point: 90 at     0.083333    0.083333    0.666667  , weight:   0.00115741
+  | k-point: 91 at     0.083333    0.083333    0.833333  , weight:   0.00115741
+  | k-point: 92 at     0.083333    0.083333    0.916667  , weight:   0.00115741
+  | k-point: 93 at     0.083333    0.166667    0.000000  , weight:   0.00115741
+  | k-point: 94 at     0.083333    0.166667    0.166667  , weight:   0.00115741
+  | k-point: 95 at     0.083333    0.166667    0.250000  , weight:   0.00115741
+  | k-point: 96 at     0.083333    0.166667    0.333333  , weight:   0.00115741
+  | k-point: 97 at     0.083333    0.166667    0.500000  , weight:   0.00115741
+  | k-point: 98 at     0.083333    0.166667    0.583333  , weight:   0.00115741
+  | k-point: 99 at     0.083333    0.166667    0.666667  , weight:   0.00115741
+  | k-point: 100 at     0.083333    0.166667    0.833333  , weight:   0.00115741
+  | k-point: 101 at     0.083333    0.166667    0.916667  , weight:   0.00115741
+  | k-point: 102 at     0.083333    0.250000    0.000000  , weight:   0.00115741
+  | k-point: 103 at     0.083333    0.250000    0.166667  , weight:   0.00115741
+  | k-point: 104 at     0.083333    0.250000    0.250000  , weight:   0.00115741
+  | k-point: 105 at     0.083333    0.250000    0.333333  , weight:   0.00115741
+  | k-point: 106 at     0.083333    0.250000    0.500000  , weight:   0.00115741
+  | k-point: 107 at     0.083333    0.250000    0.583333  , weight:   0.00115741
+  | k-point: 108 at     0.083333    0.250000    0.666667  , weight:   0.00115741
+  | k-point: 109 at     0.083333    0.250000    0.833333  , weight:   0.00115741
+  | k-point: 110 at     0.083333    0.250000    0.916667  , weight:   0.00115741
+  | k-point: 111 at     0.083333    0.333333    0.000000  , weight:   0.00115741
+  | k-point: 112 at     0.083333    0.333333    0.166667  , weight:   0.00115741
+  | k-point: 113 at     0.083333    0.333333    0.250000  , weight:   0.00115741
+  | k-point: 114 at     0.083333    0.333333    0.333333  , weight:   0.00115741
+  | k-point: 115 at     0.083333    0.333333    0.500000  , weight:   0.00115741
+  | k-point: 116 at     0.083333    0.333333    0.583333  , weight:   0.00115741
+  | k-point: 117 at     0.083333    0.333333    0.666667  , weight:   0.00115741
+  | k-point: 118 at     0.083333    0.333333    0.833333  , weight:   0.00115741
+  | k-point: 119 at     0.083333    0.333333    0.916667  , weight:   0.00115741
+  | k-point: 120 at     0.083333    0.416667    0.000000  , weight:   0.00115741
+  | k-point: 121 at     0.083333    0.416667    0.166667  , weight:   0.00115741
+  | k-point: 122 at     0.083333    0.416667    0.250000  , weight:   0.00115741
+  | k-point: 123 at     0.083333    0.416667    0.333333  , weight:   0.00115741
+  | k-point: 124 at     0.083333    0.416667    0.500000  , weight:   0.00115741
+  | k-point: 125 at     0.083333    0.416667    0.583333  , weight:   0.00115741
+  | k-point: 126 at     0.083333    0.416667    0.666667  , weight:   0.00115741
+  | k-point: 127 at     0.083333    0.416667    0.833333  , weight:   0.00115741
+  | k-point: 128 at     0.083333    0.416667    0.916667  , weight:   0.00115741
+  | k-point: 129 at     0.083333    0.500000    0.000000  , weight:   0.00115741
+  | k-point: 130 at     0.083333    0.500000    0.166667  , weight:   0.00115741
+  | k-point: 131 at     0.083333    0.500000    0.250000  , weight:   0.00115741
+  | k-point: 132 at     0.083333    0.500000    0.333333  , weight:   0.00115741
+  | k-point: 133 at     0.083333    0.500000    0.500000  , weight:   0.00115741
+  | k-point: 134 at     0.083333    0.500000    0.583333  , weight:   0.00115741
+  | k-point: 135 at     0.083333    0.500000    0.666667  , weight:   0.00115741
+  | k-point: 136 at     0.083333    0.500000    0.833333  , weight:   0.00115741
+  | k-point: 137 at     0.083333    0.500000    0.916667  , weight:   0.00115741
+  | k-point: 138 at     0.083333    0.583333    0.000000  , weight:   0.00115741
+  | k-point: 139 at     0.083333    0.583333    0.166667  , weight:   0.00115741
+  | k-point: 140 at     0.083333    0.583333    0.250000  , weight:   0.00115741
+  | k-point: 141 at     0.083333    0.583333    0.333333  , weight:   0.00115741
+  | k-point: 142 at     0.083333    0.583333    0.500000  , weight:   0.00115741
+  | k-point: 143 at     0.083333    0.583333    0.583333  , weight:   0.00115741
+  | k-point: 144 at     0.083333    0.583333    0.666667  , weight:   0.00115741
+  | k-point: 145 at     0.083333    0.583333    0.833333  , weight:   0.00115741
+  | k-point: 146 at     0.083333    0.583333    0.916667  , weight:   0.00115741
+  | k-point: 147 at     0.083333    0.666667    0.000000  , weight:   0.00115741
+  | k-point: 148 at     0.083333    0.666667    0.166667  , weight:   0.00115741
+  | k-point: 149 at     0.083333    0.666667    0.250000  , weight:   0.00115741
+  | k-point: 150 at     0.083333    0.666667    0.333333  , weight:   0.00115741
+  | k-point: 151 at     0.083333    0.666667    0.500000  , weight:   0.00115741
+  | k-point: 152 at     0.083333    0.666667    0.583333  , weight:   0.00115741
+  | k-point: 153 at     0.083333    0.666667    0.666667  , weight:   0.00115741
+  | k-point: 154 at     0.083333    0.666667    0.833333  , weight:   0.00115741
+  | k-point: 155 at     0.083333    0.666667    0.916667  , weight:   0.00115741
+  | k-point: 156 at     0.083333    0.750000    0.000000  , weight:   0.00115741
+  | k-point: 157 at     0.083333    0.750000    0.166667  , weight:   0.00115741
+  | k-point: 158 at     0.083333    0.750000    0.250000  , weight:   0.00115741
+  | k-point: 159 at     0.083333    0.750000    0.333333  , weight:   0.00115741
+  | k-point: 160 at     0.083333    0.750000    0.500000  , weight:   0.00115741
+  | k-point: 161 at     0.083333    0.750000    0.583333  , weight:   0.00115741
+  | k-point: 162 at     0.083333    0.750000    0.666667  , weight:   0.00115741
+  | k-point: 163 at     0.083333    0.750000    0.833333  , weight:   0.00115741
+  | k-point: 164 at     0.083333    0.750000    0.916667  , weight:   0.00115741
+  | k-point: 165 at     0.083333    0.833333    0.000000  , weight:   0.00115741
+  | k-point: 166 at     0.083333    0.833333    0.166667  , weight:   0.00115741
+  | k-point: 167 at     0.083333    0.833333    0.250000  , weight:   0.00115741
+  | k-point: 168 at     0.083333    0.833333    0.333333  , weight:   0.00115741
+  | k-point: 169 at     0.083333    0.833333    0.500000  , weight:   0.00115741
+  | k-point: 170 at     0.083333    0.833333    0.583333  , weight:   0.00115741
+  | k-point: 171 at     0.083333    0.833333    0.666667  , weight:   0.00115741
+  | k-point: 172 at     0.083333    0.833333    0.833333  , weight:   0.00115741
+  | k-point: 173 at     0.083333    0.833333    0.916667  , weight:   0.00115741
+  | k-point: 174 at     0.083333    0.916667    0.000000  , weight:   0.00115741
+  | k-point: 175 at     0.083333    0.916667    0.166667  , weight:   0.00115741
+  | k-point: 176 at     0.083333    0.916667    0.250000  , weight:   0.00115741
+  | k-point: 177 at     0.083333    0.916667    0.333333  , weight:   0.00115741
+  | k-point: 178 at     0.083333    0.916667    0.500000  , weight:   0.00115741
+  | k-point: 179 at     0.083333    0.916667    0.583333  , weight:   0.00115741
+  | k-point: 180 at     0.083333    0.916667    0.666667  , weight:   0.00115741
+  | k-point: 181 at     0.083333    0.916667    0.833333  , weight:   0.00115741
+  | k-point: 182 at     0.083333    0.916667    0.916667  , weight:   0.00115741
+  | k-point: 183 at     0.166667    0.000000    0.000000  , weight:   0.00115741
+  | k-point: 184 at     0.166667    0.000000    0.166667  , weight:   0.00115741
+  | k-point: 185 at     0.166667    0.000000    0.250000  , weight:   0.00115741
+  | k-point: 186 at     0.166667    0.000000    0.333333  , weight:   0.00115741
+  | k-point: 187 at     0.166667    0.000000    0.500000  , weight:   0.00115741
+  | k-point: 188 at     0.166667    0.000000    0.583333  , weight:   0.00115741
+  | k-point: 189 at     0.166667    0.000000    0.666667  , weight:   0.00115741
+  | k-point: 190 at     0.166667    0.000000    0.833333  , weight:   0.00115741
+  | k-point: 191 at     0.166667    0.000000    0.916667  , weight:   0.00115741
+  | k-point: 192 at     0.166667    0.083333    0.000000  , weight:   0.00115741
+  | k-point: 193 at     0.166667    0.083333    0.166667  , weight:   0.00115741
+  | k-point: 194 at     0.166667    0.083333    0.250000  , weight:   0.00115741
+  | k-point: 195 at     0.166667    0.083333    0.333333  , weight:   0.00115741
+  | k-point: 196 at     0.166667    0.083333    0.500000  , weight:   0.00115741
+  | k-point: 197 at     0.166667    0.083333    0.583333  , weight:   0.00115741
+  | k-point: 198 at     0.166667    0.083333    0.666667  , weight:   0.00115741
+  | k-point: 199 at     0.166667    0.083333    0.833333  , weight:   0.00115741
+  | k-point: 200 at     0.166667    0.083333    0.916667  , weight:   0.00115741
+  | k-point: 201 at     0.166667    0.166667    0.000000  , weight:   0.00115741
+  | k-point: 202 at     0.166667    0.166667    0.166667  , weight:   0.00115741
+  | k-point: 203 at     0.166667    0.166667    0.250000  , weight:   0.00115741
+  | k-point: 204 at     0.166667    0.166667    0.333333  , weight:   0.00115741
+  | k-point: 205 at     0.166667    0.166667    0.500000  , weight:   0.00115741
+  | k-point: 206 at     0.166667    0.166667    0.583333  , weight:   0.00115741
+  | k-point: 207 at     0.166667    0.166667    0.666667  , weight:   0.00115741
+  | k-point: 208 at     0.166667    0.166667    0.833333  , weight:   0.00115741
+  | k-point: 209 at     0.166667    0.166667    0.916667  , weight:   0.00115741
+  | k-point: 210 at     0.166667    0.250000    0.000000  , weight:   0.00115741
+  | k-point: 211 at     0.166667    0.250000    0.166667  , weight:   0.00115741
+  | k-point: 212 at     0.166667    0.250000    0.250000  , weight:   0.00115741
+  | k-point: 213 at     0.166667    0.250000    0.333333  , weight:   0.00115741
+  | k-point: 214 at     0.166667    0.250000    0.500000  , weight:   0.00115741
+  | k-point: 215 at     0.166667    0.250000    0.583333  , weight:   0.00115741
+  | k-point: 216 at     0.166667    0.250000    0.666667  , weight:   0.00115741
+  | k-point: 217 at     0.166667    0.250000    0.833333  , weight:   0.00115741
+  | k-point: 218 at     0.166667    0.250000    0.916667  , weight:   0.00115741
+  | k-point: 219 at     0.166667    0.333333    0.000000  , weight:   0.00115741
+  | k-point: 220 at     0.166667    0.333333    0.166667  , weight:   0.00115741
+  | k-point: 221 at     0.166667    0.333333    0.250000  , weight:   0.00115741
+  | k-point: 222 at     0.166667    0.333333    0.333333  , weight:   0.00115741
+  | k-point: 223 at     0.166667    0.333333    0.500000  , weight:   0.00115741
+  | k-point: 224 at     0.166667    0.333333    0.583333  , weight:   0.00115741
+  | k-point: 225 at     0.166667    0.333333    0.666667  , weight:   0.00115741
+  | k-point: 226 at     0.166667    0.333333    0.833333  , weight:   0.00115741
+  | k-point: 227 at     0.166667    0.333333    0.916667  , weight:   0.00115741
+  | k-point: 228 at     0.166667    0.416667    0.000000  , weight:   0.00115741
+  | k-point: 229 at     0.166667    0.416667    0.166667  , weight:   0.00115741
+  | k-point: 230 at     0.166667    0.416667    0.250000  , weight:   0.00115741
+  | k-point: 231 at     0.166667    0.416667    0.333333  , weight:   0.00115741
+  | k-point: 232 at     0.166667    0.416667    0.500000  , weight:   0.00115741
+  | k-point: 233 at     0.166667    0.416667    0.583333  , weight:   0.00115741
+  | k-point: 234 at     0.166667    0.416667    0.666667  , weight:   0.00115741
+  | k-point: 235 at     0.166667    0.416667    0.833333  , weight:   0.00115741
+  | k-point: 236 at     0.166667    0.416667    0.916667  , weight:   0.00115741
+  | k-point: 237 at     0.166667    0.500000    0.000000  , weight:   0.00115741
+  | k-point: 238 at     0.166667    0.500000    0.166667  , weight:   0.00115741
+  | k-point: 239 at     0.166667    0.500000    0.250000  , weight:   0.00115741
+  | k-point: 240 at     0.166667    0.500000    0.333333  , weight:   0.00115741
+  | k-point: 241 at     0.166667    0.500000    0.500000  , weight:   0.00115741
+  | k-point: 242 at     0.166667    0.500000    0.583333  , weight:   0.00115741
+  | k-point: 243 at     0.166667    0.500000    0.666667  , weight:   0.00115741
+  | k-point: 244 at     0.166667    0.500000    0.833333  , weight:   0.00115741
+  | k-point: 245 at     0.166667    0.500000    0.916667  , weight:   0.00115741
+  | k-point: 246 at     0.166667    0.583333    0.000000  , weight:   0.00115741
+  | k-point: 247 at     0.166667    0.583333    0.166667  , weight:   0.00115741
+  | k-point: 248 at     0.166667    0.583333    0.250000  , weight:   0.00115741
+  | k-point: 249 at     0.166667    0.583333    0.333333  , weight:   0.00115741
+  | k-point: 250 at     0.166667    0.583333    0.500000  , weight:   0.00115741
+  | k-point: 251 at     0.166667    0.583333    0.583333  , weight:   0.00115741
+  | k-point: 252 at     0.166667    0.583333    0.666667  , weight:   0.00115741
+  | k-point: 253 at     0.166667    0.583333    0.833333  , weight:   0.00115741
+  | k-point: 254 at     0.166667    0.583333    0.916667  , weight:   0.00115741
+  | k-point: 255 at     0.166667    0.666667    0.000000  , weight:   0.00115741
+  | k-point: 256 at     0.166667    0.666667    0.166667  , weight:   0.00115741
+  | k-point: 257 at     0.166667    0.666667    0.250000  , weight:   0.00115741
+  | k-point: 258 at     0.166667    0.666667    0.333333  , weight:   0.00115741
+  | k-point: 259 at     0.166667    0.666667    0.500000  , weight:   0.00115741
+  | k-point: 260 at     0.166667    0.666667    0.583333  , weight:   0.00115741
+  | k-point: 261 at     0.166667    0.666667    0.666667  , weight:   0.00115741
+  | k-point: 262 at     0.166667    0.666667    0.833333  , weight:   0.00115741
+  | k-point: 263 at     0.166667    0.666667    0.916667  , weight:   0.00115741
+  | k-point: 264 at     0.166667    0.750000    0.000000  , weight:   0.00115741
+  | k-point: 265 at     0.166667    0.750000    0.166667  , weight:   0.00115741
+  | k-point: 266 at     0.166667    0.750000    0.250000  , weight:   0.00115741
+  | k-point: 267 at     0.166667    0.750000    0.333333  , weight:   0.00115741
+  | k-point: 268 at     0.166667    0.750000    0.500000  , weight:   0.00115741
+  | k-point: 269 at     0.166667    0.750000    0.583333  , weight:   0.00115741
+  | k-point: 270 at     0.166667    0.750000    0.666667  , weight:   0.00115741
+  | k-point: 271 at     0.166667    0.750000    0.833333  , weight:   0.00115741
+  | k-point: 272 at     0.166667    0.750000    0.916667  , weight:   0.00115741
+  | k-point: 273 at     0.166667    0.833333    0.000000  , weight:   0.00115741
+  | k-point: 274 at     0.166667    0.833333    0.166667  , weight:   0.00115741
+  | k-point: 275 at     0.166667    0.833333    0.250000  , weight:   0.00115741
+  | k-point: 276 at     0.166667    0.833333    0.333333  , weight:   0.00115741
+  | k-point: 277 at     0.166667    0.833333    0.500000  , weight:   0.00115741
+  | k-point: 278 at     0.166667    0.833333    0.583333  , weight:   0.00115741
+  | k-point: 279 at     0.166667    0.833333    0.666667  , weight:   0.00115741
+  | k-point: 280 at     0.166667    0.833333    0.833333  , weight:   0.00115741
+  | k-point: 281 at     0.166667    0.833333    0.916667  , weight:   0.00115741
+  | k-point: 282 at     0.166667    0.916667    0.000000  , weight:   0.00115741
+  | k-point: 283 at     0.166667    0.916667    0.166667  , weight:   0.00115741
+  | k-point: 284 at     0.166667    0.916667    0.250000  , weight:   0.00115741
+  | k-point: 285 at     0.166667    0.916667    0.333333  , weight:   0.00115741
+  | k-point: 286 at     0.166667    0.916667    0.500000  , weight:   0.00115741
+  | k-point: 287 at     0.166667    0.916667    0.583333  , weight:   0.00115741
+  | k-point: 288 at     0.166667    0.916667    0.666667  , weight:   0.00115741
+  | k-point: 289 at     0.166667    0.916667    0.833333  , weight:   0.00115741
+  | k-point: 290 at     0.166667    0.916667    0.916667  , weight:   0.00115741
+  | k-point: 291 at     0.250000    0.000000    0.000000  , weight:   0.00115741
+  | k-point: 292 at     0.250000    0.000000    0.166667  , weight:   0.00115741
+  | k-point: 293 at     0.250000    0.000000    0.250000  , weight:   0.00115741
+  | k-point: 294 at     0.250000    0.000000    0.333333  , weight:   0.00115741
+  | k-point: 295 at     0.250000    0.000000    0.500000  , weight:   0.00115741
+  | k-point: 296 at     0.250000    0.000000    0.583333  , weight:   0.00115741
+  | k-point: 297 at     0.250000    0.000000    0.666667  , weight:   0.00115741
+  | k-point: 298 at     0.250000    0.000000    0.833333  , weight:   0.00115741
+  | k-point: 299 at     0.250000    0.000000    0.916667  , weight:   0.00115741
+  | k-point: 300 at     0.250000    0.083333    0.000000  , weight:   0.00115741
+  | k-point: 301 at     0.250000    0.083333    0.166667  , weight:   0.00115741
+  | k-point: 302 at     0.250000    0.083333    0.250000  , weight:   0.00115741
+  | k-point: 303 at     0.250000    0.083333    0.333333  , weight:   0.00115741
+  | k-point: 304 at     0.250000    0.083333    0.500000  , weight:   0.00115741
+  | k-point: 305 at     0.250000    0.083333    0.583333  , weight:   0.00115741
+  | k-point: 306 at     0.250000    0.083333    0.666667  , weight:   0.00115741
+  | k-point: 307 at     0.250000    0.083333    0.833333  , weight:   0.00115741
+  | k-point: 308 at     0.250000    0.083333    0.916667  , weight:   0.00115741
+  | k-point: 309 at     0.250000    0.166667    0.000000  , weight:   0.00115741
+  | k-point: 310 at     0.250000    0.166667    0.166667  , weight:   0.00115741
+  | k-point: 311 at     0.250000    0.166667    0.250000  , weight:   0.00115741
+  | k-point: 312 at     0.250000    0.166667    0.333333  , weight:   0.00115741
+  | k-point: 313 at     0.250000    0.166667    0.500000  , weight:   0.00115741
+  | k-point: 314 at     0.250000    0.166667    0.583333  , weight:   0.00115741
+  | k-point: 315 at     0.250000    0.166667    0.666667  , weight:   0.00115741
+  | k-point: 316 at     0.250000    0.166667    0.833333  , weight:   0.00115741
+  | k-point: 317 at     0.250000    0.166667    0.916667  , weight:   0.00115741
+  | k-point: 318 at     0.250000    0.250000    0.000000  , weight:   0.00115741
+  | k-point: 319 at     0.250000    0.250000    0.166667  , weight:   0.00115741
+  | k-point: 320 at     0.250000    0.250000    0.250000  , weight:   0.00115741
+  | k-point: 321 at     0.250000    0.250000    0.333333  , weight:   0.00115741
+  | k-point: 322 at     0.250000    0.250000    0.500000  , weight:   0.00115741
+  | k-point: 323 at     0.250000    0.250000    0.583333  , weight:   0.00115741
+  | k-point: 324 at     0.250000    0.250000    0.666667  , weight:   0.00115741
+  | k-point: 325 at     0.250000    0.250000    0.833333  , weight:   0.00115741
+  | k-point: 326 at     0.250000    0.250000    0.916667  , weight:   0.00115741
+  | k-point: 327 at     0.250000    0.333333    0.000000  , weight:   0.00115741
+  | k-point: 328 at     0.250000    0.333333    0.166667  , weight:   0.00115741
+  | k-point: 329 at     0.250000    0.333333    0.250000  , weight:   0.00115741
+  | k-point: 330 at     0.250000    0.333333    0.333333  , weight:   0.00115741
+  | k-point: 331 at     0.250000    0.333333    0.500000  , weight:   0.00115741
+  | k-point: 332 at     0.250000    0.333333    0.583333  , weight:   0.00115741
+  | k-point: 333 at     0.250000    0.333333    0.666667  , weight:   0.00115741
+  | k-point: 334 at     0.250000    0.333333    0.833333  , weight:   0.00115741
+  | k-point: 335 at     0.250000    0.333333    0.916667  , weight:   0.00115741
+  | k-point: 336 at     0.250000    0.416667    0.000000  , weight:   0.00115741
+  | k-point: 337 at     0.250000    0.416667    0.166667  , weight:   0.00115741
+  | k-point: 338 at     0.250000    0.416667    0.250000  , weight:   0.00115741
+  | k-point: 339 at     0.250000    0.416667    0.333333  , weight:   0.00115741
+  | k-point: 340 at     0.250000    0.416667    0.500000  , weight:   0.00115741
+  | k-point: 341 at     0.250000    0.416667    0.583333  , weight:   0.00115741
+  | k-point: 342 at     0.250000    0.416667    0.666667  , weight:   0.00115741
+  | k-point: 343 at     0.250000    0.416667    0.833333  , weight:   0.00115741
+  | k-point: 344 at     0.250000    0.416667    0.916667  , weight:   0.00115741
+  | k-point: 345 at     0.250000    0.500000    0.000000  , weight:   0.00115741
+  | k-point: 346 at     0.250000    0.500000    0.166667  , weight:   0.00115741
+  | k-point: 347 at     0.250000    0.500000    0.250000  , weight:   0.00115741
+  | k-point: 348 at     0.250000    0.500000    0.333333  , weight:   0.00115741
+  | k-point: 349 at     0.250000    0.500000    0.500000  , weight:   0.00115741
+  | k-point: 350 at     0.250000    0.500000    0.583333  , weight:   0.00115741
+  | k-point: 351 at     0.250000    0.500000    0.666667  , weight:   0.00115741
+  | k-point: 352 at     0.250000    0.500000    0.833333  , weight:   0.00115741
+  | k-point: 353 at     0.250000    0.500000    0.916667  , weight:   0.00115741
+  | k-point: 354 at     0.250000    0.583333    0.000000  , weight:   0.00115741
+  | k-point: 355 at     0.250000    0.583333    0.166667  , weight:   0.00115741
+  | k-point: 356 at     0.250000    0.583333    0.250000  , weight:   0.00115741
+  | k-point: 357 at     0.250000    0.583333    0.333333  , weight:   0.00115741
+  | k-point: 358 at     0.250000    0.583333    0.500000  , weight:   0.00115741
+  | k-point: 359 at     0.250000    0.583333    0.583333  , weight:   0.00115741
+  | k-point: 360 at     0.250000    0.583333    0.666667  , weight:   0.00115741
+  | k-point: 361 at     0.250000    0.583333    0.833333  , weight:   0.00115741
+  | k-point: 362 at     0.250000    0.583333    0.916667  , weight:   0.00115741
+  | k-point: 363 at     0.250000    0.666667    0.000000  , weight:   0.00115741
+  | k-point: 364 at     0.250000    0.666667    0.166667  , weight:   0.00115741
+  | k-point: 365 at     0.250000    0.666667    0.250000  , weight:   0.00115741
+  | k-point: 366 at     0.250000    0.666667    0.333333  , weight:   0.00115741
+  | k-point: 367 at     0.250000    0.666667    0.500000  , weight:   0.00115741
+  | k-point: 368 at     0.250000    0.666667    0.583333  , weight:   0.00115741
+  | k-point: 369 at     0.250000    0.666667    0.666667  , weight:   0.00115741
+  | k-point: 370 at     0.250000    0.666667    0.833333  , weight:   0.00115741
+  | k-point: 371 at     0.250000    0.666667    0.916667  , weight:   0.00115741
+  | k-point: 372 at     0.250000    0.750000    0.000000  , weight:   0.00115741
+  | k-point: 373 at     0.250000    0.750000    0.166667  , weight:   0.00115741
+  | k-point: 374 at     0.250000    0.750000    0.250000  , weight:   0.00115741
+  | k-point: 375 at     0.250000    0.750000    0.333333  , weight:   0.00115741
+  | k-point: 376 at     0.250000    0.750000    0.500000  , weight:   0.00115741
+  | k-point: 377 at     0.250000    0.750000    0.583333  , weight:   0.00115741
+  | k-point: 378 at     0.250000    0.750000    0.666667  , weight:   0.00115741
+  | k-point: 379 at     0.250000    0.750000    0.833333  , weight:   0.00115741
+  | k-point: 380 at     0.250000    0.750000    0.916667  , weight:   0.00115741
+  | k-point: 381 at     0.250000    0.833333    0.000000  , weight:   0.00115741
+  | k-point: 382 at     0.250000    0.833333    0.166667  , weight:   0.00115741
+  | k-point: 383 at     0.250000    0.833333    0.250000  , weight:   0.00115741
+  | k-point: 384 at     0.250000    0.833333    0.333333  , weight:   0.00115741
+  | k-point: 385 at     0.250000    0.833333    0.500000  , weight:   0.00115741
+  | k-point: 386 at     0.250000    0.833333    0.583333  , weight:   0.00115741
+  | k-point: 387 at     0.250000    0.833333    0.666667  , weight:   0.00115741
+  | k-point: 388 at     0.250000    0.833333    0.833333  , weight:   0.00115741
+  | k-point: 389 at     0.250000    0.833333    0.916667  , weight:   0.00115741
+  | k-point: 390 at     0.250000    0.916667    0.000000  , weight:   0.00115741
+  | k-point: 391 at     0.250000    0.916667    0.166667  , weight:   0.00115741
+  | k-point: 392 at     0.250000    0.916667    0.250000  , weight:   0.00115741
+  | k-point: 393 at     0.250000    0.916667    0.333333  , weight:   0.00115741
+  | k-point: 394 at     0.250000    0.916667    0.500000  , weight:   0.00115741
+  | k-point: 395 at     0.250000    0.916667    0.583333  , weight:   0.00115741
+  | k-point: 396 at     0.250000    0.916667    0.666667  , weight:   0.00115741
+  | k-point: 397 at     0.250000    0.916667    0.833333  , weight:   0.00115741
+  | k-point: 398 at     0.250000    0.916667    0.916667  , weight:   0.00115741
+  | k-point: 399 at     0.333333    0.000000    0.000000  , weight:   0.00115741
+  | k-point: 400 at     0.333333    0.000000    0.166667  , weight:   0.00115741
+  | k-point: 401 at     0.333333    0.000000    0.250000  , weight:   0.00115741
+  | k-point: 402 at     0.333333    0.000000    0.333333  , weight:   0.00115741
+  | k-point: 403 at     0.333333    0.000000    0.500000  , weight:   0.00115741
+  | k-point: 404 at     0.333333    0.000000    0.583333  , weight:   0.00115741
+  | k-point: 405 at     0.333333    0.000000    0.666667  , weight:   0.00115741
+  | k-point: 406 at     0.333333    0.000000    0.833333  , weight:   0.00115741
+  | k-point: 407 at     0.333333    0.000000    0.916667  , weight:   0.00115741
+  | k-point: 408 at     0.333333    0.083333    0.000000  , weight:   0.00115741
+  | k-point: 409 at     0.333333    0.083333    0.166667  , weight:   0.00115741
+  | k-point: 410 at     0.333333    0.083333    0.250000  , weight:   0.00115741
+  | k-point: 411 at     0.333333    0.083333    0.333333  , weight:   0.00115741
+  | k-point: 412 at     0.333333    0.083333    0.500000  , weight:   0.00115741
+  | k-point: 413 at     0.333333    0.083333    0.583333  , weight:   0.00115741
+  | k-point: 414 at     0.333333    0.083333    0.666667  , weight:   0.00115741
+  | k-point: 415 at     0.333333    0.083333    0.833333  , weight:   0.00115741
+  | k-point: 416 at     0.333333    0.083333    0.916667  , weight:   0.00115741
+  | k-point: 417 at     0.333333    0.166667    0.000000  , weight:   0.00115741
+  | k-point: 418 at     0.333333    0.166667    0.166667  , weight:   0.00115741
+  | k-point: 419 at     0.333333    0.166667    0.250000  , weight:   0.00115741
+  | k-point: 420 at     0.333333    0.166667    0.333333  , weight:   0.00115741
+  | k-point: 421 at     0.333333    0.166667    0.500000  , weight:   0.00115741
+  | k-point: 422 at     0.333333    0.166667    0.583333  , weight:   0.00115741
+  | k-point: 423 at     0.333333    0.166667    0.666667  , weight:   0.00115741
+  | k-point: 424 at     0.333333    0.166667    0.833333  , weight:   0.00115741
+  | k-point: 425 at     0.333333    0.166667    0.916667  , weight:   0.00115741
+  | k-point: 426 at     0.333333    0.250000    0.000000  , weight:   0.00115741
+  | k-point: 427 at     0.333333    0.250000    0.166667  , weight:   0.00115741
+  | k-point: 428 at     0.333333    0.250000    0.250000  , weight:   0.00115741
+  | k-point: 429 at     0.333333    0.250000    0.333333  , weight:   0.00115741
+  | k-point: 430 at     0.333333    0.250000    0.500000  , weight:   0.00115741
+  | k-point: 431 at     0.333333    0.250000    0.583333  , weight:   0.00115741
+  | k-point: 432 at     0.333333    0.250000    0.666667  , weight:   0.00115741
+  | k-point: 433 at     0.333333    0.250000    0.833333  , weight:   0.00115741
+  | k-point: 434 at     0.333333    0.250000    0.916667  , weight:   0.00115741
+  | k-point: 435 at     0.333333    0.333333    0.000000  , weight:   0.00115741
+  | k-point: 436 at     0.333333    0.333333    0.166667  , weight:   0.00115741
+  | k-point: 437 at     0.333333    0.333333    0.250000  , weight:   0.00115741
+  | k-point: 438 at     0.333333    0.333333    0.333333  , weight:   0.00115741
+  | k-point: 439 at     0.333333    0.333333    0.500000  , weight:   0.00115741
+  | k-point: 440 at     0.333333    0.333333    0.583333  , weight:   0.00115741
+  | k-point: 441 at     0.333333    0.333333    0.666667  , weight:   0.00115741
+  | k-point: 442 at     0.333333    0.333333    0.833333  , weight:   0.00115741
+  | k-point: 443 at     0.333333    0.333333    0.916667  , weight:   0.00115741
+  | k-point: 444 at     0.333333    0.416667    0.000000  , weight:   0.00115741
+  | k-point: 445 at     0.333333    0.416667    0.166667  , weight:   0.00115741
+  | k-point: 446 at     0.333333    0.416667    0.250000  , weight:   0.00115741
+  | k-point: 447 at     0.333333    0.416667    0.333333  , weight:   0.00115741
+  | k-point: 448 at     0.333333    0.416667    0.500000  , weight:   0.00115741
+  | k-point: 449 at     0.333333    0.416667    0.583333  , weight:   0.00115741
+  | k-point: 450 at     0.333333    0.416667    0.666667  , weight:   0.00115741
+  | k-point: 451 at     0.333333    0.416667    0.833333  , weight:   0.00115741
+  | k-point: 452 at     0.333333    0.416667    0.916667  , weight:   0.00115741
+  | k-point: 453 at     0.333333    0.500000    0.000000  , weight:   0.00115741
+  | k-point: 454 at     0.333333    0.500000    0.166667  , weight:   0.00115741
+  | k-point: 455 at     0.333333    0.500000    0.250000  , weight:   0.00115741
+  | k-point: 456 at     0.333333    0.500000    0.333333  , weight:   0.00115741
+  | k-point: 457 at     0.333333    0.500000    0.500000  , weight:   0.00115741
+  | k-point: 458 at     0.333333    0.500000    0.583333  , weight:   0.00115741
+  | k-point: 459 at     0.333333    0.500000    0.666667  , weight:   0.00115741
+  | k-point: 460 at     0.333333    0.500000    0.833333  , weight:   0.00115741
+  | k-point: 461 at     0.333333    0.500000    0.916667  , weight:   0.00115741
+  | k-point: 462 at     0.333333    0.583333    0.000000  , weight:   0.00115741
+  | k-point: 463 at     0.333333    0.583333    0.166667  , weight:   0.00115741
+  | k-point: 464 at     0.333333    0.583333    0.250000  , weight:   0.00115741
+  | k-point: 465 at     0.333333    0.583333    0.333333  , weight:   0.00115741
+  | k-point: 466 at     0.333333    0.583333    0.500000  , weight:   0.00115741
+  | k-point: 467 at     0.333333    0.583333    0.583333  , weight:   0.00115741
+  | k-point: 468 at     0.333333    0.583333    0.666667  , weight:   0.00115741
+  | k-point: 469 at     0.333333    0.583333    0.833333  , weight:   0.00115741
+  | k-point: 470 at     0.333333    0.583333    0.916667  , weight:   0.00115741
+  | k-point: 471 at     0.333333    0.666667    0.000000  , weight:   0.00115741
+  | k-point: 472 at     0.333333    0.666667    0.166667  , weight:   0.00115741
+  | k-point: 473 at     0.333333    0.666667    0.250000  , weight:   0.00115741
+  | k-point: 474 at     0.333333    0.666667    0.333333  , weight:   0.00115741
+  | k-point: 475 at     0.333333    0.666667    0.500000  , weight:   0.00115741
+  | k-point: 476 at     0.333333    0.666667    0.583333  , weight:   0.00115741
+  | k-point: 477 at     0.333333    0.666667    0.666667  , weight:   0.00115741
+  | k-point: 478 at     0.333333    0.666667    0.833333  , weight:   0.00115741
+  | k-point: 479 at     0.333333    0.666667    0.916667  , weight:   0.00115741
+  | k-point: 480 at     0.333333    0.750000    0.000000  , weight:   0.00115741
+  | k-point: 481 at     0.333333    0.750000    0.166667  , weight:   0.00115741
+  | k-point: 482 at     0.333333    0.750000    0.250000  , weight:   0.00115741
+  | k-point: 483 at     0.333333    0.750000    0.333333  , weight:   0.00115741
+  | k-point: 484 at     0.333333    0.750000    0.500000  , weight:   0.00115741
+  | k-point: 485 at     0.333333    0.750000    0.583333  , weight:   0.00115741
+  | k-point: 486 at     0.333333    0.750000    0.666667  , weight:   0.00115741
+  | k-point: 487 at     0.333333    0.750000    0.833333  , weight:   0.00115741
+  | k-point: 488 at     0.333333    0.750000    0.916667  , weight:   0.00115741
+  | k-point: 489 at     0.333333    0.833333    0.000000  , weight:   0.00115741
+  | k-point: 490 at     0.333333    0.833333    0.166667  , weight:   0.00115741
+  | k-point: 491 at     0.333333    0.833333    0.250000  , weight:   0.00115741
+  | k-point: 492 at     0.333333    0.833333    0.333333  , weight:   0.00115741
+  | k-point: 493 at     0.333333    0.833333    0.500000  , weight:   0.00115741
+  | k-point: 494 at     0.333333    0.833333    0.583333  , weight:   0.00115741
+  | k-point: 495 at     0.333333    0.833333    0.666667  , weight:   0.00115741
+  | k-point: 496 at     0.333333    0.833333    0.833333  , weight:   0.00115741
+  | k-point: 497 at     0.333333    0.833333    0.916667  , weight:   0.00115741
+  | k-point: 498 at     0.333333    0.916667    0.000000  , weight:   0.00115741
+  | k-point: 499 at     0.333333    0.916667    0.166667  , weight:   0.00115741
+  | k-point: 500 at     0.333333    0.916667    0.250000  , weight:   0.00115741
+  | k-point: 501 at     0.333333    0.916667    0.333333  , weight:   0.00115741
+  | k-point: 502 at     0.333333    0.916667    0.500000  , weight:   0.00115741
+  | k-point: 503 at     0.333333    0.916667    0.583333  , weight:   0.00115741
+  | k-point: 504 at     0.333333    0.916667    0.666667  , weight:   0.00115741
+  | k-point: 505 at     0.333333    0.916667    0.833333  , weight:   0.00115741
+  | k-point: 506 at     0.333333    0.916667    0.916667  , weight:   0.00115741
+  | k-point: 507 at     0.416667    0.000000    0.000000  , weight:   0.00115741
+  | k-point: 508 at     0.416667    0.000000    0.166667  , weight:   0.00115741
+  | k-point: 509 at     0.416667    0.000000    0.250000  , weight:   0.00115741
+  | k-point: 510 at     0.416667    0.000000    0.333333  , weight:   0.00115741
+  | k-point: 511 at     0.416667    0.000000    0.500000  , weight:   0.00115741
+  | k-point: 512 at     0.416667    0.000000    0.583333  , weight:   0.00115741
+  | k-point: 513 at     0.416667    0.000000    0.666667  , weight:   0.00115741
+  | k-point: 514 at     0.416667    0.000000    0.833333  , weight:   0.00115741
+  | k-point: 515 at     0.416667    0.000000    0.916667  , weight:   0.00115741
+  | k-point: 516 at     0.416667    0.083333    0.000000  , weight:   0.00115741
+  | k-point: 517 at     0.416667    0.083333    0.166667  , weight:   0.00115741
+  | k-point: 518 at     0.416667    0.083333    0.250000  , weight:   0.00115741
+  | k-point: 519 at     0.416667    0.083333    0.333333  , weight:   0.00115741
+  | k-point: 520 at     0.416667    0.083333    0.500000  , weight:   0.00115741
+  | k-point: 521 at     0.416667    0.083333    0.583333  , weight:   0.00115741
+  | k-point: 522 at     0.416667    0.083333    0.666667  , weight:   0.00115741
+  | k-point: 523 at     0.416667    0.083333    0.833333  , weight:   0.00115741
+  | k-point: 524 at     0.416667    0.083333    0.916667  , weight:   0.00115741
+  | k-point: 525 at     0.416667    0.166667    0.000000  , weight:   0.00115741
+  | k-point: 526 at     0.416667    0.166667    0.166667  , weight:   0.00115741
+  | k-point: 527 at     0.416667    0.166667    0.250000  , weight:   0.00115741
+  | k-point: 528 at     0.416667    0.166667    0.333333  , weight:   0.00115741
+  | k-point: 529 at     0.416667    0.166667    0.500000  , weight:   0.00115741
+  | k-point: 530 at     0.416667    0.166667    0.583333  , weight:   0.00115741
+  | k-point: 531 at     0.416667    0.166667    0.666667  , weight:   0.00115741
+  | k-point: 532 at     0.416667    0.166667    0.833333  , weight:   0.00115741
+  | k-point: 533 at     0.416667    0.166667    0.916667  , weight:   0.00115741
+  | k-point: 534 at     0.416667    0.250000    0.000000  , weight:   0.00115741
+  | k-point: 535 at     0.416667    0.250000    0.166667  , weight:   0.00115741
+  | k-point: 536 at     0.416667    0.250000    0.250000  , weight:   0.00115741
+  | k-point: 537 at     0.416667    0.250000    0.333333  , weight:   0.00115741
+  | k-point: 538 at     0.416667    0.250000    0.500000  , weight:   0.00115741
+  | k-point: 539 at     0.416667    0.250000    0.583333  , weight:   0.00115741
+  | k-point: 540 at     0.416667    0.250000    0.666667  , weight:   0.00115741
+  | k-point: 541 at     0.416667    0.250000    0.833333  , weight:   0.00115741
+  | k-point: 542 at     0.416667    0.250000    0.916667  , weight:   0.00115741
+  | k-point: 543 at     0.416667    0.333333    0.000000  , weight:   0.00115741
+  | k-point: 544 at     0.416667    0.333333    0.166667  , weight:   0.00115741
+  | k-point: 545 at     0.416667    0.333333    0.250000  , weight:   0.00115741
+  | k-point: 546 at     0.416667    0.333333    0.333333  , weight:   0.00115741
+  | k-point: 547 at     0.416667    0.333333    0.500000  , weight:   0.00115741
+  | k-point: 548 at     0.416667    0.333333    0.583333  , weight:   0.00115741
+  | k-point: 549 at     0.416667    0.333333    0.666667  , weight:   0.00115741
+  | k-point: 550 at     0.416667    0.333333    0.833333  , weight:   0.00115741
+  | k-point: 551 at     0.416667    0.333333    0.916667  , weight:   0.00115741
+  | k-point: 552 at     0.416667    0.416667    0.000000  , weight:   0.00115741
+  | k-point: 553 at     0.416667    0.416667    0.166667  , weight:   0.00115741
+  | k-point: 554 at     0.416667    0.416667    0.250000  , weight:   0.00115741
+  | k-point: 555 at     0.416667    0.416667    0.333333  , weight:   0.00115741
+  | k-point: 556 at     0.416667    0.416667    0.500000  , weight:   0.00115741
+  | k-point: 557 at     0.416667    0.416667    0.583333  , weight:   0.00115741
+  | k-point: 558 at     0.416667    0.416667    0.666667  , weight:   0.00115741
+  | k-point: 559 at     0.416667    0.416667    0.833333  , weight:   0.00115741
+  | k-point: 560 at     0.416667    0.416667    0.916667  , weight:   0.00115741
+  | k-point: 561 at     0.416667    0.500000    0.000000  , weight:   0.00115741
+  | k-point: 562 at     0.416667    0.500000    0.166667  , weight:   0.00115741
+  | k-point: 563 at     0.416667    0.500000    0.250000  , weight:   0.00115741
+  | k-point: 564 at     0.416667    0.500000    0.333333  , weight:   0.00115741
+  | k-point: 565 at     0.416667    0.500000    0.500000  , weight:   0.00115741
+  | k-point: 566 at     0.416667    0.500000    0.583333  , weight:   0.00115741
+  | k-point: 567 at     0.416667    0.500000    0.666667  , weight:   0.00115741
+  | k-point: 568 at     0.416667    0.500000    0.833333  , weight:   0.00115741
+  | k-point: 569 at     0.416667    0.500000    0.916667  , weight:   0.00115741
+  | k-point: 570 at     0.416667    0.583333    0.000000  , weight:   0.00115741
+  | k-point: 571 at     0.416667    0.583333    0.166667  , weight:   0.00115741
+  | k-point: 572 at     0.416667    0.583333    0.250000  , weight:   0.00115741
+  | k-point: 573 at     0.416667    0.583333    0.333333  , weight:   0.00115741
+  | k-point: 574 at     0.416667    0.583333    0.500000  , weight:   0.00115741
+  | k-point: 575 at     0.416667    0.583333    0.583333  , weight:   0.00115741
+  | k-point: 576 at     0.416667    0.583333    0.666667  , weight:   0.00115741
+  | k-point: 577 at     0.416667    0.583333    0.833333  , weight:   0.00115741
+  | k-point: 578 at     0.416667    0.583333    0.916667  , weight:   0.00115741
+  | k-point: 579 at     0.416667    0.666667    0.000000  , weight:   0.00115741
+  | k-point: 580 at     0.416667    0.666667    0.166667  , weight:   0.00115741
+  | k-point: 581 at     0.416667    0.666667    0.250000  , weight:   0.00115741
+  | k-point: 582 at     0.416667    0.666667    0.333333  , weight:   0.00115741
+  | k-point: 583 at     0.416667    0.666667    0.500000  , weight:   0.00115741
+  | k-point: 584 at     0.416667    0.666667    0.583333  , weight:   0.00115741
+  | k-point: 585 at     0.416667    0.666667    0.666667  , weight:   0.00115741
+  | k-point: 586 at     0.416667    0.666667    0.833333  , weight:   0.00115741
+  | k-point: 587 at     0.416667    0.666667    0.916667  , weight:   0.00115741
+  | k-point: 588 at     0.416667    0.750000    0.000000  , weight:   0.00115741
+  | k-point: 589 at     0.416667    0.750000    0.166667  , weight:   0.00115741
+  | k-point: 590 at     0.416667    0.750000    0.250000  , weight:   0.00115741
+  | k-point: 591 at     0.416667    0.750000    0.333333  , weight:   0.00115741
+  | k-point: 592 at     0.416667    0.750000    0.500000  , weight:   0.00115741
+  | k-point: 593 at     0.416667    0.750000    0.583333  , weight:   0.00115741
+  | k-point: 594 at     0.416667    0.750000    0.666667  , weight:   0.00115741
+  | k-point: 595 at     0.416667    0.750000    0.833333  , weight:   0.00115741
+  | k-point: 596 at     0.416667    0.750000    0.916667  , weight:   0.00115741
+  | k-point: 597 at     0.416667    0.833333    0.000000  , weight:   0.00115741
+  | k-point: 598 at     0.416667    0.833333    0.166667  , weight:   0.00115741
+  | k-point: 599 at     0.416667    0.833333    0.250000  , weight:   0.00115741
+  | k-point: 600 at     0.416667    0.833333    0.333333  , weight:   0.00115741
+  | k-point: 601 at     0.416667    0.833333    0.500000  , weight:   0.00115741
+  | k-point: 602 at     0.416667    0.833333    0.583333  , weight:   0.00115741
+  | k-point: 603 at     0.416667    0.833333    0.666667  , weight:   0.00115741
+  | k-point: 604 at     0.416667    0.833333    0.833333  , weight:   0.00115741
+  | k-point: 605 at     0.416667    0.833333    0.916667  , weight:   0.00115741
+  | k-point: 606 at     0.416667    0.916667    0.000000  , weight:   0.00115741
+  | k-point: 607 at     0.416667    0.916667    0.166667  , weight:   0.00115741
+  | k-point: 608 at     0.416667    0.916667    0.250000  , weight:   0.00115741
+  | k-point: 609 at     0.416667    0.916667    0.333333  , weight:   0.00115741
+  | k-point: 610 at     0.416667    0.916667    0.500000  , weight:   0.00115741
+  | k-point: 611 at     0.416667    0.916667    0.583333  , weight:   0.00115741
+  | k-point: 612 at     0.416667    0.916667    0.666667  , weight:   0.00115741
+  | k-point: 613 at     0.416667    0.916667    0.833333  , weight:   0.00115741
+  | k-point: 614 at     0.416667    0.916667    0.916667  , weight:   0.00115741
+  | k-point: 615 at     0.500000    0.000000    0.000000  , weight:   0.00057870
+  | k-point: 616 at     0.500000    0.000000    0.083333  , weight:   0.00115741
+  | k-point: 617 at     0.500000    0.000000    0.166667  , weight:   0.00115741
+  | k-point: 618 at     0.500000    0.000000    0.250000  , weight:   0.00115741
+  | k-point: 619 at     0.500000    0.000000    0.416667  , weight:   0.00115741
+  | k-point: 620 at     0.500000    0.000000    0.500000  , weight:   0.00057870
+  | k-point: 621 at     0.500000    0.000000    0.666667  , weight:   0.00115741
+  | k-point: 622 at     0.500000    0.083333    0.000000  , weight:   0.00115741
+  | k-point: 623 at     0.500000    0.083333    0.166667  , weight:   0.00115741
+  | k-point: 624 at     0.500000    0.083333    0.250000  , weight:   0.00115741
+  | k-point: 625 at     0.500000    0.083333    0.333333  , weight:   0.00115741
+  | k-point: 626 at     0.500000    0.083333    0.500000  , weight:   0.00115741
+  | k-point: 627 at     0.500000    0.083333    0.583333  , weight:   0.00115741
+  | k-point: 628 at     0.500000    0.083333    0.666667  , weight:   0.00115741
+  | k-point: 629 at     0.500000    0.083333    0.833333  , weight:   0.00115741
+  | k-point: 630 at     0.500000    0.083333    0.916667  , weight:   0.00115741
+  | k-point: 631 at     0.500000    0.166667    0.000000  , weight:   0.00115741
+  | k-point: 632 at     0.500000    0.166667    0.166667  , weight:   0.00115741
+  | k-point: 633 at     0.500000    0.166667    0.250000  , weight:   0.00115741
+  | k-point: 634 at     0.500000    0.166667    0.333333  , weight:   0.00115741
+  | k-point: 635 at     0.500000    0.166667    0.500000  , weight:   0.00115741
+  | k-point: 636 at     0.500000    0.166667    0.583333  , weight:   0.00115741
+  | k-point: 637 at     0.500000    0.166667    0.666667  , weight:   0.00115741
+  | k-point: 638 at     0.500000    0.166667    0.833333  , weight:   0.00115741
+  | k-point: 639 at     0.500000    0.166667    0.916667  , weight:   0.00115741
+  | k-point: 640 at     0.500000    0.250000    0.000000  , weight:   0.00115741
+  | k-point: 641 at     0.500000    0.250000    0.166667  , weight:   0.00115741
+  | k-point: 642 at     0.500000    0.250000    0.250000  , weight:   0.00115741
+  | k-point: 643 at     0.500000    0.250000    0.333333  , weight:   0.00115741
+  | k-point: 644 at     0.500000    0.250000    0.500000  , weight:   0.00115741
+  | k-point: 645 at     0.500000    0.250000    0.583333  , weight:   0.00115741
+  | k-point: 646 at     0.500000    0.250000    0.666667  , weight:   0.00115741
+  | k-point: 647 at     0.500000    0.250000    0.833333  , weight:   0.00115741
+  | k-point: 648 at     0.500000    0.250000    0.916667  , weight:   0.00115741
+  | k-point: 649 at     0.500000    0.333333    0.000000  , weight:   0.00115741
+  | k-point: 650 at     0.500000    0.333333    0.166667  , weight:   0.00115741
+  | k-point: 651 at     0.500000    0.333333    0.250000  , weight:   0.00115741
+  | k-point: 652 at     0.500000    0.333333    0.333333  , weight:   0.00115741
+  | k-point: 653 at     0.500000    0.333333    0.500000  , weight:   0.00115741
+  | k-point: 654 at     0.500000    0.333333    0.583333  , weight:   0.00115741
+  | k-point: 655 at     0.500000    0.333333    0.666667  , weight:   0.00115741
+  | k-point: 656 at     0.500000    0.333333    0.833333  , weight:   0.00115741
+  | k-point: 657 at     0.500000    0.333333    0.916667  , weight:   0.00115741
+  | k-point: 658 at     0.500000    0.416667    0.000000  , weight:   0.00115741
+  | k-point: 659 at     0.500000    0.416667    0.166667  , weight:   0.00115741
+  | k-point: 660 at     0.500000    0.416667    0.250000  , weight:   0.00115741
+  | k-point: 661 at     0.500000    0.416667    0.333333  , weight:   0.00115741
+  | k-point: 662 at     0.500000    0.416667    0.500000  , weight:   0.00115741
+  | k-point: 663 at     0.500000    0.416667    0.583333  , weight:   0.00115741
+  | k-point: 664 at     0.500000    0.416667    0.666667  , weight:   0.00115741
+  | k-point: 665 at     0.500000    0.416667    0.833333  , weight:   0.00115741
+  | k-point: 666 at     0.500000    0.416667    0.916667  , weight:   0.00115741
+  | k-point: 667 at     0.500000    0.500000    0.000000  , weight:   0.00057870
+  | k-point: 668 at     0.500000    0.500000    0.166667  , weight:   0.00115741
+  | k-point: 669 at     0.500000    0.500000    0.250000  , weight:   0.00115741
+  | k-point: 670 at     0.500000    0.500000    0.333333  , weight:   0.00115741
+  | k-point: 671 at     0.500000    0.500000    0.500000  , weight:   0.00057870
+  | k-point: 672 at     0.500000    0.500000    0.583333  , weight:   0.00115741
+  | k-point: 673 at     0.500000    0.500000    0.916667  , weight:   0.00115741
+  | k-point: 674 at     0.500000    0.583333    0.250000  , weight:   0.00115741
+  | k-point: 675 at     0.500000    0.583333    0.583333  , weight:   0.00115741
+  | k-point: 676 at     0.500000    0.583333    0.916667  , weight:   0.00115741
+  | k-point: 677 at     0.500000    0.666667    0.250000  , weight:   0.00115741
+  | k-point: 678 at     0.500000    0.666667    0.583333  , weight:   0.00115741
+  | k-point: 679 at     0.500000    0.666667    0.916667  , weight:   0.00115741
+  | k-point: 680 at     0.500000    0.750000    0.250000  , weight:   0.00115741
+  | k-point: 681 at     0.500000    0.750000    0.583333  , weight:   0.00115741
+  | k-point: 682 at     0.500000    0.750000    0.916667  , weight:   0.00115741
+  | k-point: 683 at     0.500000    0.833333    0.250000  , weight:   0.00115741
+  | k-point: 684 at     0.500000    0.833333    0.583333  , weight:   0.00115741
+  | k-point: 685 at     0.500000    0.833333    0.916667  , weight:   0.00115741
+  | k-point: 686 at     0.500000    0.916667    0.250000  , weight:   0.00115741
+  | k-point: 687 at     0.500000    0.916667    0.583333  , weight:   0.00115741
+  | k-point: 688 at     0.500000    0.916667    0.916667  , weight:   0.00115741
+  | k-point: 689 at     0.583333    0.000000    0.250000  , weight:   0.00115741
+  | k-point: 690 at     0.583333    0.000000    0.583333  , weight:   0.00115741
+  | k-point: 691 at     0.583333    0.000000    0.916667  , weight:   0.00115741
+  | k-point: 692 at     0.583333    0.083333    0.250000  , weight:   0.00115741
+  | k-point: 693 at     0.583333    0.083333    0.583333  , weight:   0.00115741
+  | k-point: 694 at     0.583333    0.083333    0.916667  , weight:   0.00115741
+  | k-point: 695 at     0.583333    0.166667    0.250000  , weight:   0.00115741
+  | k-point: 696 at     0.583333    0.166667    0.583333  , weight:   0.00115741
+  | k-point: 697 at     0.583333    0.166667    0.916667  , weight:   0.00115741
+  | k-point: 698 at     0.583333    0.250000    0.250000  , weight:   0.00115741
+  | k-point: 699 at     0.583333    0.250000    0.583333  , weight:   0.00115741
+  | k-point: 700 at     0.583333    0.250000    0.916667  , weight:   0.00115741
+  | k-point: 701 at     0.583333    0.333333    0.250000  , weight:   0.00115741
+  | k-point: 702 at     0.583333    0.333333    0.583333  , weight:   0.00115741
+  | k-point: 703 at     0.583333    0.333333    0.916667  , weight:   0.00115741
+  | k-point: 704 at     0.583333    0.416667    0.250000  , weight:   0.00115741
+  | k-point: 705 at     0.583333    0.416667    0.583333  , weight:   0.00115741
+  | k-point: 706 at     0.583333    0.416667    0.916667  , weight:   0.00115741
+  | k-point: 707 at     0.583333    0.500000    0.250000  , weight:   0.00115741
+  | k-point: 708 at     0.583333    0.500000    0.583333  , weight:   0.00115741
+  | k-point: 709 at     0.583333    0.500000    0.916667  , weight:   0.00115741
+  | k-point: 710 at     0.583333    0.583333    0.250000  , weight:   0.00115741
+  | k-point: 711 at     0.583333    0.583333    0.583333  , weight:   0.00115741
+  | k-point: 712 at     0.583333    0.583333    0.916667  , weight:   0.00115741
+  | k-point: 713 at     0.583333    0.666667    0.250000  , weight:   0.00115741
+  | k-point: 714 at     0.583333    0.666667    0.583333  , weight:   0.00115741
+  | k-point: 715 at     0.583333    0.666667    0.916667  , weight:   0.00115741
+  | k-point: 716 at     0.583333    0.750000    0.250000  , weight:   0.00115741
+  | k-point: 717 at     0.583333    0.750000    0.583333  , weight:   0.00115741
+  | k-point: 718 at     0.583333    0.750000    0.916667  , weight:   0.00115741
+  | k-point: 719 at     0.583333    0.833333    0.250000  , weight:   0.00115741
+  | k-point: 720 at     0.583333    0.833333    0.583333  , weight:   0.00115741
+  | k-point: 721 at     0.583333    0.833333    0.916667  , weight:   0.00115741
+  | k-point: 722 at     0.583333    0.916667    0.250000  , weight:   0.00115741
+  | k-point: 723 at     0.583333    0.916667    0.583333  , weight:   0.00115741
+  | k-point: 724 at     0.583333    0.916667    0.916667  , weight:   0.00115741
+  | k-point: 725 at     0.666667    0.000000    0.250000  , weight:   0.00115741
+  | k-point: 726 at     0.666667    0.000000    0.583333  , weight:   0.00115741
+  | k-point: 727 at     0.666667    0.000000    0.916667  , weight:   0.00115741
+  | k-point: 728 at     0.666667    0.083333    0.250000  , weight:   0.00115741
+  | k-point: 729 at     0.666667    0.083333    0.583333  , weight:   0.00115741
+  | k-point: 730 at     0.666667    0.083333    0.916667  , weight:   0.00115741
+  | k-point: 731 at     0.666667    0.166667    0.250000  , weight:   0.00115741
+  | k-point: 732 at     0.666667    0.166667    0.583333  , weight:   0.00115741
+  | k-point: 733 at     0.666667    0.166667    0.916667  , weight:   0.00115741
+  | k-point: 734 at     0.666667    0.250000    0.250000  , weight:   0.00115741
+  | k-point: 735 at     0.666667    0.250000    0.583333  , weight:   0.00115741
+  | k-point: 736 at     0.666667    0.250000    0.916667  , weight:   0.00115741
+  | k-point: 737 at     0.666667    0.333333    0.250000  , weight:   0.00115741
+  | k-point: 738 at     0.666667    0.333333    0.583333  , weight:   0.00115741
+  | k-point: 739 at     0.666667    0.333333    0.916667  , weight:   0.00115741
+  | k-point: 740 at     0.666667    0.416667    0.250000  , weight:   0.00115741
+  | k-point: 741 at     0.666667    0.416667    0.583333  , weight:   0.00115741
+  | k-point: 742 at     0.666667    0.416667    0.916667  , weight:   0.00115741
+  | k-point: 743 at     0.666667    0.500000    0.250000  , weight:   0.00115741
+  | k-point: 744 at     0.666667    0.500000    0.583333  , weight:   0.00115741
+  | k-point: 745 at     0.666667    0.500000    0.916667  , weight:   0.00115741
+  | k-point: 746 at     0.666667    0.583333    0.250000  , weight:   0.00115741
+  | k-point: 747 at     0.666667    0.583333    0.583333  , weight:   0.00115741
+  | k-point: 748 at     0.666667    0.583333    0.916667  , weight:   0.00115741
+  | k-point: 749 at     0.666667    0.666667    0.250000  , weight:   0.00115741
+  | k-point: 750 at     0.666667    0.666667    0.583333  , weight:   0.00115741
+  | k-point: 751 at     0.666667    0.666667    0.916667  , weight:   0.00115741
+  | k-point: 752 at     0.666667    0.750000    0.250000  , weight:   0.00115741
+  | k-point: 753 at     0.666667    0.750000    0.583333  , weight:   0.00115741
+  | k-point: 754 at     0.666667    0.750000    0.916667  , weight:   0.00115741
+  | k-point: 755 at     0.666667    0.833333    0.250000  , weight:   0.00115741
+  | k-point: 756 at     0.666667    0.833333    0.583333  , weight:   0.00115741
+  | k-point: 757 at     0.666667    0.833333    0.916667  , weight:   0.00115741
+  | k-point: 758 at     0.666667    0.916667    0.250000  , weight:   0.00115741
+  | k-point: 759 at     0.666667    0.916667    0.583333  , weight:   0.00115741
+  | k-point: 760 at     0.666667    0.916667    0.916667  , weight:   0.00115741
+  | k-point: 761 at     0.750000    0.000000    0.250000  , weight:   0.00115741
+  | k-point: 762 at     0.750000    0.000000    0.583333  , weight:   0.00115741
+  | k-point: 763 at     0.750000    0.000000    0.916667  , weight:   0.00115741
+  | k-point: 764 at     0.750000    0.083333    0.250000  , weight:   0.00115741
+  | k-point: 765 at     0.750000    0.083333    0.583333  , weight:   0.00115741
+  | k-point: 766 at     0.750000    0.083333    0.916667  , weight:   0.00115741
+  | k-point: 767 at     0.750000    0.166667    0.250000  , weight:   0.00115741
+  | k-point: 768 at     0.750000    0.166667    0.583333  , weight:   0.00115741
+  | k-point: 769 at     0.750000    0.166667    0.916667  , weight:   0.00115741
+  | k-point: 770 at     0.750000    0.250000    0.250000  , weight:   0.00115741
+  | k-point: 771 at     0.750000    0.250000    0.583333  , weight:   0.00115741
+  | k-point: 772 at     0.750000    0.250000    0.916667  , weight:   0.00115741
+  | k-point: 773 at     0.750000    0.333333    0.250000  , weight:   0.00115741
+  | k-point: 774 at     0.750000    0.333333    0.583333  , weight:   0.00115741
+  | k-point: 775 at     0.750000    0.333333    0.916667  , weight:   0.00115741
+  | k-point: 776 at     0.750000    0.416667    0.250000  , weight:   0.00115741
+  | k-point: 777 at     0.750000    0.416667    0.583333  , weight:   0.00115741
+  | k-point: 778 at     0.750000    0.416667    0.916667  , weight:   0.00115741
+  | k-point: 779 at     0.750000    0.500000    0.250000  , weight:   0.00115741
+  | k-point: 780 at     0.750000    0.500000    0.583333  , weight:   0.00115741
+  | k-point: 781 at     0.750000    0.500000    0.916667  , weight:   0.00115741
+  | k-point: 782 at     0.750000    0.583333    0.250000  , weight:   0.00115741
+  | k-point: 783 at     0.750000    0.583333    0.583333  , weight:   0.00115741
+  | k-point: 784 at     0.750000    0.583333    0.916667  , weight:   0.00115741
+  | k-point: 785 at     0.750000    0.666667    0.250000  , weight:   0.00115741
+  | k-point: 786 at     0.750000    0.666667    0.583333  , weight:   0.00115741
+  | k-point: 787 at     0.750000    0.666667    0.916667  , weight:   0.00115741
+  | k-point: 788 at     0.750000    0.750000    0.250000  , weight:   0.00115741
+  | k-point: 789 at     0.750000    0.750000    0.583333  , weight:   0.00115741
+  | k-point: 790 at     0.750000    0.750000    0.916667  , weight:   0.00115741
+  | k-point: 791 at     0.750000    0.833333    0.250000  , weight:   0.00115741
+  | k-point: 792 at     0.750000    0.833333    0.583333  , weight:   0.00115741
+  | k-point: 793 at     0.750000    0.833333    0.916667  , weight:   0.00115741
+  | k-point: 794 at     0.750000    0.916667    0.250000  , weight:   0.00115741
+  | k-point: 795 at     0.750000    0.916667    0.583333  , weight:   0.00115741
+  | k-point: 796 at     0.750000    0.916667    0.916667  , weight:   0.00115741
+  | k-point: 797 at     0.833333    0.000000    0.250000  , weight:   0.00115741
+  | k-point: 798 at     0.833333    0.000000    0.583333  , weight:   0.00115741
+  | k-point: 799 at     0.833333    0.000000    0.916667  , weight:   0.00115741
+  | k-point: 800 at     0.833333    0.083333    0.250000  , weight:   0.00115741
+  | k-point: 801 at     0.833333    0.083333    0.583333  , weight:   0.00115741
+  | k-point: 802 at     0.833333    0.083333    0.916667  , weight:   0.00115741
+  | k-point: 803 at     0.833333    0.166667    0.250000  , weight:   0.00115741
+  | k-point: 804 at     0.833333    0.166667    0.583333  , weight:   0.00115741
+  | k-point: 805 at     0.833333    0.166667    0.916667  , weight:   0.00115741
+  | k-point: 806 at     0.833333    0.250000    0.250000  , weight:   0.00115741
+  | k-point: 807 at     0.833333    0.250000    0.583333  , weight:   0.00115741
+  | k-point: 808 at     0.833333    0.250000    0.916667  , weight:   0.00115741
+  | k-point: 809 at     0.833333    0.333333    0.250000  , weight:   0.00115741
+  | k-point: 810 at     0.833333    0.333333    0.583333  , weight:   0.00115741
+  | k-point: 811 at     0.833333    0.333333    0.916667  , weight:   0.00115741
+  | k-point: 812 at     0.833333    0.416667    0.250000  , weight:   0.00115741
+  | k-point: 813 at     0.833333    0.416667    0.583333  , weight:   0.00115741
+  | k-point: 814 at     0.833333    0.416667    0.916667  , weight:   0.00115741
+  | k-point: 815 at     0.833333    0.500000    0.250000  , weight:   0.00115741
+  | k-point: 816 at     0.833333    0.500000    0.583333  , weight:   0.00115741
+  | k-point: 817 at     0.833333    0.500000    0.916667  , weight:   0.00115741
+  | k-point: 818 at     0.833333    0.583333    0.250000  , weight:   0.00115741
+  | k-point: 819 at     0.833333    0.583333    0.583333  , weight:   0.00115741
+  | k-point: 820 at     0.833333    0.583333    0.916667  , weight:   0.00115741
+  | k-point: 821 at     0.833333    0.666667    0.250000  , weight:   0.00115741
+  | k-point: 822 at     0.833333    0.666667    0.583333  , weight:   0.00115741
+  | k-point: 823 at     0.833333    0.666667    0.916667  , weight:   0.00115741
+  | k-point: 824 at     0.833333    0.750000    0.250000  , weight:   0.00115741
+  | k-point: 825 at     0.833333    0.750000    0.583333  , weight:   0.00115741
+  | k-point: 826 at     0.833333    0.750000    0.916667  , weight:   0.00115741
+  | k-point: 827 at     0.833333    0.833333    0.250000  , weight:   0.00115741
+  | k-point: 828 at     0.833333    0.833333    0.583333  , weight:   0.00115741
+  | k-point: 829 at     0.833333    0.833333    0.916667  , weight:   0.00115741
+  | k-point: 830 at     0.833333    0.916667    0.250000  , weight:   0.00115741
+  | k-point: 831 at     0.833333    0.916667    0.583333  , weight:   0.00115741
+  | k-point: 832 at     0.833333    0.916667    0.916667  , weight:   0.00115741
+  | k-point: 833 at     0.916667    0.000000    0.250000  , weight:   0.00115741
+  | k-point: 834 at     0.916667    0.000000    0.583333  , weight:   0.00115741
+  | k-point: 835 at     0.916667    0.000000    0.916667  , weight:   0.00115741
+  | k-point: 836 at     0.916667    0.083333    0.250000  , weight:   0.00115741
+  | k-point: 837 at     0.916667    0.083333    0.583333  , weight:   0.00115741
+  | k-point: 838 at     0.916667    0.083333    0.916667  , weight:   0.00115741
+  | k-point: 839 at     0.916667    0.166667    0.250000  , weight:   0.00115741
+  | k-point: 840 at     0.916667    0.166667    0.583333  , weight:   0.00115741
+  | k-point: 841 at     0.916667    0.166667    0.916667  , weight:   0.00115741
+  | k-point: 842 at     0.916667    0.250000    0.250000  , weight:   0.00115741
+  | k-point: 843 at     0.916667    0.250000    0.583333  , weight:   0.00115741
+  | k-point: 844 at     0.916667    0.250000    0.916667  , weight:   0.00115741
+  | k-point: 845 at     0.916667    0.333333    0.250000  , weight:   0.00115741
+  | k-point: 846 at     0.916667    0.333333    0.583333  , weight:   0.00115741
+  | k-point: 847 at     0.916667    0.333333    0.916667  , weight:   0.00115741
+  | k-point: 848 at     0.916667    0.416667    0.250000  , weight:   0.00115741
+  | k-point: 849 at     0.916667    0.416667    0.583333  , weight:   0.00115741
+  | k-point: 850 at     0.916667    0.416667    0.916667  , weight:   0.00115741
+  | k-point: 851 at     0.916667    0.500000    0.250000  , weight:   0.00115741
+  | k-point: 852 at     0.916667    0.500000    0.583333  , weight:   0.00115741
+  | k-point: 853 at     0.916667    0.500000    0.916667  , weight:   0.00115741
+  | k-point: 854 at     0.916667    0.583333    0.250000  , weight:   0.00115741
+  | k-point: 855 at     0.916667    0.583333    0.583333  , weight:   0.00115741
+  | k-point: 856 at     0.916667    0.583333    0.916667  , weight:   0.00115741
+  | k-point: 857 at     0.916667    0.666667    0.250000  , weight:   0.00115741
+  | k-point: 858 at     0.916667    0.666667    0.583333  , weight:   0.00115741
+  | k-point: 859 at     0.916667    0.666667    0.916667  , weight:   0.00115741
+  | k-point: 860 at     0.916667    0.750000    0.250000  , weight:   0.00115741
+  | k-point: 861 at     0.916667    0.750000    0.583333  , weight:   0.00115741
+  | k-point: 862 at     0.916667    0.750000    0.916667  , weight:   0.00115741
+  | k-point: 863 at     0.916667    0.833333    0.250000  , weight:   0.00115741
+  | k-point: 864 at     0.916667    0.833333    0.583333  , weight:   0.00115741
+  | k-point: 865 at     0.916667    0.833333    0.916667  , weight:   0.00115741
+  | k-point: 866 at     0.916667    0.916667    0.250000  , weight:   0.00115741
+  | k-point: 867 at     0.916667    0.916667    0.583333  , weight:   0.00115741
+  | k-point: 868 at     0.916667    0.916667    0.916667  , weight:   0.00115741
+  | Number of basis functions in the Hamiltonian integrals :      2429
+  | Number of basis functions in a single unit cell        :        31
+  | Number of centers in hartree potential         :       791
+  | Number of centers in hartree multipole         :       531
+  | Number of centers in electron density summation:       321
+  | Number of centers in basis integrals           :       369
+  | Number of centers in integrals                 :       111
+  | Number of centers in hamiltonian               :       321
+  | Consuming       4367 KiB for k_phase.
+  | Number of super-cells (origin) [n_cells]                     :        3375
+  | Number of super-cells (after PM_index) [n_cells]             :         322
+  | Number of super-cells in hamiltonian [n_cells_in_hamiltonian]:         322
+  | Size of matrix packed + index [n_hamiltonian_matrix_size] :      112775
+  | Estimated reciprocal-space cutoff momentum G_max:         3.06222858 bohr^-1 .
+  | Reciprocal lattice points for long-range Hartree potential:      26
+  Partitioning the integration grid into batches with parallel hashing+maxmin method.
+  | Number of batches:       96
+  | Maximal batch size:      97
+  | Minimal batch size:      53
+  | Average batch size:      74.104
+  | Standard deviation of batch sizes:      14.979
+
+  Integration load balanced across     8 MPI tasks.
+  Work distribution over tasks is as follows:
+  Task     0 has        863 integration points.
+  Task     1 has        894 integration points.
+  Task     2 has        884 integration points.
+  Task     3 has        895 integration points.
+  Task     4 has        884 integration points.
+  Task     5 has        890 integration points.
+  Task     6 has        888 integration points.
+  Task     7 has        916 integration points.
+  Initializing partition tables, free-atom densities, potentials, etc. across the integration grid (initialize_grid_storage).
+  | initialize_grid_storage: Actual outermost partition radius vs. multipole_radius_free
+  | (-- VB: in principle, multipole_radius_free should be larger, hence this output)
+  | Species        1: Confinement radius =              4.999999999999999 AA, multipole_radius_free =              5.027070365347909 AA.
+  | Species        1: outer_partition_radius set to              5.027070365347909 AA .
+  | The sparse table of interatomic distances needs        781.50 kbyte instead of      1089.29 kbyte of memory.
+  | Net number of integration points:     7114
+  | of which are non-zero points    :     5786
+  | Numerical average free-atom electrostatic potential    :    -23.52741255 eV
+  Renormalizing the initial density to the exact electron count on the 3D integration grid.
+  | Initial density: Formal number of electrons (from input files) :      29.0000000000
+  | Integrated number of electrons on 3D grid     :      29.0004591750
+  | Charge integration error                      :       0.0004591750
+  | Normalization factor for density and gradient :       0.9999841666
+  Renormalizing the free-atom superposition density to the exact electron count on the 3D integration grid.
+  | Formal number of electrons (from input files) :      29.0000000000
+  | Integrated number of electrons on 3D grid     :      29.0004591750
+  | Charge integration error                      :       0.0004591750
+  | Normalization factor for density and gradient :       0.9999841666
+  Obtaining max. number of non-zero basis functions in each batch (get_n_compute_maxes).
+  | Maximal number of non-zero basis functions:     1299 in task     0
+  | Maximal number of non-zero basis functions:     1238 in task     1
+  | Maximal number of non-zero basis functions:     1286 in task     2
+  | Maximal number of non-zero basis functions:     1294 in task     3
+  | Maximal number of non-zero basis functions:     1327 in task     4
+  | Maximal number of non-zero basis functions:     1280 in task     5
+  | Maximal number of non-zero basis functions:     1352 in task     6
+  | Maximal number of non-zero basis functions:     1302 in task     7
+  Allocating        1.073 MB for KS_eigenvector_complex
+  Integrating Hamiltonian matrix: batch-based integration.
+  Time summed over all CPUs for integration: real work        2.703 s, elapsed        2.814 s
+  Integrating overlap matrix.
+  Time summed over all CPUs for integration: real work        1.358 s, elapsed        1.426 s
+  Decreasing sparse matrix size:
+   Tolerance:  9.999999824516700E-014
+   Hamiltonian matrix
+  | Array has    80516 nonzero elements out of   112775 elements
+  | Sparsity factor is 0.286
+   Overlap matrix
+  | Array has    70368 nonzero elements out of   112775 elements
+  | Sparsity factor is 0.376
+  New size of hamiltonian matrix:       80941
+
+  Updating Kohn-Sham eigenvalues and eigenvectors using ELSI and the (modified) LAPACK eigensolver.
+  Singularity check in k-point 8, task 0 (analysis for other k-points/tasks may follow below):
+  Overlap matrix is not singular
+  | Lowest and highest eigenvalues :  0.4303E-02,  0.1495E+02
+  Finished singularity check of overlap matrix
+  | Time :     0.000 s
+  Starting LAPACK eigensolver
+  Finished Cholesky decomposition
+  | Time :     0.000 s
+  Finished transformation to standard eigenproblem
+  | Time :     0.000 s
+  Finished solving standard eigenproblem
+  | Time :     0.000 s
+  Finished back-transformation of eigenvectors
+  | Time :     0.000 s
+
+  Obtaining occupation numbers and chemical potential using ELSI.
+  | Chemical potential (Fermi level):    -3.88344063 eV
+  Writing Kohn-Sham eigenvalues.
+  K-point:       1 at    0.000000    0.000000    0.000000 (in units of recip. lattice)
+
+  State    Occupation    Eigenvalue [Ha]    Eigenvalue [eV]
+      1       2.00000        -328.049439        -8926.67942
+      2       2.00000         -39.048228        -1062.55633
+      3       2.00000         -33.744019         -918.22147
+      4       2.00000         -33.744019         -918.22147
+      5       2.00000         -33.744019         -918.22147
+      6       2.00000          -4.221031         -114.86009
+      7       2.00000          -2.670636          -72.67170
+      8       2.00000          -2.670636          -72.67170
+      9       2.00000          -2.670636          -72.67170
+     10       2.00000          -0.569848          -15.50636
+     11       2.00000          -0.250658           -6.82076
+     12       2.00000          -0.250658           -6.82076
+     13       2.00000          -0.250658           -6.82076
+     14       2.00000          -0.210107           -5.71729
+     15       2.00000          -0.210107           -5.71729
+     16       0.00000           0.678518           18.46342
+     17       0.00000           0.794328           21.61478
+     18       0.00000           0.794328           21.61478
+     19       0.00000           0.794328           21.61478
+     20       0.00000           1.040442           28.31187
+     21       0.00000           1.040442           28.31187
+
+  What follows are estimated values for band gap, HOMO, LUMO, etc.
+  | They are estimated on a discrete k-point grid and not necessarily exact.
+  | For converged numbers, create a DOS and/or band structure plot on a denser k-grid.
+
+  Highest occupied state (VBM) at     -3.93939611 eV (relative to internal zero)
+  | Occupation number:      1.57124857
+  | K-point:     772 at    0.750000    0.250000    0.916667 (in units of recip. lattice)
+
+  Lowest unoccupied state (CBM) at    -3.85566078 eV (relative to internal zero)
+  | Occupation number:      0.69441817
+  | K-point:     226 at    0.166667    0.333333    0.833333 (in units of recip. lattice)
+
+  ESTIMATED overall HOMO-LUMO gap:      0.08373533 eV between HOMO at k-point 772 and LUMO at k-point 226
+  | This appears to be an indirect band gap.
+  | Smallest direct gap :      1.23531803 eV for k_point 709 at    0.166667    0.333333    0.833333 (in units of recip. lattice)
+  However, this system has fractional occupation numbers. Since we use a finite k-point grid,
+  this material is metallic within the approximate finite broadening function (occupation_type)
+  applied to determine the occupation numbers.
+  Calculating total energy contributions from superposition of free atom densities.
+
+  Total energy components:
+  | Sum of eigenvalues            :        -964.01310308 Ha      -26232.13121096 eV
+  | XC energy correction          :         -65.30103468 Ha       -1776.93156280 eV
+  | XC potential correction       :          86.46348900 Ha        2352.79124430 eV
+  | Free-atom electrostatic energy:        -717.36293622 Ha      -19520.43868361 eV
+  | Hartree energy correction     :           0.00000000 Ha           0.00000000 eV
+  | Entropy correction            :          -0.00006374 Ha          -0.00173438 eV
+  | ---------------------------
+  | Total energy                  :       -1660.21358498 Ha      -45176.71021306 eV
+  | Total energy, T -> 0          :       -1660.21364872 Ha      -45176.71194744 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy        :       -1660.21371246 Ha      -45176.71368182 eV
+
+  Derived energy quantities:
+  | Kinetic energy                :        1684.44285850 Ha       45836.02229100 eV
+  | Electrostatic energy          :       -3279.35540881 Ha      -89235.80094127 eV
+  | Energy correction for multipole
+  | error in Hartree potential    :           0.00000000 Ha           0.00000000 eV
+  | Sum of eigenvalues per atom                           :      -26232.13121096 eV
+  | Total energy (T->0) per atom                          :      -45176.71194744 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy per atom                       :      -45176.71368182 eV
+  Initialize hartree_potential_storage
+  Max. number of atoms included in rho_multipole:            1
+
+  End scf initialization - timings             :  max(cpu_time)    wall_clock(cpu1)
+  | Time for scf. initialization               :        0.899 s           0.898 s
+  | Boundary condition initialization          :        0.114 s           0.114 s
+  | Integration                                :        0.542 s           0.542 s
+  | Solution of K.-S. eqns.                    :        0.147 s           0.147 s
+  | Grid partitioning                          :        0.011 s           0.011 s
+  | Preloading free-atom quantities on grid    :        0.002 s           0.001 s
+  | Free-atom superposition energy             :        0.007 s           0.007 s
+  | Total energy evaluation                    :        0.001 s           0.000 s
+
+  Partial memory accounting:
+  | Current value for overall tracked memory usage:
+  |   Minimum:        2.617 MB (on task 0)
+  |   Maximum:        2.627 MB (on task 1)
+  |   Average:        2.622 MB
+  | Peak value for overall tracked memory usage:
+  |   Minimum:       23.201 MB (on task 1 after allocating zora_vector2)
+  |   Maximum:       26.206 MB (on task 6 after allocating zora_vector2)
+  |   Average:       24.746 MB
+  | Largest tracked array allocation so far:
+  |   Minimum:       11.693 MB (hamiltonian_shell on task 1)
+  |   Maximum:       13.946 MB (hamiltonian_shell on task 6)
+  |   Average:       12.847 MB
+  Note:  These values currently only include a subset of arrays which are explicitly tracked.
+  The "true" memory usage will be greater.
+------------------------------------------------------------
+
+------------------------------------------------------------
+          Begin self-consistency iteration #    1
+
+  Date     :  20190817, Time     :  153237.016
+------------------------------------------------------------
+  Evaluating new KS density using the density matrix
+  Evaluating density matrix
+  Time summed over all CPUs for getting density from density matrix: real work        1.482 s, elapsed        1.582 s
+  Integration grid: deviation in total charge (<rho> - N_e) =   9.041656E-12
+  Pulay mixing of updated and previous charge densities.
+  Renormalizing the density to the exact electron count on the 3D integration grid.
+  | Formal number of electrons (from input files) :      29.0000000000
+  | Integrated number of electrons on 3D grid     :      29.0001142681
+  | Charge integration error                      :       0.0001142681
+  | Normalization factor for density and gradient :       0.9999960597
+
+  Evaluating partitioned Hartree potential by multipole expansion.
+  | Original multipole sum: apparent total charge =   0.171480E-13
+  | Sum of charges compensated after spline to logarithmic grids =  -0.634368E-06
+  | Analytical far-field extrapolation by fixed multipoles:
+  | Hartree multipole sum: apparent total charge =   0.000000E+00
+  Summing up the Hartree potential.
+  Time summed over all CPUs for potential: real work        0.357 s, elapsed        0.422 s
+  | RMS charge density error from multipole expansion :   0.182811E-02
+  | Average real-space part of the electrostatic potential :     -0.35385681 eV
+
+  Integrating Hamiltonian matrix: batch-based integration.
+  Time summed over all CPUs for integration: real work        2.738 s, elapsed        2.922 s
+
+  Updating Kohn-Sham eigenvalues and eigenvectors using ELSI and the (modified) LAPACK eigensolver.
+  Starting LAPACK eigensolver
+  Finished Cholesky decomposition
+  | Time :     0.000 s
+  Finished transformation to standard eigenproblem
+  | Time :     0.000 s
+  Finished solving standard eigenproblem
+  | Time :     0.000 s
+  Finished back-transformation of eigenvectors
+  | Time :     0.000 s
+
+  Obtaining occupation numbers and chemical potential using ELSI.
+  | Chemical potential (Fermi level):    -5.04620568 eV
+  Writing Kohn-Sham eigenvalues.
+  K-point:       1 at    0.000000    0.000000    0.000000 (in units of recip. lattice)
+
+  State    Occupation    Eigenvalue [Ha]    Eigenvalue [eV]
+      1       2.00000        -328.160747        -8929.70828
+      2       2.00000         -39.156233        -1065.49530
+      3       2.00000         -33.853053         -921.18844
+      4       2.00000         -33.853053         -921.18844
+      5       2.00000         -33.853053         -921.18844
+      6       2.00000          -4.285571         -116.61632
+      7       2.00000          -2.732556          -74.35663
+      8       2.00000          -2.732556          -74.35663
+      9       2.00000          -2.732556          -74.35663
+     10       2.00000          -0.571432          -15.54946
+     11       2.00000          -0.298224           -8.11509
+     12       2.00000          -0.298224           -8.11509
+     13       2.00000          -0.298224           -8.11509
+     14       2.00000          -0.261730           -7.12202
+     15       2.00000          -0.261730           -7.12202
+     16       0.00000           0.679613           18.49320
+     17       0.00000           0.789126           21.47322
+     18       0.00000           0.789126           21.47322
+     19       0.00000           0.789126           21.47322
+     20       0.00000           1.014893           27.61664
+     21       0.00000           1.014893           27.61664
+
+  What follows are estimated values for band gap, HOMO, LUMO, etc.
+  | They are estimated on a discrete k-point grid and not necessarily exact.
+  | For converged numbers, create a DOS and/or band structure plot on a denser k-grid.
+
+  Highest occupied state (VBM) at     -5.16232275 eV (relative to internal zero)
+  | Occupation number:      1.89943970
+  | K-point:     733 at    0.666667    0.166667    0.916667 (in units of recip. lattice)
+
+  Lowest unoccupied state (CBM) at    -5.02425559 eV (relative to internal zero)
+  | Occupation number:      0.75624070
+  | K-point:     454 at    0.333333    0.500000    0.166667 (in units of recip. lattice)
+
+  ESTIMATED overall HOMO-LUMO gap:      0.13806716 eV between HOMO at k-point 733 and LUMO at k-point 454
+  | This appears to be an indirect band gap.
+  | Smallest direct gap :      1.60764784 eV for k_point 781 at    0.333333    0.500000    0.166667 (in units of recip. lattice)
+  However, this system has fractional occupation numbers. Since we use a finite k-point grid,
+  this material is metallic within the approximate finite broadening function (occupation_type)
+  applied to determine the occupation numbers.
+
+  Total energy components:
+  | Sum of eigenvalues            :        -966.05300105 Ha      -26287.63965886 eV
+  | XC energy correction          :         -65.17699424 Ha       -1773.55625080 eV
+  | XC potential correction       :          86.29912274 Ha        2348.31861084 eV
+  | Free-atom electrostatic energy:        -717.36293622 Ha      -19520.43868361 eV
+  | Hartree energy correction     :           2.10515169 Ha          57.28409198 eV
+  | Entropy correction            :          -0.00003017 Ha          -0.00082097 eV
+  | ---------------------------
+  | Total energy                  :       -1660.18865708 Ha      -45176.03189045 eV
+  | Total energy, T -> 0          :       -1660.18868725 Ha      -45176.03271142 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy        :       -1660.18871742 Ha      -45176.03353238 eV
+
+  Derived energy quantities:
+  | Kinetic energy                :        1683.28223313 Ha       45804.44006763 eV
+  | Electrostatic energy          :       -3278.29389597 Ha      -89206.91570728 eV
+  | Energy correction for multipole
+  | error in Hartree potential    :           0.00021321 Ha           0.00580163 eV
+  | Sum of eigenvalues per atom                           :      -26287.63965886 eV
+  | Total energy (T->0) per atom                          :      -45176.03271142 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy per atom                       :      -45176.03353238 eV
+
+  Self-consistency convergence accuracy:
+  | Change of charge density      :  0.3512E+00
+  | Change of sum of eigenvalues  : -0.5551E+02 eV
+  | Change of total energy        :  0.6783E+00 eV
+
+  End self-consistency iteration #     1       :  max(cpu_time)    wall_clock(cpu1)
+  | Time for this iteration                    :        0.785 s           0.785 s
+  | Charge density update                      :        0.231 s           0.231 s
+  | Density mixing & preconditioning           :        0.008 s           0.008 s
+  | Hartree multipole update                   :        0.001 s           0.001 s
+  | Hartree multipole summation                :        0.054 s           0.054 s
+  | Integration                                :        0.369 s           0.369 s
+  | Solution of K.-S. eqns.                    :        0.121 s           0.121 s
+  | Total energy evaluation                    :        0.001 s           0.000 s
+
+  Partial memory accounting:
+  | Current value for overall tracked memory usage:
+  |   Minimum:        2.617 MB (on task 0)
+  |   Maximum:        2.627 MB (on task 1)
+  |   Average:        2.622 MB
+  | Peak value for overall tracked memory usage:
+  |   Minimum:       23.201 MB (on task 1 after allocating zora_vector2)
+  |   Maximum:       26.206 MB (on task 6 after allocating zora_vector2)
+  |   Average:       24.746 MB
+  | Largest tracked array allocation so far:
+  |   Minimum:       11.693 MB (hamiltonian_shell on task 1)
+  |   Maximum:       13.946 MB (hamiltonian_shell on task 6)
+  |   Average:       12.847 MB
+  Note:  These values currently only include a subset of arrays which are explicitly tracked.
+  The "true" memory usage will be greater.
+------------------------------------------------------------
+
+------------------------------------------------------------
+          Begin self-consistency iteration #    2
+
+  Date     :  20190817, Time     :  153237.802
+------------------------------------------------------------
+  Evaluating new KS density using the density matrix
+  Evaluating density matrix
+  Time summed over all CPUs for getting density from density matrix: real work        1.470 s, elapsed        1.532 s
+  Integration grid: deviation in total charge (<rho> - N_e) =   9.077183E-12
+  Pulay mixing of updated and previous charge densities.
+  Renormalizing the density to the exact electron count on the 3D integration grid.
+  | Formal number of electrons (from input files) :      29.0000000000
+  | Integrated number of electrons on 3D grid     :      29.0001309599
+  | Charge integration error                      :       0.0001309599
+  | Normalization factor for density and gradient :       0.9999954842
+
+  Evaluating partitioned Hartree potential by multipole expansion.
+  | Original multipole sum: apparent total charge =   0.178254E-13
+  | Sum of charges compensated after spline to logarithmic grids =  -0.105258E-05
+  | Analytical far-field extrapolation by fixed multipoles:
+  | Hartree multipole sum: apparent total charge =   0.000000E+00
+  Summing up the Hartree potential.
+  Time summed over all CPUs for potential: real work        0.356 s, elapsed        0.374 s
+  | RMS charge density error from multipole expansion :   0.329060E-02
+  | Average real-space part of the electrostatic potential :     -0.54956012 eV
+
+  Integrating Hamiltonian matrix: batch-based integration.
+  Time summed over all CPUs for integration: real work        2.701 s, elapsed        2.789 s
+
+  Updating Kohn-Sham eigenvalues and eigenvectors using ELSI and the (modified) LAPACK eigensolver.
+  Starting LAPACK eigensolver
+  Finished Cholesky decomposition
+  | Time :     0.000 s
+  Finished transformation to standard eigenproblem
+  | Time :     0.000 s
+  Finished solving standard eigenproblem
+  | Time :     0.000 s
+  Finished back-transformation of eigenvectors
+  | Time :     0.000 s
+
+  Obtaining occupation numbers and chemical potential using ELSI.
+  | Chemical potential (Fermi level):    -5.46430687 eV
+  What follows are estimated values for band gap, HOMO, LUMO, etc.
+  | They are estimated on a discrete k-point grid and not necessarily exact.
+  | For converged numbers, create a DOS and/or band structure plot on a denser k-grid.
+
+  Highest occupied state (VBM) at     -5.60737857 eV (relative to internal zero)
+  | Occupation number:      1.95696183
+  | K-point:     158 at    0.083333    0.750000    0.250000 (in units of recip. lattice)
+
+  Lowest unoccupied state (CBM) at    -5.44210054 eV (relative to internal zero)
+  | Occupation number:      0.75348689
+  | K-point:     240 at    0.166667    0.500000    0.333333 (in units of recip. lattice)
+
+  ESTIMATED overall HOMO-LUMO gap:      0.16527803 eV between HOMO at k-point 158 and LUMO at k-point 240
+  | This appears to be an indirect band gap.
+  | Smallest direct gap :      1.79141351 eV for k_point 131 at    0.166667    0.500000    0.333333 (in units of recip. lattice)
+  However, this system has fractional occupation numbers. Since we use a finite k-point grid,
+  this material is metallic within the approximate finite broadening function (occupation_type)
+  applied to determine the occupation numbers.
+
+  Checking to see if s.c.f. parameters should be adjusted.
+
+  Total energy components:
+  | Sum of eigenvalues            :        -966.76312549 Ha      -26306.96312804 eV
+  | XC energy correction          :         -65.13499973 Ha       -1772.41352198 eV
+  | XC potential correction       :          86.24354736 Ha        2346.80632792 eV
+  | Free-atom electrostatic energy:        -717.36293622 Ha      -19520.43868361 eV
+  | Hartree energy correction     :           2.83098768 Ha          77.03509429 eV
+  | Entropy correction            :          -0.00002183 Ha          -0.00059391 eV
+  | ---------------------------
+  | Total energy                  :       -1660.18652639 Ha      -45175.97391143 eV
+  | Total energy, T -> 0          :       -1660.18654822 Ha      -45175.97450533 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy        :       -1660.18657005 Ha      -45175.97509924 eV
+
+  Derived energy quantities:
+  | Kinetic energy                :        1683.09286423 Ha       45799.28707782 eV
+  | Electrostatic energy          :       -3278.14439090 Ha      -89202.84746726 eV
+  | Energy correction for multipole
+  | error in Hartree potential    :           0.00039942 Ha           0.01086879 eV
+  | Sum of eigenvalues per atom                           :      -26306.96312804 eV
+  | Total energy (T->0) per atom                          :      -45175.97450533 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy per atom                       :      -45175.97509924 eV
+
+  Self-consistency convergence accuracy:
+  | Change of charge density      :  0.1044E+00
+  | Change of sum of eigenvalues  : -0.1932E+02 eV
+  | Change of total energy        :  0.5798E-01 eV
+
+  End self-consistency iteration #     2       :  max(cpu_time)    wall_clock(cpu1)
+  | Time for this iteration                    :        0.751 s           0.751 s
+  | Charge density update                      :        0.223 s           0.223 s
+  | Density mixing & preconditioning           :        0.007 s           0.007 s
+  | Hartree multipole update                   :        0.001 s           0.001 s
+  | Hartree multipole summation                :        0.048 s           0.048 s
+  | Integration                                :        0.352 s           0.352 s
+  | Solution of K.-S. eqns.                    :        0.118 s           0.119 s
+  | Total energy evaluation                    :        0.001 s           0.001 s
+
+  Partial memory accounting:
+  | Current value for overall tracked memory usage:
+  |   Minimum:        2.618 MB (on task 0)
+  |   Maximum:        2.628 MB (on task 1)
+  |   Average:        2.623 MB
+  | Peak value for overall tracked memory usage:
+  |   Minimum:       23.201 MB (on task 1 after allocating zora_vector2)
+  |   Maximum:       26.206 MB (on task 6 after allocating zora_vector2)
+  |   Average:       24.746 MB
+  | Largest tracked array allocation so far:
+  |   Minimum:       11.693 MB (hamiltonian_shell on task 1)
+  |   Maximum:       13.946 MB (hamiltonian_shell on task 6)
+  |   Average:       12.847 MB
+  Note:  These values currently only include a subset of arrays which are explicitly tracked.
+  The "true" memory usage will be greater.
+------------------------------------------------------------
+
+------------------------------------------------------------
+          Begin self-consistency iteration #    3
+
+  Date     :  20190817, Time     :  153238.553
+------------------------------------------------------------
+  Evaluating new KS density using the density matrix
+  Evaluating density matrix
+  Time summed over all CPUs for getting density from density matrix: real work        1.464 s, elapsed        1.525 s
+  Integration grid: deviation in total charge (<rho> - N_e) =   8.927969E-12
+  Pulay mixing of updated and previous charge densities.
+  Renormalizing the density to the exact electron count on the 3D integration grid.
+  | Formal number of electrons (from input files) :      29.0000000000
+  | Integrated number of electrons on 3D grid     :      29.0005340772
+  | Charge integration error                      :       0.0005340772
+  | Normalization factor for density and gradient :       0.9999815839
+
+  Evaluating partitioned Hartree potential by multipole expansion.
+  | Original multipole sum: apparent total charge =  -0.108762E-13
+  | Sum of charges compensated after spline to logarithmic grids =  -0.213760E-05
+  | Analytical far-field extrapolation by fixed multipoles:
+  | Hartree multipole sum: apparent total charge =   0.000000E+00
+  Summing up the Hartree potential.
+  Time summed over all CPUs for potential: real work        0.370 s, elapsed        0.386 s
+  | RMS charge density error from multipole expansion :   0.764077E-02
+  | Average real-space part of the electrostatic potential :     -0.93583344 eV
+
+  Integrating Hamiltonian matrix: batch-based integration.
+  Time summed over all CPUs for integration: real work        2.711 s, elapsed        2.798 s
+
+  Updating Kohn-Sham eigenvalues and eigenvectors using ELSI and the (modified) LAPACK eigensolver.
+  Starting LAPACK eigensolver
+  Finished Cholesky decomposition
+  | Time :     0.000 s
+  Finished transformation to standard eigenproblem
+  | Time :     0.000 s
+  Finished solving standard eigenproblem
+  | Time :     0.001 s
+  Finished back-transformation of eigenvectors
+  | Time :     0.000 s
+
+  Obtaining occupation numbers and chemical potential using ELSI.
+  | Chemical potential (Fermi level):    -5.69355235 eV
+  What follows are estimated values for band gap, HOMO, LUMO, etc.
+  | They are estimated on a discrete k-point grid and not necessarily exact.
+  | For converged numbers, create a DOS and/or band structure plot on a denser k-grid.
+
+  Highest occupied state (VBM) at     -5.83256231 eV (relative to internal zero)
+  | Occupation number:      1.95068957
+  | K-point:     552 at    0.416667    0.416667    0.000000 (in units of recip. lattice)
+
+  Lowest unoccupied state (CBM) at    -5.67264256 eV (relative to internal zero)
+  | Occupation number:      0.76745234
+  | K-point:     421 at    0.333333    0.166667    0.500000 (in units of recip. lattice)
+
+  ESTIMATED overall HOMO-LUMO gap:      0.15991974 eV between HOMO at k-point 552 and LUMO at k-point 421
+  | This appears to be an indirect band gap.
+  | Smallest direct gap :      1.91075474 eV for k_point 607 at    0.333333    0.166667    0.500000 (in units of recip. lattice)
+  However, this system has fractional occupation numbers. Since we use a finite k-point grid,
+  this material is metallic within the approximate finite broadening function (occupation_type)
+  applied to determine the occupation numbers.
+
+  Total energy components:
+  | Sum of eigenvalues            :        -966.74737780 Ha      -26306.53461166 eV
+  | XC energy correction          :         -65.14041131 Ha       -1772.56077852 eV
+  | XC potential correction       :          86.25109110 Ha        2347.01160346 eV
+  | Free-atom electrostatic energy:        -717.36293622 Ha      -19520.43868361 eV
+  | Hartree energy correction     :           2.81586305 Ha          76.62353218 eV
+  | Entropy correction            :          -0.00001966 Ha          -0.00053500 eV
+  | ---------------------------
+  | Total energy                  :       -1660.18377118 Ha      -45175.89893816 eV
+  | Total energy, T -> 0          :       -1660.18379084 Ha      -45175.89947316 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy        :       -1660.18381050 Ha      -45175.90000816 eV
+
+  Derived energy quantities:
+  | Kinetic energy                :        1684.23646271 Ha       45830.40597579 eV
+  | Electrostatic energy          :       -3279.27982258 Ha      -89233.74413542 eV
+  | Energy correction for multipole
+  | error in Hartree potential    :           0.00101788 Ha           0.02769787 eV
+  | Sum of eigenvalues per atom                           :      -26306.53461166 eV
+  | Total energy (T->0) per atom                          :      -45175.89947316 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy per atom                       :      -45175.90000816 eV
+
+  Self-consistency convergence accuracy:
+  | Change of charge density      :  0.5936E-01
+  | Change of sum of eigenvalues  :  0.4285E+00 eV
+  | Change of total energy        :  0.7497E-01 eV
+
+  End self-consistency iteration #     3       :  max(cpu_time)    wall_clock(cpu1)
+  | Time for this iteration                    :        0.753 s           0.753 s
+  | Charge density update                      :        0.221 s           0.221 s
+  | Density mixing & preconditioning           :        0.007 s           0.007 s
+  | Hartree multipole update                   :        0.001 s           0.001 s
+  | Hartree multipole summation                :        0.050 s           0.049 s
+  | Integration                                :        0.353 s           0.353 s
+  | Solution of K.-S. eqns.                    :        0.121 s           0.121 s
+  | Total energy evaluation                    :        0.001 s           0.001 s
+
+  Partial memory accounting:
+  | Current value for overall tracked memory usage:
+  |   Minimum:        2.618 MB (on task 0)
+  |   Maximum:        2.628 MB (on task 1)
+  |   Average:        2.623 MB
+  | Peak value for overall tracked memory usage:
+  |   Minimum:       23.201 MB (on task 1 after allocating zora_vector2)
+  |   Maximum:       26.206 MB (on task 6 after allocating zora_vector2)
+  |   Average:       24.746 MB
+  | Largest tracked array allocation so far:
+  |   Minimum:       11.693 MB (hamiltonian_shell on task 1)
+  |   Maximum:       13.946 MB (hamiltonian_shell on task 6)
+  |   Average:       12.847 MB
+  Note:  These values currently only include a subset of arrays which are explicitly tracked.
+  The "true" memory usage will be greater.
+------------------------------------------------------------
+
+------------------------------------------------------------
+          Begin self-consistency iteration #    4
+
+  Date     :  20190817, Time     :  153239.306
+------------------------------------------------------------
+  Evaluating new KS density using the density matrix
+  Evaluating density matrix
+  Time summed over all CPUs for getting density from density matrix: real work        1.464 s, elapsed        1.526 s
+  Integration grid: deviation in total charge (<rho> - N_e) =   8.906653E-12
+  Pulay mixing of updated and previous charge densities.
+  Renormalizing the density to the exact electron count on the 3D integration grid.
+  | Formal number of electrons (from input files) :      29.0000000000
+  | Integrated number of electrons on 3D grid     :      29.0000162897
+  | Charge integration error                      :       0.0000162897
+  | Normalization factor for density and gradient :       0.9999994383
+
+  Evaluating partitioned Hartree potential by multipole expansion.
+  | Original multipole sum: apparent total charge =  -0.505663E-14
+  | Sum of charges compensated after spline to logarithmic grids =  -0.199882E-05
+  | Analytical far-field extrapolation by fixed multipoles:
+  | Hartree multipole sum: apparent total charge =   0.000000E+00
+  Summing up the Hartree potential.
+  Time summed over all CPUs for potential: real work        0.368 s, elapsed        0.385 s
+  | RMS charge density error from multipole expansion :   0.710887E-02
+  | Average real-space part of the electrostatic potential :     -0.87676623 eV
+
+  Integrating Hamiltonian matrix: batch-based integration.
+  Time summed over all CPUs for integration: real work        2.714 s, elapsed        2.804 s
+
+  Updating Kohn-Sham eigenvalues and eigenvectors using ELSI and the (modified) LAPACK eigensolver.
+  Starting LAPACK eigensolver
+  Finished Cholesky decomposition
+  | Time :     0.000 s
+  Finished transformation to standard eigenproblem
+  | Time :     0.000 s
+  Finished solving standard eigenproblem
+  | Time :     0.001 s
+  Finished back-transformation of eigenvectors
+  | Time :     0.000 s
+
+  Obtaining occupation numbers and chemical potential using ELSI.
+  | Chemical potential (Fermi level):    -5.61245304 eV
+  What follows are estimated values for band gap, HOMO, LUMO, etc.
+  | They are estimated on a discrete k-point grid and not necessarily exact.
+  | For converged numbers, create a DOS and/or band structure plot on a denser k-grid.
+
+  Highest occupied state (VBM) at     -5.76468939 eV (relative to internal zero)
+  | Occupation number:      1.96867717
+  | K-point:     313 at    0.250000    0.166667    0.500000 (in units of recip. lattice)
+
+  Lowest unoccupied state (CBM) at    -5.59070744 eV (relative to internal zero)
+  | Occupation number:      0.75844063
+  | K-point:     454 at    0.333333    0.500000    0.166667 (in units of recip. lattice)
+
+  ESTIMATED overall HOMO-LUMO gap:      0.17398195 eV between HOMO at k-point 313 and LUMO at k-point 454
+  | This appears to be an indirect band gap.
+  | Smallest direct gap :      1.86546702 eV for k_point 781 at    0.333333    0.500000    0.166667 (in units of recip. lattice)
+  However, this system has fractional occupation numbers. Since we use a finite k-point grid,
+  this material is metallic within the approximate finite broadening function (occupation_type)
+  applied to determine the occupation numbers.
+
+  Total energy components:
+  | Sum of eigenvalues            :        -966.63566607 Ha      -26303.49478085 eV
+  | XC energy correction          :         -65.14631455 Ha       -1772.72141409 eV
+  | XC potential correction       :          86.25887103 Ha        2347.22330620 eV
+  | Free-atom electrostatic energy:        -717.36293622 Ha      -19520.43868361 eV
+  | Hartree energy correction     :           2.70237617 Ha          73.53539715 eV
+  | Entropy correction            :          -0.00002012 Ha          -0.00054747 eV
+  | ---------------------------
+  | Total energy                  :       -1660.18366964 Ha      -45175.89617521 eV
+  | Total energy, T -> 0          :       -1660.18368976 Ha      -45175.89672268 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy        :       -1660.18370988 Ha      -45175.89727014 eV
+
+  Derived energy quantities:
+  | Kinetic energy                :        1684.15272505 Ha       45828.12735801 eV
+  | Electrostatic energy          :       -3279.19008013 Ha      -89231.30211912 eV
+  | Energy correction for multipole
+  | error in Hartree potential    :           0.00094263 Ha           0.02565033 eV
+  | Sum of eigenvalues per atom                           :      -26303.49478085 eV
+  | Total energy (T->0) per atom                          :      -45175.89672268 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy per atom                       :      -45175.89727014 eV
+
+  Self-consistency convergence accuracy:
+  | Change of charge density      :  0.1260E-01
+  | Change of sum of eigenvalues  :  0.3040E+01 eV
+  | Change of total energy        :  0.2763E-02 eV
+
+  End self-consistency iteration #     4       :  max(cpu_time)    wall_clock(cpu1)
+  | Time for this iteration                    :        0.754 s           0.754 s
+  | Charge density update                      :        0.222 s           0.222 s
+  | Density mixing & preconditioning           :        0.007 s           0.007 s
+  | Hartree multipole update                   :        0.001 s           0.001 s
+  | Hartree multipole summation                :        0.049 s           0.049 s
+  | Integration                                :        0.353 s           0.354 s
+  | Solution of K.-S. eqns.                    :        0.120 s           0.120 s
+  | Total energy evaluation                    :        0.001 s           0.001 s
+
+  Partial memory accounting:
+  | Current value for overall tracked memory usage:
+  |   Minimum:        2.618 MB (on task 0)
+  |   Maximum:        2.628 MB (on task 1)
+  |   Average:        2.623 MB
+  | Peak value for overall tracked memory usage:
+  |   Minimum:       23.201 MB (on task 1 after allocating zora_vector2)
+  |   Maximum:       26.206 MB (on task 6 after allocating zora_vector2)
+  |   Average:       24.746 MB
+  | Largest tracked array allocation so far:
+  |   Minimum:       11.693 MB (hamiltonian_shell on task 1)
+  |   Maximum:       13.946 MB (hamiltonian_shell on task 6)
+  |   Average:       12.847 MB
+  Note:  These values currently only include a subset of arrays which are explicitly tracked.
+  The "true" memory usage will be greater.
+------------------------------------------------------------
+
+------------------------------------------------------------
+          Begin self-consistency iteration #    5
+
+  Date     :  20190817, Time     :  153240.061
+------------------------------------------------------------
+  Evaluating new KS density using the density matrix
+  Evaluating density matrix
+  Time summed over all CPUs for getting density from density matrix: real work        1.467 s, elapsed        1.528 s
+  Integration grid: deviation in total charge (<rho> - N_e) =   8.995471E-12
+  Pulay mixing of updated and previous charge densities.
+  Renormalizing the density to the exact electron count on the 3D integration grid.
+  | Formal number of electrons (from input files) :      29.0000000000
+  | Integrated number of electrons on 3D grid     :      29.0002438253
+  | Charge integration error                      :       0.0002438253
+  | Normalization factor for density and gradient :       0.9999915923
+
+  Evaluating partitioned Hartree potential by multipole expansion.
+  | Original multipole sum: apparent total charge =   0.971960E-14
+  | Sum of charges compensated after spline to logarithmic grids =  -0.209899E-05
+  | Analytical far-field extrapolation by fixed multipoles:
+  | Hartree multipole sum: apparent total charge =   0.000000E+00
+  Summing up the Hartree potential.
+  Time summed over all CPUs for potential: real work        0.366 s, elapsed        0.382 s
+  | RMS charge density error from multipole expansion :   0.761977E-02
+  | Average real-space part of the electrostatic potential :     -0.92299903 eV
+
+  Integrating Hamiltonian matrix: batch-based integration.
+  Time summed over all CPUs for integration: real work        2.709 s, elapsed        2.798 s
+
+  Updating Kohn-Sham eigenvalues and eigenvectors using ELSI and the (modified) LAPACK eigensolver.
+  Starting LAPACK eigensolver
+  Finished Cholesky decomposition
+  | Time :     0.000 s
+  Finished transformation to standard eigenproblem
+  | Time :     0.000 s
+  Finished solving standard eigenproblem
+  | Time :     0.000 s
+  Finished back-transformation of eigenvectors
+  | Time :     0.001 s
+
+  Obtaining occupation numbers and chemical potential using ELSI.
+  | Chemical potential (Fermi level):    -5.65174771 eV
+  What follows are estimated values for band gap, HOMO, LUMO, etc.
+  | They are estimated on a discrete k-point grid and not necessarily exact.
+  | For converged numbers, create a DOS and/or band structure plot on a denser k-grid.
+
+  Highest occupied state (VBM) at     -5.80693578 eV (relative to internal zero)
+  | Occupation number:      1.97181421
+  | K-point:     346 at    0.250000    0.500000    0.166667 (in units of recip. lattice)
+
+  Lowest unoccupied state (CBM) at    -5.63022188 eV (relative to internal zero)
+  | Occupation number:      0.76080706
+  | K-point:     421 at    0.333333    0.166667    0.500000 (in units of recip. lattice)
+
+  ESTIMATED overall HOMO-LUMO gap:      0.17671390 eV between HOMO at k-point 346 and LUMO at k-point 421
+  | This appears to be an indirect band gap.
+  | Smallest direct gap :      1.88583415 eV for k_point 607 at    0.333333    0.166667    0.500000 (in units of recip. lattice)
+  However, this system has fractional occupation numbers. Since we use a finite k-point grid,
+  this material is metallic within the approximate finite broadening function (occupation_type)
+  applied to determine the occupation numbers.
+
+  Total energy components:
+  | Sum of eigenvalues            :        -966.68924569 Ha      -26304.95275659 eV
+  | XC energy correction          :         -65.14321796 Ha       -1772.63715151 eV
+  | XC potential correction       :          86.25479036 Ha        2347.11226547 eV
+  | Free-atom electrostatic energy:        -717.36293622 Ha      -19520.43868361 eV
+  | Hartree energy correction     :           2.75689679 Ha          75.01897854 eV
+  | Entropy correction            :          -0.00001981 Ha          -0.00053900 eV
+  | ---------------------------
+  | Total energy                  :       -1660.18371273 Ha      -45175.89734771 eV
+  | Total energy, T -> 0          :       -1660.18373254 Ha      -45175.89788671 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy        :       -1660.18375234 Ha      -45175.89842571 eV
+
+  Derived energy quantities:
+  | Kinetic energy                :        1684.15500738 Ha       45828.18946340 eV
+  | Electrostatic energy          :       -3279.19550215 Ha      -89231.44965960 eV
+  | Energy correction for multipole
+  | error in Hartree potential    :           0.00102772 Ha           0.02796573 eV
+  | Sum of eigenvalues per atom                           :      -26304.95275659 eV
+  | Total energy (T->0) per atom                          :      -45175.89788671 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy per atom                       :      -45175.89842571 eV
+
+  Self-consistency convergence accuracy:
+  | Change of charge density      :  0.5831E-02
+  | Change of sum of eigenvalues  : -0.1458E+01 eV
+  | Change of total energy        : -0.1173E-02 eV
+
+  End self-consistency iteration #     5       :  max(cpu_time)    wall_clock(cpu1)
+  | Time for this iteration                    :        0.752 s           0.752 s
+  | Charge density update                      :        0.222 s           0.222 s
+  | Density mixing & preconditioning           :        0.006 s           0.006 s
+  | Hartree multipole update                   :        0.001 s           0.001 s
+  | Hartree multipole summation                :        0.049 s           0.049 s
+  | Integration                                :        0.353 s           0.352 s
+  | Solution of K.-S. eqns.                    :        0.120 s           0.121 s
+  | Total energy evaluation                    :        0.001 s           0.001 s
+
+  Partial memory accounting:
+  | Current value for overall tracked memory usage:
+  |   Minimum:        2.618 MB (on task 0)
+  |   Maximum:        2.628 MB (on task 1)
+  |   Average:        2.623 MB
+  | Peak value for overall tracked memory usage:
+  |   Minimum:       23.201 MB (on task 1 after allocating zora_vector2)
+  |   Maximum:       26.206 MB (on task 6 after allocating zora_vector2)
+  |   Average:       24.746 MB
+  | Largest tracked array allocation so far:
+  |   Minimum:       11.693 MB (hamiltonian_shell on task 1)
+  |   Maximum:       13.946 MB (hamiltonian_shell on task 6)
+  |   Average:       12.847 MB
+  Note:  These values currently only include a subset of arrays which are explicitly tracked.
+  The "true" memory usage will be greater.
+------------------------------------------------------------
+
+------------------------------------------------------------
+          Begin self-consistency iteration #    6
+
+  Date     :  20190817, Time     :  153240.813
+------------------------------------------------------------
+  Evaluating new KS density using the density matrix
+  Evaluating density matrix
+  Time summed over all CPUs for getting density from density matrix: real work        1.463 s, elapsed        1.524 s
+  Integration grid: deviation in total charge (<rho> - N_e) =   9.109158E-12
+  Pulay mixing of updated and previous charge densities.
+  Renormalizing the density to the exact electron count on the 3D integration grid.
+  | Formal number of electrons (from input files) :      29.0000000000
+  | Integrated number of electrons on 3D grid     :      29.0000271937
+  | Charge integration error                      :       0.0000271937
+  | Normalization factor for density and gradient :       0.9999990623
+
+  Evaluating partitioned Hartree potential by multipole expansion.
+  | Original multipole sum: apparent total charge =  -0.336246E-14
+  | Sum of charges compensated after spline to logarithmic grids =  -0.209672E-05
+  | Analytical far-field extrapolation by fixed multipoles:
+  | Hartree multipole sum: apparent total charge =   0.000000E+00
+  Summing up the Hartree potential.
+  Time summed over all CPUs for potential: real work        0.367 s, elapsed        0.383 s
+  | RMS charge density error from multipole expansion :   0.761356E-02
+  | Average real-space part of the electrostatic potential :     -0.92046996 eV
+
+  Integrating Hamiltonian matrix: batch-based integration.
+  Time summed over all CPUs for integration: real work        2.710 s, elapsed        2.802 s
+
+  Updating Kohn-Sham eigenvalues and eigenvectors using ELSI and the (modified) LAPACK eigensolver.
+  Starting LAPACK eigensolver
+  Finished Cholesky decomposition
+  | Time :     0.000 s
+  Finished transformation to standard eigenproblem
+  | Time :     0.000 s
+  Finished solving standard eigenproblem
+  | Time :     0.000 s
+  Finished back-transformation of eigenvectors
+  | Time :     0.000 s
+
+  Obtaining occupation numbers and chemical potential using ELSI.
+  | Chemical potential (Fermi level):    -5.64963602 eV
+  What follows are estimated values for band gap, HOMO, LUMO, etc.
+  | They are estimated on a discrete k-point grid and not necessarily exact.
+  | For converged numbers, create a DOS and/or band structure plot on a denser k-grid.
+
+  Highest occupied state (VBM) at     -5.80464757 eV (relative to internal zero)
+  | Occupation number:      1.97163452
+  | K-point:     313 at    0.250000    0.166667    0.500000 (in units of recip. lattice)
+
+  Lowest unoccupied state (CBM) at    -5.62809174 eV (relative to internal zero)
+  | Occupation number:      0.76060833
+  | K-point:     454 at    0.333333    0.500000    0.166667 (in units of recip. lattice)
+
+  ESTIMATED overall HOMO-LUMO gap:      0.17655582 eV between HOMO at k-point 313 and LUMO at k-point 454
+  | This appears to be an indirect band gap.
+  | Smallest direct gap :      1.88460689 eV for k_point 781 at    0.333333    0.500000    0.166667 (in units of recip. lattice)
+  However, this system has fractional occupation numbers. Since we use a finite k-point grid,
+  this material is metallic within the approximate finite broadening function (occupation_type)
+  applied to determine the occupation numbers.
+
+  Total energy components:
+  | Sum of eigenvalues            :        -966.68761226 Ha      -26304.90830868 eV
+  | XC energy correction          :         -65.14341839 Ha       -1772.64260547 eV
+  | XC potential correction       :          86.25505428 Ha        2347.11944705 eV
+  | Free-atom electrostatic energy:        -717.36293622 Ha      -19520.43868361 eV
+  | Hartree energy correction     :           2.75520017 Ha          74.97281109 eV
+  | Entropy correction            :          -0.00001982 Ha          -0.00053940 eV
+  | ---------------------------
+  | Total energy                  :       -1660.18371243 Ha      -45175.89733963 eV
+  | Total energy, T -> 0          :       -1660.18373225 Ha      -45175.89787902 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy        :       -1660.18375208 Ha      -45175.89841842 eV
+
+  Derived energy quantities:
+  | Kinetic energy                :        1684.15901363 Ha       45828.29847903 eV
+  | Electrostatic energy          :       -3279.19930767 Ha      -89231.55321318 eV
+  | Energy correction for multipole
+  | error in Hartree potential    :           0.00102628 Ha           0.02792647 eV
+  | Sum of eigenvalues per atom                           :      -26304.90830868 eV
+  | Total energy (T->0) per atom                          :      -45175.89787902 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy per atom                       :      -45175.89841842 eV
+
+  Self-consistency convergence accuracy:
+  | Change of charge density      :  0.1094E-02
+  | Change of sum of eigenvalues  :  0.4445E-01 eV
+  | Change of total energy        :  0.8080E-05 eV
+
+  End self-consistency iteration #     6       :  max(cpu_time)    wall_clock(cpu1)
+  | Time for this iteration                    :        0.753 s           0.753 s
+  | Charge density update                      :        0.221 s           0.221 s
+  | Density mixing & preconditioning           :        0.006 s           0.007 s
+  | Hartree multipole update                   :        0.001 s           0.000 s
+  | Hartree multipole summation                :        0.049 s           0.050 s
+  | Integration                                :        0.353 s           0.353 s
+  | Solution of K.-S. eqns.                    :        0.121 s           0.121 s
+  | Total energy evaluation                    :        0.001 s           0.001 s
+
+  Partial memory accounting:
+  | Current value for overall tracked memory usage:
+  |   Minimum:        2.618 MB (on task 0)
+  |   Maximum:        2.628 MB (on task 1)
+  |   Average:        2.623 MB
+  | Peak value for overall tracked memory usage:
+  |   Minimum:       23.201 MB (on task 1 after allocating zora_vector2)
+  |   Maximum:       26.206 MB (on task 6 after allocating zora_vector2)
+  |   Average:       24.746 MB
+  | Largest tracked array allocation so far:
+  |   Minimum:       11.693 MB (hamiltonian_shell on task 1)
+  |   Maximum:       13.946 MB (hamiltonian_shell on task 6)
+  |   Average:       12.847 MB
+  Note:  These values currently only include a subset of arrays which are explicitly tracked.
+  The "true" memory usage will be greater.
+------------------------------------------------------------
+
+------------------------------------------------------------
+          Begin self-consistency iteration #    7
+
+  Date     :  20190817, Time     :  153241.566
+------------------------------------------------------------
+  Evaluating new KS density using the density matrix
+  Evaluating density matrix
+  Time summed over all CPUs for getting density from density matrix: real work        1.466 s, elapsed        1.527 s
+  Integration grid: deviation in total charge (<rho> - N_e) =   8.942180E-12
+  Pulay mixing of updated and previous charge densities.
+  Renormalizing the density to the exact electron count on the 3D integration grid.
+  | Formal number of electrons (from input files) :      29.0000000000
+  | Integrated number of electrons on 3D grid     :      29.0000124766
+  | Charge integration error                      :       0.0000124766
+  | Normalization factor for density and gradient :       0.9999995698
+
+  Evaluating partitioned Hartree potential by multipole expansion.
+  | Original multipole sum: apparent total charge =   0.112623E-13
+  | Sum of charges compensated after spline to logarithmic grids =  -0.209601E-05
+  | Analytical far-field extrapolation by fixed multipoles:
+  | Hartree multipole sum: apparent total charge =   0.000000E+00
+  Summing up the Hartree potential.
+  Time summed over all CPUs for potential: real work        0.369 s, elapsed        0.383 s
+  | RMS charge density error from multipole expansion :   0.761592E-02
+  | Average real-space part of the electrostatic potential :     -0.91972677 eV
+
+  Integrating Hamiltonian matrix: batch-based integration.
+  Time summed over all CPUs for integration: real work        2.708 s, elapsed        2.797 s
+
+  Updating Kohn-Sham eigenvalues and eigenvectors using ELSI and the (modified) LAPACK eigensolver.
+  Starting LAPACK eigensolver
+  Finished Cholesky decomposition
+  | Time :     0.001 s
+  Finished transformation to standard eigenproblem
+  | Time :     0.000 s
+  Finished solving standard eigenproblem
+  | Time :     0.000 s
+  Finished back-transformation of eigenvectors
+  | Time :     0.000 s
+
+  Obtaining occupation numbers and chemical potential using ELSI.
+  | Chemical potential (Fermi level):    -5.64674878 eV
+  What follows are estimated values for band gap, HOMO, LUMO, etc.
+  | They are estimated on a discrete k-point grid and not necessarily exact.
+  | For converged numbers, create a DOS and/or band structure plot on a denser k-grid.
+
+  Highest occupied state (VBM) at     -5.80150432 eV (relative to internal zero)
+  | Occupation number:      1.97137217
+  | K-point:     346 at    0.250000    0.500000    0.166667 (in units of recip. lattice)
+
+  Lowest unoccupied state (CBM) at    -5.62518162 eV (relative to internal zero)
+  | Occupation number:      0.76036184
+  | K-point:     421 at    0.333333    0.166667    0.500000 (in units of recip. lattice)
+
+  ESTIMATED overall HOMO-LUMO gap:      0.17632270 eV between HOMO at k-point 346 and LUMO at k-point 421
+  | This appears to be an indirect band gap.
+  | Smallest direct gap :      1.88296777 eV for k_point 607 at    0.333333    0.166667    0.500000 (in units of recip. lattice)
+  However, this system has fractional occupation numbers. Since we use a finite k-point grid,
+  this material is metallic within the approximate finite broadening function (occupation_type)
+  applied to determine the occupation numbers.
+
+  Total energy components:
+  | Sum of eigenvalues            :        -966.68209255 Ha      -26304.75810971 eV
+  | XC energy correction          :         -65.14375516 Ha       -1772.65176936 eV
+  | XC potential correction       :          86.25550033 Ha        2347.13158484 eV
+  | Free-atom electrostatic energy:        -717.36293622 Ha      -19520.43868361 eV
+  | Hartree energy correction     :           2.74958251 Ha          74.81994701 eV
+  | Entropy correction            :          -0.00001984 Ha          -0.00053997 eV
+  | ---------------------------
+  | Total energy                  :       -1660.18370108 Ha      -45175.89703083 eV
+  | Total energy, T -> 0          :       -1660.18372093 Ha      -45175.89757080 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy        :       -1660.18374077 Ha      -45175.89811077 eV
+
+  Derived energy quantities:
+  | Kinetic energy                :        1684.16143869 Ha       45828.36446831 eV
+  | Electrostatic energy          :       -3279.20138462 Ha      -89231.60972978 eV
+  | Energy correction for multipole
+  | error in Hartree potential    :           0.00102694 Ha           0.02794437 eV
+  | Sum of eigenvalues per atom                           :      -26304.75810971 eV
+  | Total energy (T->0) per atom                          :      -45175.89757080 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy per atom                       :      -45175.89811077 eV
+
+  Self-consistency convergence accuracy:
+  | Change of charge density      :  0.7820E-03
+  | Change of sum of eigenvalues  :  0.1502E+00 eV
+  | Change of total energy        :  0.3088E-03 eV
+
+  End self-consistency iteration #     7       :  max(cpu_time)    wall_clock(cpu1)
+  | Time for this iteration                    :        0.751 s           0.752 s
+  | Charge density update                      :        0.221 s           0.222 s
+  | Density mixing & preconditioning           :        0.006 s           0.006 s
+  | Hartree multipole update                   :        0.001 s           0.001 s
+  | Hartree multipole summation                :        0.049 s           0.049 s
+  | Integration                                :        0.353 s           0.353 s
+  | Solution of K.-S. eqns.                    :        0.120 s           0.120 s
+  | Total energy evaluation                    :        0.001 s           0.001 s
+
+  Partial memory accounting:
+  | Current value for overall tracked memory usage:
+  |   Minimum:        2.618 MB (on task 0)
+  |   Maximum:        2.628 MB (on task 1)
+  |   Average:        2.623 MB
+  | Peak value for overall tracked memory usage:
+  |   Minimum:       23.201 MB (on task 1 after allocating zora_vector2)
+  |   Maximum:       26.206 MB (on task 6 after allocating zora_vector2)
+  |   Average:       24.746 MB
+  | Largest tracked array allocation so far:
+  |   Minimum:       11.693 MB (hamiltonian_shell on task 1)
+  |   Maximum:       13.946 MB (hamiltonian_shell on task 6)
+  |   Average:       12.847 MB
+  Note:  These values currently only include a subset of arrays which are explicitly tracked.
+  The "true" memory usage will be greater.
+------------------------------------------------------------
+
+------------------------------------------------------------
+          Begin self-consistency iteration #    8
+
+  Date     :  20190817, Time     :  153242.318
+------------------------------------------------------------
+  Evaluating new KS density using the density matrix
+  Evaluating density matrix
+  Time summed over all CPUs for getting density from density matrix: real work        1.464 s, elapsed        1.525 s
+  Integration grid: deviation in total charge (<rho> - N_e) =   9.059420E-12
+  Pulay mixing of updated and previous charge densities.
+  Renormalizing the density to the exact electron count on the 3D integration grid.
+  | Formal number of electrons (from input files) :      29.0000000000
+  | Integrated number of electrons on 3D grid     :      28.9999987557
+  | Charge integration error                      :      -0.0000012443
+  | Normalization factor for density and gradient :       1.0000000429
+
+  Evaluating partitioned Hartree potential by multipole expansion.
+  | Original multipole sum: apparent total charge =   0.262006E-14
+  | Sum of charges compensated after spline to logarithmic grids =  -0.209592E-05
+  | Analytical far-field extrapolation by fixed multipoles:
+  | Hartree multipole sum: apparent total charge =   0.000000E+00
+  Summing up the Hartree potential.
+  Time summed over all CPUs for potential: real work        0.368 s, elapsed        0.383 s
+  | RMS charge density error from multipole expansion :   0.761440E-02
+  | Average real-space part of the electrostatic potential :     -0.91968117 eV
+
+  Integrating Hamiltonian matrix: batch-based integration.
+  Time summed over all CPUs for integration: real work        2.697 s, elapsed        2.787 s
+
+  Updating Kohn-Sham eigenvalues and eigenvectors using ELSI and the (modified) LAPACK eigensolver.
+  Starting LAPACK eigensolver
+  Finished Cholesky decomposition
+  | Time :     0.000 s
+  Finished transformation to standard eigenproblem
+  | Time :     0.000 s
+  Finished solving standard eigenproblem
+  | Time :     0.000 s
+  Finished back-transformation of eigenvectors
+  | Time :     0.000 s
+
+  Obtaining occupation numbers and chemical potential using ELSI.
+  | Chemical potential (Fermi level):    -5.64663946 eV
+  What follows are estimated values for band gap, HOMO, LUMO, etc.
+  | They are estimated on a discrete k-point grid and not necessarily exact.
+  | For converged numbers, create a DOS and/or band structure plot on a denser k-grid.
+
+  Highest occupied state (VBM) at     -5.80138572 eV (relative to internal zero)
+  | Occupation number:      1.97136262
+  | K-point:     313 at    0.250000    0.166667    0.500000 (in units of recip. lattice)
+
+  Lowest unoccupied state (CBM) at    -5.62507196 eV (relative to internal zero)
+  | Occupation number:      0.76035814
+  | K-point:     454 at    0.333333    0.500000    0.166667 (in units of recip. lattice)
+
+  ESTIMATED overall HOMO-LUMO gap:      0.17631376 eV between HOMO at k-point 313 and LUMO at k-point 454
+  | This appears to be an indirect band gap.
+  | Smallest direct gap :      1.88291027 eV for k_point 781 at    0.333333    0.500000    0.166667 (in units of recip. lattice)
+  However, this system has fractional occupation numbers. Since we use a finite k-point grid,
+  this material is metallic within the approximate finite broadening function (occupation_type)
+  applied to determine the occupation numbers.
+
+  Total energy components:
+  | Sum of eigenvalues            :        -966.68182501 Ha      -26304.75082948 eV
+  | XC energy correction          :         -65.14376964 Ha       -1772.65216341 eV
+  | XC potential correction       :          86.25551954 Ha        2347.13210750 eV
+  | Free-atom electrostatic energy:        -717.36293622 Ha      -19520.43868361 eV
+  | Hartree energy correction     :           2.74931093 Ha          74.81255674 eV
+  | Entropy correction            :          -0.00001984 Ha          -0.00053999 eV
+  | ---------------------------
+  | Total energy                  :       -1660.18370040 Ha      -45175.89701226 eV
+  | Total energy, T -> 0          :       -1660.18372025 Ha      -45175.89755225 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy        :       -1660.18374009 Ha      -45175.89809224 eV
+
+  Derived energy quantities:
+  | Kinetic energy                :        1684.16163901 Ha       45828.36991926 eV
+  | Electrostatic energy          :       -3279.20156977 Ha      -89231.61476811 eV
+  | Energy correction for multipole
+  | error in Hartree potential    :           0.00102676 Ha           0.02793968 eV
+  | Sum of eigenvalues per atom                           :      -26304.75082948 eV
+  | Total energy (T->0) per atom                          :      -45175.89755225 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy per atom                       :      -45175.89809224 eV
+
+  Self-consistency convergence accuracy:
+  | Change of charge density      :  0.4008E-04
+  | Change of sum of eigenvalues  :  0.7280E-02 eV
+  | Change of total energy        :  0.1857E-04 eV
+
+  End self-consistency iteration #     8       :  max(cpu_time)    wall_clock(cpu1)
+  | Time for this iteration                    :        0.747 s           0.747 s
+  | Charge density update                      :        0.221 s           0.221 s
+  | Density mixing & preconditioning           :        0.007 s           0.007 s
+  | Hartree multipole update                   :        0.001 s           0.001 s
+  | Hartree multipole summation                :        0.049 s           0.049 s
+  | Integration                                :        0.351 s           0.352 s
+  | Solution of K.-S. eqns.                    :        0.116 s           0.116 s
+  | Total energy evaluation                    :        0.001 s           0.000 s
+
+  Partial memory accounting:
+  | Current value for overall tracked memory usage:
+  |   Minimum:        2.618 MB (on task 0)
+  |   Maximum:        2.628 MB (on task 1)
+  |   Average:        2.623 MB
+  | Peak value for overall tracked memory usage:
+  |   Minimum:       23.201 MB (on task 1 after allocating zora_vector2)
+  |   Maximum:       26.206 MB (on task 6 after allocating zora_vector2)
+  |   Average:       24.746 MB
+  | Largest tracked array allocation so far:
+  |   Minimum:       11.693 MB (hamiltonian_shell on task 1)
+  |   Maximum:       13.946 MB (hamiltonian_shell on task 6)
+  |   Average:       12.847 MB
+  Note:  These values currently only include a subset of arrays which are explicitly tracked.
+  The "true" memory usage will be greater.
+------------------------------------------------------------
+
+------------------------------------------------------------
+          Begin self-consistency iteration #    9
+
+  Date     :  20190817, Time     :  153243.066
+------------------------------------------------------------
+  Evaluating new KS density using the density matrix
+  Evaluating density matrix
+  Time summed over all CPUs for getting density from density matrix: real work        1.464 s, elapsed        1.528 s
+  Integration grid: deviation in total charge (<rho> - N_e) =   9.077183E-12
+  Pulay mixing of updated and previous charge densities.
+  Renormalizing the density to the exact electron count on the 3D integration grid.
+  | Formal number of electrons (from input files) :      29.0000000000
+  | Integrated number of electrons on 3D grid     :      28.9999996713
+  | Charge integration error                      :      -0.0000003287
+  | Normalization factor for density and gradient :       1.0000000113
+
+  Evaluating partitioned Hartree potential by multipole expansion.
+  | Original multipole sum: apparent total charge =   0.324158E-14
+  | Sum of charges compensated after spline to logarithmic grids =  -0.209591E-05
+  | Analytical far-field extrapolation by fixed multipoles:
+  | Hartree multipole sum: apparent total charge =   0.000000E+00
+  Summing up the Hartree potential.
+  Time summed over all CPUs for potential: real work        0.366 s, elapsed        0.382 s
+  | RMS charge density error from multipole expansion :   0.761405E-02
+  | Average real-space part of the electrostatic potential :     -0.91967529 eV
+
+  Integrating Hamiltonian matrix: batch-based integration.
+  Time summed over all CPUs for integration: real work        2.716 s, elapsed        2.807 s
+
+  Updating Kohn-Sham eigenvalues and eigenvectors using ELSI and the (modified) LAPACK eigensolver.
+  Starting LAPACK eigensolver
+  Finished Cholesky decomposition
+  | Time :     0.000 s
+  Finished transformation to standard eigenproblem
+  | Time :     0.000 s
+  Finished solving standard eigenproblem
+  | Time :     0.000 s
+  Finished back-transformation of eigenvectors
+  | Time :     0.000 s
+
+  Obtaining occupation numbers and chemical potential using ELSI.
+  | Chemical potential (Fermi level):    -5.64662967 eV
+  What follows are estimated values for band gap, HOMO, LUMO, etc.
+  | They are estimated on a discrete k-point grid and not necessarily exact.
+  | For converged numbers, create a DOS and/or band structure plot on a denser k-grid.
+
+  Highest occupied state (VBM) at     -5.80137556 eV (relative to internal zero)
+  | Occupation number:      1.97136224
+  | K-point:     643 at    0.500000    0.250000    0.333333 (in units of recip. lattice)
+
+  Lowest unoccupied state (CBM) at    -5.62506159 eV (relative to internal zero)
+  | Occupation number:      0.76035187
+  | K-point:     223 at    0.166667    0.333333    0.500000 (in units of recip. lattice)
+
+  ESTIMATED overall HOMO-LUMO gap:      0.17631397 eV between HOMO at k-point 643 and LUMO at k-point 223
+  | This appears to be an indirect band gap.
+  | Smallest direct gap :      1.88290633 eV for k_point 145 at    0.166667    0.333333    0.500000 (in units of recip. lattice)
+  However, this system has fractional occupation numbers. Since we use a finite k-point grid,
+  this material is metallic within the approximate finite broadening function (occupation_type)
+  applied to determine the occupation numbers.
+
+  Total energy components:
+  | Sum of eigenvalues            :        -966.68179172 Ha      -26304.74992367 eV
+  | XC energy correction          :         -65.14377126 Ha       -1772.65220743 eV
+  | XC potential correction       :          86.25552169 Ha        2347.13216600 eV
+  | Free-atom electrostatic energy:        -717.36293622 Ha      -19520.43868361 eV
+  | Hartree energy correction     :           2.74927721 Ha          74.81163922 eV
+  | Entropy correction            :          -0.00001984 Ha          -0.00053999 eV
+  | ---------------------------
+  | Total energy                  :       -1660.18370030 Ha      -45175.89700949 eV
+  | Total energy, T -> 0          :       -1660.18372014 Ha      -45175.89754948 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy        :       -1660.18373999 Ha      -45175.89808947 eV
+
+  Derived energy quantities:
+  | Kinetic energy                :        1684.16167506 Ha       45828.37090027 eV
+  | Electrostatic energy          :       -3279.20160411 Ha      -89231.61570233 eV
+  | Energy correction for multipole
+  | error in Hartree potential    :           0.00102673 Ha           0.02793866 eV
+  | Sum of eigenvalues per atom                           :      -26304.74992367 eV
+  | Total energy (T->0) per atom                          :      -45175.89754948 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy per atom                       :      -45175.89808947 eV
+
+  Self-consistency convergence accuracy:
+  | Change of charge density      :  0.4561E-05
+  | Change of sum of eigenvalues  :  0.9058E-03 eV
+  | Change of total energy        :  0.2773E-05 eV
+
+  Preliminary charge convergence reached. Turning off preconditioner.
+
+  Writing Kohn-Sham eigenvalues.
+  K-point:       1 at    0.000000    0.000000    0.000000 (in units of recip. lattice)
+
+  State    Occupation    Eigenvalue [Ha]    Eigenvalue [eV]
+      1       2.00000        -328.155917        -8929.57682
+      2       2.00000         -39.169624        -1065.85970
+      3       2.00000         -33.863798         -921.48083
+      4       2.00000         -33.863798         -921.48083
+      5       2.00000         -33.863798         -921.48083
+      6       2.00000          -4.320684         -117.57178
+      7       2.00000          -2.766905          -75.29130
+      8       2.00000          -2.766905          -75.29130
+      9       2.00000          -2.766905          -75.29130
+     10       2.00000          -0.573909          -15.61687
+     11       2.00000          -0.326750           -8.89132
+     12       2.00000          -0.326750           -8.89132
+     13       2.00000          -0.326750           -8.89132
+     14       2.00000          -0.291480           -7.93157
+     15       2.00000          -0.291480           -7.93157
+     16       0.00000           0.676902           18.41943
+     17       0.00000           0.784672           21.35200
+     18       0.00000           0.784672           21.35200
+     19       0.00000           0.784672           21.35200
+     20       0.00000           1.003858           27.31635
+     21       0.00000           1.003858           27.31635
+
+  What follows are estimated values for band gap, HOMO, LUMO, etc.
+  | They are estimated on a discrete k-point grid and not necessarily exact.
+  | For converged numbers, create a DOS and/or band structure plot on a denser k-grid.
+
+  Highest occupied state (VBM) at     -5.80137556 eV (relative to internal zero)
+  | Occupation number:      1.97136224
+  | K-point:     643 at    0.500000    0.250000    0.333333 (in units of recip. lattice)
+
+  Lowest unoccupied state (CBM) at    -5.62506159 eV (relative to internal zero)
+  | Occupation number:      0.76035187
+  | K-point:     223 at    0.166667    0.333333    0.500000 (in units of recip. lattice)
+
+  ESTIMATED overall HOMO-LUMO gap:      0.17631397 eV between HOMO at k-point 643 and LUMO at k-point 223
+  | This appears to be an indirect band gap.
+  | Smallest direct gap :      1.88290633 eV for k_point 145 at    0.166667    0.333333    0.500000 (in units of recip. lattice)
+  However, this system has fractional occupation numbers. Since we use a finite k-point grid,
+  this material is metallic within the approximate finite broadening function (occupation_type)
+  applied to determine the occupation numbers.
+
+  Self-consistency cycle converged.
+
+  End self-consistency iteration #     9       :  max(cpu_time)    wall_clock(cpu1)
+  | Time for this iteration                    :        0.752 s           0.752 s
+  | Charge density update                      :        0.221 s           0.220 s
+  | Density mixing                             :        0.007 s           0.008 s
+  | Hartree multipole update                   :        0.001 s           0.000 s
+  | Hartree multipole summation                :        0.049 s           0.049 s
+  | Integration                                :        0.354 s           0.354 s
+  | Solution of K.-S. eqns.                    :        0.120 s           0.120 s
+  | Total energy evaluation                    :        0.001 s           0.001 s
+
+  Partial memory accounting:
+  | Current value for overall tracked memory usage:
+  |   Minimum:        2.618 MB (on task 0)
+  |   Maximum:        2.628 MB (on task 1)
+  |   Average:        2.623 MB
+  | Peak value for overall tracked memory usage:
+  |   Minimum:       23.201 MB (on task 1 after allocating zora_vector2)
+  |   Maximum:       26.206 MB (on task 6 after allocating zora_vector2)
+  |   Average:       24.746 MB
+  | Largest tracked array allocation so far:
+  |   Minimum:       11.693 MB (hamiltonian_shell on task 1)
+  |   Maximum:       13.946 MB (hamiltonian_shell on task 6)
+  |   Average:       12.847 MB
+  Note:  These values currently only include a subset of arrays which are explicitly tracked.
+  The "true" memory usage will be greater.
+------------------------------------------------------------
+
+------------------------------------------------------------
+          Post-processing: scaled ZORA corrections to eigenvalues and total energy.
+
+  Date     :  20190817, Time     :  153243.819
+------------------------------------------------------------
+  Computing correction matrix for scaled ZORA eigenvalues.
+  Evaluating scaled zora correction for each Kohn-Sham eigenstate.
+  Writing Kohn-Sham eigenvalues.
+  K-point:       1 at    0.000000    0.000000    0.000000 (in units of recip. lattice)
+
+  State    Occupation    Eigenvalue [Ha]    Eigenvalue [eV]
+      1       2.00000        -324.574448        -8832.12011
+      2       2.00000         -39.088829        -1063.66115
+      3       2.00000         -33.795065         -919.61050
+      4       2.00000         -33.795065         -919.61050
+      5       2.00000         -33.795065         -919.61050
+      6       2.00000          -4.318713         -117.51817
+      7       2.00000          -2.765783          -75.26077
+      8       2.00000          -2.765783          -75.26077
+      9       2.00000          -2.765783          -75.26077
+     10       2.00000          -0.573885          -15.61621
+     11       2.00000          -0.326668           -8.88909
+     12       2.00000          -0.326668           -8.88909
+     13       2.00000          -0.326668           -8.88909
+     14       2.00000          -0.291400           -7.92940
+     15       2.00000          -0.291400           -7.92940
+     16       0.00000           0.676875           18.41871
+     17       0.00000           0.784594           21.34989
+     18       0.00000           0.784594           21.34989
+     19       0.00000           0.784594           21.34989
+     20       0.00000           1.003642           27.31050
+     21       0.00000           1.003642           27.31050
+
+  What follows are estimated values for band gap, HOMO, LUMO, etc.
+  | They are estimated on a discrete k-point grid and not necessarily exact.
+  | For converged numbers, create a DOS and/or band structure plot on a denser k-grid.
+
+  Highest occupied state (VBM) at     -5.80006430 eV (relative to internal zero)
+  | Occupation number:      1.97124567
+  | K-point:     643 at    0.500000    0.250000    0.333333 (in units of recip. lattice)
+
+  Lowest unoccupied state (CBM) at    -5.62385950 eV (relative to internal zero)
+  | Occupation number:      0.76030998
+  | K-point:     223 at    0.166667    0.333333    0.500000 (in units of recip. lattice)
+
+  ESTIMATED overall HOMO-LUMO gap:      0.17620480 eV between HOMO at k-point 643 and LUMO at k-point 223
+  | This appears to be an indirect band gap.
+  | Smallest direct gap :      1.88192667 eV for k_point 145 at    0.166667    0.333333    0.500000 (in units of recip. lattice)
+  However, this system has fractional occupation numbers. Since we use a finite k-point grid,
+  this material is metallic within the approximate finite broadening function (occupation_type)
+  applied to determine the occupation numbers.
+
+  Total energy components:
+  | Sum of eigenvalues            :        -958.93342615 Ha      -26093.90616885 eV
+  | XC energy correction          :         -65.14377126 Ha       -1772.65220743 eV
+  | XC potential correction       :          86.25552169 Ha        2347.13216600 eV
+  | Free-atom electrostatic energy:        -717.36293622 Ha      -19520.43868361 eV
+  | Hartree energy correction     :           2.74927721 Ha          74.81163922 eV
+  | Entropy correction            :          -0.00001986 Ha          -0.00054034 eV
+  | ---------------------------
+  | Total energy                  :       -1652.43533473 Ha      -44965.05325468 eV
+  | Total energy, T -> 0          :       -1652.43535459 Ha      -44965.05379502 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy        :       -1652.43537444 Ha      -44965.05433536 eV
+
+  Derived energy quantities:
+  | Kinetic energy                :        1691.91004063 Ha       46039.21465509 eV
+  | Electrostatic energy          :       -3279.20160411 Ha      -89231.61570233 eV
+  | Energy correction for multipole
+  | error in Hartree potential    :           0.00102673 Ha           0.02793866 eV
+  | Sum of eigenvalues per atom                           :      -26093.90616885 eV
+  | Total energy (T->0) per atom                          :      -44965.05379502 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy per atom                       :      -44965.05433536 eV
+  End evaluation of scaled ZORA corrections.
+  | Time for scaled ZORA corrections           :        0.500 s           0.499 s
+------------------------------------------------------------
+
+  Energy and forces in a compact form:
+  | Total energy uncorrected      :         -0.449650532546762E+05 eV
+  | Total energy corrected        :         -0.449650537950166E+05 eV  <-- do not rely on this value for anything but (periodic) metals
+  | Electronic free energy        :         -0.449650543353569E+05 eV
+
+  ------------------------------------ 
+  Start decomposition of the XC Energy 
+  ------------------------------------ 
+  X and C from original XC functional choice 
+  Hartree-Fock Energy :          0.000000000 Ha              0.000000000 eV
+  X Energy            :        -62.575219670 Ha          -1702.758362615 eV
+  C Energy            :         -2.568551586 Ha            -69.893844817 eV
+  Total XC Energy     :        -65.143771256 Ha          -1772.652207432 eV
+  ------------------------------------ 
+  LDA X and C from self-consistent density 
+  X Energy LDA        :        -62.575219670 Ha          -1702.758362615 eV
+  C Energy LDA        :         -2.568551586 Ha            -69.893844817 eV
+  ------------------------------------ 
+  End decomposition of the XC Energy 
+  ------------------------------------ 
+
+------------------------------------------------------------
+  |------------------------------------------------------
+  | Final ELSI Output
+  |------------------------------------------------------
+  |
+  | Physical Properties
+  |   Number of electrons       :        0.29000000E+02
+  |   Number of states          :                    21
+  |
+  | Matrix Properties
+  |   Matrix format             :           BLACS_DENSE
+  |   Number of basis functions :                    31
+  |
+  | Computational Details
+  |   Parallel mode             :           SINGLE_PROC
+  |   Solver requested          :                LAPACK
+  |   Number of ELSI calls      :                  1080
+  |
+  |------------------------------------------------------
+  | ELSI Project (c)  elsi-interchange.org
+  |------------------------------------------------------
+
+------------------------------------------------------------------------------
+  Final output of selected total energy values:
+
+  The following output summarizes some interesting total energy values
+  at the end of a run (AFTER all relaxation, molecular dynamics, etc.).
+
+  | Total energy of the DFT / Hartree-Fock s.c.f. calculation      :         -44965.053254676 eV
+  | Final zero-broadening corrected energy (caution - metals only) :         -44965.053795017 eV
+  | For reference only, the value of 1 Hartree used in FHI-aims is :             27.211384500 eV
+  | For reference only, the overall average (free atom contribution
+  | + realspace contribution) of the electrostatic potential after
+  | s.c.f. convergence is                                          :            -24.447087845 eV
+
+  Before relying on these values, please be sure to understand exactly which
+  total energy value is referred to by a given number. Different objects may
+  all carry the same name 'total energy'. Definitions:
+
+  Total energy of the DFT / Hartree-Fock s.c.f. calculation:
+  | Note that this energy does not include ANY quantities calculated after the
+  | s.c.f. cycle, in particular not ANY RPA, MP2, etc. many-body perturbation terms.
+  | Scalar relativistic effects have been included in the 'scaled ZORA' approximation.
+
+  Final zero-broadening corrected energy:
+  | For metallic systems only, a broadening of the occupation numbers at the Fermi
+  | level can be extrapolated back to zero broadening by an electron-gas inspired
+  | formula. For all systems that are not real metals, this value can be
+  | meaningless and should be avoided.
+
+------------------------------------------------------------------------------
+  Methods described in the following list of references were used in this FHI-aims run.
+  If you publish the results, please make sure to cite these reference if they apply.
+  FHI-aims is an academic code, and for our developers (often, Ph.D. students
+  and postdocs), scientific credit in the community is essential.
+  Thank you for helping us!
+
+  For any use of FHI-aims, please cite:
+
+    Volker Blum, Ralf Gehrke, Felix Hanke, Paula Havu, Ville Havu,
+    Xinguo Ren, Karsten Reuter, and Matthias Scheffler
+    'Ab initio molecular simulations with numeric atom-centered orbitals'
+    Computer Physics Communications 180, 2175-2196 (2009)
+    http://dx.doi.org/10.1016/j.cpc.2009.06.022
+
+
+  The provided symmetry information was generated with SPGlib:
+
+    Atsushi Togo, Yusuke Seto, Dimitar Pashov
+    SPGlib 1.7.3 obtained from http://spglib.sourceforge.net
+    Copyright (C) 2008 Atsushi Togo
+
+
+  The ELSI infrastructure was used in your run to solve the Kohn-Sham electronic structure.
+  Please check out http://elsi-interchange.org to learn more.
+  If scalability is important for your project, please acknowledge ELSI by citing:
+
+    V. W-z. Yu, F. Corsetti, A. Garcia, W. P. Huhn, M. Jacquelin, W. Jia,
+    B. Lange, L. Lin, J. Lu, W. Mi, A. Seifitokaldani, A. Vazquez-Mayagoitia,
+    C. Yang, H. Yang, and V. Blum
+    'ELSI: A unified software interface for Kohn-Sham electronic structure solvers'
+    Computer Physics Communications 222, 267-285 (2018).
+    http://dx.doi.org/10.1016/j.cpc.2017.09.007
+
+
+  For the real-space grid partitioning and parallelization used in this calculation, please cite:
+
+    Ville Havu, Volker Blum, Paula Havu, and Matthias Scheffler,
+    'Efficient O(N) integration for all-electron electronic structure calculation'
+    'using numerically tabulated basis functions'
+    Journal of Computational Physics 228, 8367-8379 (2009).
+    http://dx.doi.org/10.1016/j.jcp.2009.08.008
+
+  Of course, there are many other important community references, e.g., those cited in the
+  above references. Our list is limited to references that describe implementations in the
+  FHI-aims code. The reason is purely practical (length of this list) - please credit others as well.
+
+------------------------------------------------------------
+          Leaving FHI-aims.
+          Date     :  20190817, Time     :  153244.320
+
+          Computational steps:
+          | Number of self-consistency cycles          :            9
+          | Number of SCF (re)initializations          :            1
+
+          Detailed time accounting                     :  max(cpu_time)    wall_clock(cpu1)
+          | Total time                                 :        8.466 s           8.476 s
+          | Preparation time                           :        0.206 s           0.206 s
+          | Boundary condition initalization           :        0.114 s           0.114 s
+          | Grid partitioning                          :        0.011 s           0.011 s
+          | Preloading free-atom quantities on grid    :        0.002 s           0.001 s
+          | Free-atom superposition energy             :        0.007 s           0.007 s
+          | Total time for integrations                :        3.733 s           3.734 s
+          | Total time for solution of K.-S. equations :        1.224 s           1.226 s
+          | Total time for density update              :        2.004 s           2.003 s
+          | Total time for mixing & preconditioning    :        0.062 s           0.063 s
+          | Total time for Hartree multipole update    :        0.006 s           0.007 s
+          | Total time for Hartree multipole sum       :        0.447 s           0.446 s
+          | Total time for total energy evaluation     :        0.008 s           0.007 s
+          | Total time for scaled ZORA corrections     :        0.500 s           0.499 s
+
+          Partial memory accounting:
+          | Residual value for overall tracked memory usage across tasks:     0.000000 MB (should be 0.000000 MB)
+          | Peak values for overall tracked memory usage:
+          |   Minimum:       23.201 MB (on task 1 after allocating zora_vector2)
+          |   Maximum:       26.206 MB (on task 6 after allocating zora_vector2)
+          |   Average:       24.746 MB
+          | Largest tracked array allocation:
+          |   Minimum:       11.693 MB (hamiltonian_shell on task 1)
+          |   Maximum:       13.946 MB (hamiltonian_shell on task 6)
+          |   Average:       12.847 MB
+          Note:  These values currently only include a subset of arrays which are explicitly tracked.
+          The "true" memory usage will be greater.
+
+          Have a nice day.
+------------------------------------------------------------

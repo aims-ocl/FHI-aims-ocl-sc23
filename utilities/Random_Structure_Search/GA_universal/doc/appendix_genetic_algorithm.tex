@@ -1,0 +1,357 @@
+
+\chapter[Genetic Algorithm]{Parallel Genetic Algorithm Search}
+\label{appendix_genetic_algorithm}
+
+Comments and suggestions to: \\newhouse@fhi-berlin.mpg.de \\huynh@fhi-berlin.mpg.de \\ghiringhelli@fhi-aims.berlin.mpg.de \\levchenko@fhi-berlin.mpg.de.
+
+\section{Introduction}
+!!! complete this section
+
+
+\section{design of the program}
+!!! complete this section
+
+	modularity
+	
+	digression from standard genetic algorithms
+	
+	Almost all of this is contained in poster.
+
+\section{Input}
+	Each execution of the Genetic Algorithm takes place within a working directory. This directory requires the existence of a few files and directories. This section specifies the required inputs. 
+
+\subsection{Arguments}
+	To initialize the program, the user may run the master.py script from the working directory. The program can be run with zero, one or two arguments. The full input of the program is as follows: \\
+\texttt{/path/to/program/src/core/master.py <user\_input> <stoichiometry>}
+	If the second argument is ommitted, the stoichiometry definition is assumed to reside in the user input file. If both arguments are ommitted, the user input filename is assumed to be ui.conf.
+	
+	There are also other arguments that may be passed to master.py:\\
+	clean: removes the structure data, temporary data, and output files, resetting the state of the working directory.\\
+	data\_tools: runs the data\_tools.py module that may be used for visualization and analysis of data (may be executed during GA run).\\
+	kill: upon a replica's next iteration, that replica will terminate cleanly. !!! format
+
+\subsection{Given Files}
+	There are a number of files required as inputs to the genetic algorithm which are to be located in the working directory at runtime.
+	\paragraph{user input file:} 
+	default: ui.conf
+	This file contains all configuration information necessary for a genetic algorithm run. !!! complete
+	
+	\paragraph{control.in directory:} !!! complete
+
+	\paragraph{user structures directory:}
+	
+	!!! (Complete this section upon regaining access to fhi filesystem)
+	the control.in files used for each cascade level
+	
+\section{Important Data Strucures}
+The Structure and StructureCollection objects are arguably the most important objects in the GA. It is worthwhile becoming very familiar with them in order to understand the behaviour of the rest of the program.
+
+\paragraph{Structure }
+The Structure class represents a specific molecule's geometry, composition, and calculated properties. The structure of the molecule is stored in the geometry field as a numpy array. The specified dtype of the numpy array allows for access of array elements (and columns) by name. Currently the geometry field maintains the following information for each atom: x, y, z (coordinates), element (by symbol), spin, charge, fixed (used for substrates).  The class contains methods to construct the geometry from various sources (text files, aims outputs, etc.). To store various properties, a Structure object also contains a dictionary (hash table) named properties in which a key-value pairs are stored for each property. This scheme was employed in order to allow flexibility in storing configuration-specific properties. 
+
+\paragraph{StructureCollection}
+The StructureCollection class was developed in order to clearly separate groups of Structures based on a) the level of simulation precision when using a cascading GA and b) the stoichiometry of the structures when allowing for stoichiometric crossover.
+It is also the only class that acts as an interface with the structures stored on the filesystem. The StructureCollection class can read and write files containing all information contained in a Structure object to and from a shared location (filesystem or database (needs to be implemented)). Each structure collection has a unique key composed of its a) its assigned stoichiometry and b) its assigned input reference number (corresponds to the level of cascade).
+
+\section{Usage}
+
+	This program is separated into three major levels of usability:
+
+	\subsubsection{keyword level} This level is intended for the slight modification of a use case which is already fully implemented. For example, one may wish to change the probability of the mutation of a structure, the acceptance tolerance of newly-made structures, or the precision of relaxation.
+
+	\subsubsection{module level} This level is intended for more advanced usage. Almost every operation of the genetic algorithm is carried out by interchangeable modules. Initial pool filling, random structure generation, crossover, mutation, relaxation (or energy calculation), structure selection. These modules only require that a function named main() exists which accepts specific arguments and returns specific values. Aside from this one requirement, the specific implementation of these modules is entirely up to the user. This case is intended for the range of users who simply would like to introduce a new style of mutation to the users who intend to change the entire type of material being studied.
+
+	\subsubsection{core level} This level is intended for the most advanced usage. A user who changes this implementation should have a full understanding of the program. any changes may break compatibility with existing modules. The core modules include those in the core, and structures packages. These modules are the backbone of the genetic algorithm and handle the calling of the required pieces. They also determine the properties of the "Structure" and "StructureCollection" objects and how the data are shared between replicas.
+	
+
+\section{Keywords}
+\subsubsection{[section]}
+\begin{description}
+	\item[keyword = default]~\\
+		(argument type)\\
+			explanation
+\end{description}
+
+
+\subsection{core keywords}
+
+\subsubsection{[modules]}
+		The following keywords name the user-implemented modules that will be used in the genetic algorithm. Do not include the '.py' extension.
+\begin{description}
+	\item[initial\_pool\_module = fill\_simple\_norelax]
+	\item[relaxation\_module = FHI\_aims\_relaxation]
+	\item[initial\_pool\_relaxation\_module = reax\_relaxation ]
+	\item[random\_gen\_module = random\_structure\_1]
+	\item[comparison\_module = structure\_comparison\_1]
+	\item[initial\_pool\_comparison\_module = initial\_pool\_comparison\_1]
+	\item[selection\_module = structure\_selection\_1]
+	\item[mutation\_module = mutation\_1]
+	\item[crossover\_module = crossover\_1]
+\end{description}
+
+\subsubsection{[control]}
+		The following keywords specify the location of the control files needed for relaxation and optimization (for FHI-aims, LAMMPS, etc).
+\begin{description}
+	\item[control\_in\_directory = control]~\\
+			(Any string, must match a directory name in the working directory.)\\
+			This is the location containing the files which define the various levels of cascade.
+	\item[initial\_pool = initial\_pool.in]~\\
+			(Any string, must match a file name in the control\_in\_directory.)\\
+			If using a method of relaxation to pre-relax the initial pool, this is the control.in file which will be used. It corresponds to the cascade level -1.
+	\item[control\_in\_filelist = control.in ]~\\
+			(Any strings separated by whitespace, must match a file name in the control\_in\_directory.)
+			This keyword defines the list of control.in files used in the cascade portion of the genetic algorithm. To increase the levels of cascade, simply increase the specified control.in files accordingly. e.g. "control\_in\_filelist = PBElight.in PBE0tight.in HSE06.in"
+\end{description}
+
+
+\subsubsection{[run\_settings]}
+		The following keywords specify general settings of the GA run.
+\begin{description}
+		\item[number\_of\_structures = 100]~\\
+			(Any positive integer.)\\
+			The GA run will terminate after this number of structures is added to the highest cascade level.
+		\item[number\_of\_replicas = 1]~\\
+			(Any positive integer.)\\
+			When running the genetic algorithm on a cluster, this specifies how many times master.py's main function will submit to the queue.
+		\item[parallel\_on\_core = None]~\\
+			(Any positive integer less than or equal to the number of processors available on a single core or None.)\\
+			When relaxation is done using a single processor (e.g. force-field calculations) this option allows for multiple replicas to take place simultaneously on a single node. ``None'' will execute a single replica on a single core.
+		\item[recover\_from\_crashes = False]~\\
+			(Boolean.)\\
+			Set to True to attempt to recover from unexpected exceptions (e.g. caused by relaxation algorithms). Leave False in general and especially for debugging. Replica will restart as if beginning for the first time without raising exception.
+		\item[verbose = False]
+			(Boolean.)\\
+			Used to set the verbosity level of output. Leave false to return only vital information
+\end{description}
+
+
+\subsection{pre-made module keywords}
+		These keywords are not vital, but correspond to the default modules used for clusters in the genetic algorithm.
+\subsubsection{[initial\_pool]}
+		The following keywords specify the behaviour of the filling of the initial pool
+\begin{description}
+		\item[num\_initial\_pool\_structures = 6]~\\
+			(Any non-zero integer.)\\
+			Defines the number of randomly generated initial structures are created
+		\item[user\_structures\_dir = user\_structures]~\\
+			(Any string, must match a directory name in the working directory.)\\
+			Specifies the location of user-defined initial pool structures. An attempt will be made to add every file in this directory to the initial pool
+		\item[number\_of\_processors = 12]~\\
+			(Any positive integer less than or equal to the number of processors available on a single core.)\\
+			In parallel-process initial pool filling, this number defines the number of processes running simultaneously in the initial pool stage
+\end{description}
+
+\subsubsection{[random\_gen]}
+		The following keywords specify how structures are randomly generated when filling the initial pool.
+\begin{description}
+		\item[rand\_struct\_dimension = 3]~\\
+			(1, 2 or 3)\\
+			specifies the space in which the random structures are generated
+		\item[minimum\_bond\_length = 0.5]~\\
+			(Any positive real number)\\
+			When generating structures, this value is used to determine if any of the resulting bonds are too short. measured in angstroms. to be replaced by a distance ratio comparison like that in periodic structures.
+		\item[model\_structure = None]~\\
+			(String or None. Must match a filename in the working directory.)
+			This specifies the model that is referenced when seeking specifications for a randomly generated structure
+		\item[min\_distance\_ratio = 0.1]~\\
+			(positive real number)\\
+			This parameter and the elements' radii are used when comparing closeness internally. currently used only in periodic structure generation
+\end{description}
+
+\subsubsection{[selection]}
+		The following keywords specify how fitness is calculated and how structures to cross are selected based on that fitness calculation
+\begin{description}		
+		\item[fitness\_function = standard]~\\
+			(standard or exponential)\\
+			Will calculate the fitness in the standard format or with an exponential weighting
+		\item[alpha = 1]~\\
+			(Any real number.)\\
+			A parameter used in exponential weighting
+		\item[fitness\_reversal\_probability = 0.1]~\\
+			(Any number from from 0.0 to 1.0)\\
+			Determines the probability that the fitness will be reversed and unfit structures favored for one selection (introduces diversity)
+		\item[stoic\_stdev = 1]~\\
+			(Any positive real number.)\\
+			the standard deviation used when selecting across stoichiometries. the larger the number, the more likely the possibility of selecting a different stoichiometry.
+\end{description}
+
+\subsubsection{[comparison]}
+		The following keywords specify how a new structure is compared to the existing structures and whether it is acceptable or not
+\begin{description}
+		\item[always\_pass\_initial\_pool = False]~\\
+			(Boolean)\\
+			Allows for bypassing initial pool comparison in order to accept every generated structure regardless of similarity.
+		\item[dist\_array\_tolerance = 0.5]~\\
+			(Any positive real number)\\
+			The threshold that must be reached for two structures to be deemed different when comparing distance arrays. larger -> stricter. changes with number of atoms. default is a very low threshold.
+		\item[energy\_comparison = 1.0]~\\
+			(Any number between 0.0 an 1.0)\\
+			A newly relaxed structure will be automatically discarded if the energy is greater than some proportion of the existing structures energies. This number defines that ratio. 1.0: must be at least lower than the highest energy. 0.5: must be at least lower than half the energies. 0.0 must be the lowest energy in the collection.
+		\item[energy\_window = None]~\\
+			(Positive real number or None)\\
+			When filtering structures to compare at a fine level, this defines the tolerance of filtration based on energy closeness.
+		\item[histogram\_tolerance = 0.2]~\\
+			(Any positive real number)\\
+			When filtering structures to compare at a fine level, this defines the tolerance of the histogram filter.
+			TODO: explain what happens with higher and lower numbers
+		\item[n\_bins = 10]~\\
+			(Positive integer)\\
+			number of bins used in histogram comparison
+		\item[bin\_size = 1.0]~\\
+			(Positive real number)\\
+			size of the histogram bin. measured in angstroms.
+\end{description}
+
+\subsubsection{[crossover]}
+		The following keywords specify how structures are crossed to create a new structure
+\begin{description}
+		\item[crossover\_minimum\_interface\_distance = 0.2]~\\
+			(Any positive real number)\\
+			when crossing structures, this value is used to determine if any of the resulting bonds are too short. measured in angstroms. to be replaced by a distance ratio comparison like that in periodic structures.
+\end{description}
+
+\subsubsection{[mutation]}
+		The following keywords specify how structures are mutated
+\begin{description}
+		\item[forbidden\_elements = None]~\\
+			(Strings separated by whitespace or None. e.g. Au Ag H)\\
+			When mutating, these elements should be left in place.
+		\item[minimum\_bond\_length = 0.5]~\\
+			(Any positive real number)\\
+			When mutating structures, this value is used to determine if any of the resulting bonds are too short. measured in angstroms. to be replaced by a distance ratio comparison like that in periodic structures.
+\end{description}
+
+
+\subsubsection{[lammps]}
+		The following keywords specify how LAMMPS is run
+\begin{description}
+		\item[path\_to\_lammps\_executable = ???]~\\
+			(Absolute path.)\\
+			Points to the lammps executable.
+\end{description}
+
+\subsubsection{[FHI-aims]}
+		The following keywords specify how FHI-aims is run.
+\begin{description}
+		\item[path\_to\_aims\_executable = ???]~\\
+			(Absolute path)\\
+			points to the FHI-aims executable
+		\item[number\_of\_processors = 12]~\\
+			(Integer)\\
+			determines how many processors aims will use in parallel. should be maximum number of processors on the node.
+		\item[initial\_moment = hund]~\\
+			(hund or custom)\\
+			used to specify the initial spin moment. if custom is used, the user-defined spin moments (in the user input geometries) will be used.
+\end{description}
+
+\subsubsection{	[periodic]}
+		The following keywords specify properties of periodic structure handling.
+\begin{description}
+		\item[periodic\_system = False]~\\
+			(Boolean)\\
+			Is the genetic algorithm expected to use periodic structures?
+		\item[periodic\_model = model.in]~\\
+			(Any string, must match a file name in the working directory.)\\
+			the model periodic structure is used to quickly define lattice vectors and the structure of a substrate if there is one.
+		\item[min\_distance\_ratio = 0.5]~\\
+			(Positive real number)\\
+			this parameter and the elements' radii are used when comparing closeness across lattice cells
+		\item[lattice\_vector\_a = (10.0, 0.0, 0.0)]
+		\item[lattice\_vector\_b = (0.0, 10.0, 0.0)]
+		\item[lattice\_vector\_c = (0.0, 0.0, 10.0)]~\\
+		(Python tuple of real numbers. length == 3)\\
+		defines one of the three lattice vectors used in periodic calculations
+\end{description}
+
+\section{Modules}
+		The modules are designed for easy interchangeability and freedom of implementation. Each module requires only four properties: 
+		\begin{enumerate}
+		\item A function named main(...) exists which is called from the core algorithm.  
+		\item The main function accepts particular arguments which differ from module to module. 
+		\item The main function returns the necessary information required by the core algorithm. 
+		\item The module does not alter the stored information used by the rest of the program.
+		\end{enumerate}
+		The following lists the required input and output of each module as well as its purpose.
+
+		\subsubsection{Module Title}  \vspace{-\baselineskip}
+		Package: python\_package\_name\\
+		Arguments: arg1\_type arg1\_name, arg2\_type arg2\_name\\
+		Returns: return\_type return\_name\\
+		Effects: A description of the intended purpose of the module\\
+
+		\subsubsection{Initial Pool Filling} \vspace{-\baselineskip}
+		Package: initial\_pool\\
+		Arguments: int replica, StoicDict replica\_stoichiometry\\
+		Returns: None\\
+		Effects: Randomly generates structures to be added to the initial pool. Scans the user-input structure folder for newly added structures. Performs a pre-relaxation desired. This module will be called at the beginning of each iteration and should do nothing if the initial pool is already filled. The structures should have the input reference -1 as they are conceptually a pre-cascade collection. Each structure added should have the property to\_be\_relaxed = True as each replica will search for initial pool structures to add to the collection of optimized structures. 
+
+		\subsubsection{Random Structure Generation} \vspace{-\baselineskip}
+		Package: random\_gen\\
+		Arguments: StoicDict target\_stoichiometry, float seed\\
+		Returns: Structure random\_structure or False\\
+		Effects: Given a stoichiometry, a random structure is generated in order to fill the initial pool. A seed is also given in order to aid random coordinate generation. Depending on preference, a model structure may be read from a file in order to generate the random structure. However, this is not explicitly implemented and must be implemented by the user. See random\_periodic.py for an example of model reading. If False is returned, iteration begins again.
+
+		\subsubsection{Structure Selection} \vspace{-\baselineskip}
+		Package: selection\\
+		Arguments: dict<(StoicDict, int), StructureCollection> structure\_supercollection, StoicDict target\_stoic, int replica\\
+		Returns: list<Structure> structures\_to\_cross or False\\
+		Effects: Given a structure supercollection (simply a dictionary of all StructureCollections in memory), this module selects two or more structures to cross. It is responsible for stoichiometry choosing, fitness calculation, and making a weighted choice based on fitness. It is important to decide which level of cascade to choose from when selecting structures as the supercollection passed to this module contains every level including initial pool structures. One must also consider the cases where there are zero, one, or two structures present in the desired collection. If False is returned, iteration begins again.
+
+		\subsubsection{Crossover} \vspace{-\baselineskip}
+		Package: crossover\\
+		Arguments: list<Structure> structures\_to\_cross, StoicDict target\_stoic, int replica\\
+		Returns: Structure new\_structure or False\\
+		Effects: Given a list of Structures and a target stoichiometry, this module will combine geometrical features of each structure in the list. The standard number of structures is two, but more could be crossed if desired. Various methods of crossover can be chosen within the module if desired though only one is currently implemented for cluster crossover. periodic crossover is also implemented and can be selected from the ui.conf file. If False is returned, iteration begins again.
+
+		\subsubsection{Mutation} \vspace{-\baselineskip}
+		Package: mutation\\
+		Arguments: Structure structure\_to\_mutate, StoicDict target\_stoic, int replica\\
+		Returns: Structure new\_structure or False\\
+		Effects: A nowly crossed structure will always be passed through the mutation module so the decision to mutate or not must be made within the module. Furthermore, the method of mutation must be decided within the module (species switching, random translation, adding/subtracting atoms). These decision weights should be defined within the ui.conf file. If False is returned, iteration begins again.
+
+		\subsubsection{Relaxation} \vspace{-\baselineskip}
+		Package: relaxation\\
+		Arguments: Structure input\_structure, path working\_dir, str control\_in\_string, int replica\\
+		Returns: Structure relaxed\_structure or False\\
+		Effects: Given an unrelaxed input structure, this module will relax the structure or simply calculate its energy. This module is called multipme times throughout the cascade process with different control paramaters and therefore requires that the entire text of the control.in file is passed as a string. The working directory is the path pre-defined by the program where the calculation takes place. Relaxation may be made using any program or method. Currently implemented are FHI-aims relaxation and LAMMPS reaxff relaxation. See either of these modules for examples. If False is returned, iteration begins again.
+
+		\subsubsection{Structure Comparison} \vspace{-\baselineskip}
+		Package: comparison\\
+		Arguments: Structure structure\_to\_compare, StructureCollection structure\_collection, int replica\\
+		Returns: bool is\_acceptable\\
+		Effects: Given a new Structure (relaxed or not) and its relative StructureCollection, this module will determine if it is an acceptable Structure to add to the StructureCollection. Common acceptability criteria are: acceptable fitness value (often energy) and structure geometry significantly different from existing geometries. Currently after an energy criteria is met, the new structure goes through a fine-grained comparison to existing structures with sufficienly similar energies and geometries. If these tests are passed True is returned. If not, False is returned and iteration begins again.
+
+\section{Core}
+	!!! Clarify Core Logic
+
+
+\section{Examples}
+
+	Where to find examples
+
+	Benchmarks
+
+\section{Known Bugs and Future Improvements}
+
+	Bug description
+		: estimated time
+		
+	Allow for aims.out file to be kept alongside structure data
+		: 1 day
+	Perhaps consider switching to openbabel for better interface of structure handling.
+		: 2 weeks
+		
+	Closeness checking in rand\_gen, mutation, and crossover modules should take element radius into consideration as in periodic structure checking
+		: 1 hour
+		
+	Actual element radii must be added to program, currently using dummy values.
+		: 1 hour
+		
+	Relaxation may be renamed to Optimization across whole program
+		: 1 day
+		
+	decide and implement how model structures are used and by which modules. random-gen for instance
+		: 2 days
+		
+	Add mutation options and implement a some decision model to choose which mutation is executed if any.
+		: 3 days

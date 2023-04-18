@@ -1,0 +1,222 @@
+Sketch of aims documentation, VB / FH, 6/12/07
+
+1. Preface
+
+2. Running FHI-aims: quick overview
+
+  2.1 Building aims / Makefile / compilers (appendix) ...
+
+  2.2 Overview of input files
+
+      control.in, geometry.in: General structure
+
+      optional input files
+
+  2.3 Overview of output files
+
+      Order of output stream:
+        Repeat control, geometry input
+        Info on scf cycles / flow
+        Info on relaxation
+
+      How to grep for key terms / what is grep
+
+      Flagging of warnings
+
+      IT IS WORTH READING THE OUTPUT
+
+
+  2.4 Examples:
+
+    1) Cluster testcase:  H2O dimer, PBE (including relaxation)
+
+    2) Periodic testcase: Au chain, LDA vs. PBE (relax unit cell by hand)  [check what
+       happens with PBE as well, just to make sure ... ]
+
+    (quick explanation of progress and results - detailed explanation of
+     control.in / geometry.in settings in separate appendix)
+
+
+3. FHI-aims: Methods and Capabilities
+
+  3.1 Total energy and forces
+
+    Algorithms:
+
+      Harris functional cluster case
+      Harris functional, periodic modificcations
+
+      Relativity
+
+      Spin
+
+      Hartree potential (multipole expansion, analytical far field limit,
+      Ewald far-farfield sum in PBC)
+
+      Derivatives (forces), cluster case
+      Derivatives (forces), periodic modifications
+
+    Keywords:
+
+      spin
+      relativistic
+      l_hartree
+      (kpoint settings)
+
+
+  3.2 Basis sets
+
+    Algorithms:
+
+      Radial function shapes
+
+      Cutoff potential, cutoff radius
+
+      On-site orthogonalization
+
+      Overlap non-orthogonality / avoiding ill-conditioning
+
+    Keywords:
+
+
+  3.3 Geometry and relaxation
+
+    Algorithms:
+
+      Geometry description
+
+      Relaxation algorithms
+
+      Accuracy
+
+      Cleaning of forces, OR NOT (external potential, periodic)
+
+      Relaxation constraints
+
+      Vibrations (mention only, appendix??)
+
+    Keywords:
+
+
+  3.4 Exchange and correlation
+
+    Algorithms:
+
+      DFT: Exchange-correlation functionals
+
+           LDA's, PBE, PBE0, HSE
+
+      Wave function methods:
+
+           Hartree-Fock, MP2
+
+      Excited state formalisms:
+
+           GW
+
+    Keywords:
+
+      xc
+
+
+  3.5 SCF convergence
+
+    Algorithms:
+
+      Charge & spin density initialization
+
+      SCF convergence accuracies
+
+      Charge density mixing options
+
+      KS_method
+
+      Occupation numbers (smearing, Hund's rules?)
+
+    Keywords:
+
+
+  3.6 Electronic constraints
+
+    Algorithms:
+
+      charge
+
+      Fixed spin moment
+
+      external potential
+
+      locally spin-constrained DFT
+
+    Keywords:
+
+
+  3.7 Integration grids
+
+    Algorithms:
+
+      Partition function / definition of free atom density (bounded vs open) /
+      how to split up the integrand into atomic sub-parts
+
+      1D Logarithmic grid vs. 3D integration grid
+ 
+      Splines (definition and boundary conditions)
+
+      3D Grid: Radial grids, angular grids, integration weights
+
+      Localization efficiency: Grid batching
+
+      Fixed grids vs self-optimizing grids
+
+    Keywords:
+
+
+  3.8 Output options
+
+    General overview
+
+    Cube file output
+
+    Band structure output
+
+    Basis function output
+
+
+Appendices:
+
+A) Detailed explanation of example input
+
+B) How basis sets are constructed
+
+C) Using FHI-aims as a subroutine (MD)
+
+D) Vibrations
+
+E) Obtaining a symmetrized k-point list from an external tool
+
+F) Batch subdivision of the grid using external libraries: Tetgen, Metis
+
+G) Compilers / Compiler flags on different architectures
+
+H) Optimizing aims runs (memory, speed) for different computational
+   environments
+
+   Linking to ScaLapack vs standard Lapack / BLAS
+
+   Single CPU, memory constraints
+
+   Parallelism, lots of memory, good communication (several CPUs with shared
+   memory in a single node, e.g. multicore desktop, Power5 shared nodes)
+
+   Parallelism, lots of memory, distributed architecture (slow communication)
+
+   Parallelism, restricted memory, good communication
+
+I) Recommended reading
+
+   (Textbooks, key papers, Unix literature, Fortran literature, MPI)
+
+Bibliography
+
+Index: Keywords and topics
+

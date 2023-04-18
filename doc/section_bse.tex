@@ -1,0 +1,57 @@
+\section{Bethe-Salpeter equation: BSE}\label{Sec:BSE}
+The serial BSE runs both with and without Tamm-Dancoff Approximation (TDA) and print out both results by default. The parallel BSE runs only with TDA at the moment.
+
+The BSE eigenvalue equation in matrix form is:
+        $$\begin{bmatrix}
+          A       & B \\
+          -B       & -A \\
+        \end{bmatrix}
+        \begin{bmatrix}
+          X_1 \\
+          X_2 \\
+        \end{bmatrix} = 
+        \Lambda
+        \begin{bmatrix}
+          X_1 \\
+          X_2 \\
+        \end{bmatrix}$$
+where $\Lambda$: Excitation energies; $X_1, X_2$: Excitation eigenvectors;
+matrix element A and B are calculated by quasiparticle energies, Coulomb and screened Coulomb integrals; $$A_{ia}^{jb} = -\alpha^{S/T}<ia|V|jb>+<ij|W(\omega = 0)|ab> + (E_a^{QP} - E_i^{QP})\delta_{ij}\delta_{ab}$$
+$$B_{ia}^{jb}=-\alpha^{S/T}<ia|V|bj>+<ib|W(\omega = 0)|aj>$$
+where $i, j$: occupied states; $a, b$: unoccupied states; $\alpha^{S/T}$ = 2 for singlet states; 0 for triplet states. The TDA considers only block A, which is symmetric and easy to solve.
+\subsection*{Tags for general section of \texttt{control.in}}
+
+\keydefinition{neutral\_excitation}{control.in} {
+\noindent
+Usage: \keyword{neutral\_excitation} \option{type}\\
+Purpose: Triggers the calculation of neutral excitations.\\
+\option{type}: String that defines the type of calculation to be performed.
+\begin{itemize}
+\item bse: Full BSE calculation without TDA for serial run; TDA BSE for parallel run.
+\end{itemize}
+}
+Also the keyword \keyword{empty\_states} should be set to a large number (e.g., 1000), or the keyword \keyword {calculate\_all\_eigenstates} should be used, to make sure the code generates all
+possible empty states provided from the basis set. This number will also be reduced automatically by the code to the maximum number that can be generated from the basis set.
+
+\keydefinition{read\_write\_qpe}{control.in} {
+\noindent
+Usage: \keyword{read\_write\_qpe} \option{type}\\
+Purpose: Specify write quasiparticle energies (qpe) in GW calculation or read qpe in BSE calculation \\
+\option{type}: String that specify read or write qpe, or both.
+\begin{itemize}
+\item w: write qpe to a file, used together with \keyword{qpe\_calc}
+\item r: read qpe from a file, if this value('r') is set, a file "energy\_qp" should be provided by the user. The energy in the file "energy\_qp" should be in hartree unit.
+\item wr or rw: write qpe in GW and read qpe in BSE
+\end{itemize}
+}
+
+\keydefinition{bse\_s\_t}{control.in} {
+\noindent
+Usage: \keyword{bse\_s\_t} \option{type}\\
+Purpose: Specify whether singlet or triplet excitation energies should be calculated in BSE calculation. \\
+\option{type}: String that specify wheter singlet or triplet, can not do both at the moment.
+\begin{itemize}
+\item singlet: Singlet states calculated in BSE.
+\item triplet: Triplet states calculated in BSE.
+\end{itemize}
+}

@@ -1,0 +1,221 @@
+\section{Thermodynamic Integration}
+\label{Sec:TDI}
+
+\emph{Note added to the present manual: Albeit functional, 
+the thermodynamic integration routines are still classified 
+as ``experimental''. Please contact carbogno@fhi-berlin.mpg.de,
+if you encounter any problems or if you have suggestions.}
+
+
+FHI-aims provides the capability to compute the {\it anharmonic contributions}
+to the {\it Helmholtz free energy} of a system with the so called ``thermodynamic
+integration'' technique. For a truly thorough explanation of the underlying 
+concepts, please refer to the standard literature, e.g., Refs~\cite{Vocadlo02,Grabowski09}, since
+only a basic overview that sheds some light on the required input is given here.
+
+\subsection*{Theory}
+
+In this brief introduction, we will focus on a perfect, periodic crystal, the 
+{\it Helmholtz free energy}~$F(T,V)$ of which can be decomposed in 
+three contributions:
+\begin{equation}
+F(T,V) = F^{el}(V) + F^{nu}(T,V) = F^{el}(V) + F^{qh}(T,V) + F^{ah}(T,V)\;. 
+\end{equation}
+$F^{el}(T,V)$ is the free energy of the electronic system, which can be
+assessed by {\it Mermin's canonical generalization} of DFT~\cite{Mermin65}. 
+For large band gap insulators, the electronic contribution is approximatively 
+temperature independent and thus equal to the free energy of the electronic 
+system at zero Kelvin~(see 
+\keyword{occupation\_type}). $F^{nu}(T,V)$ is the free energy associated to 
+the nuclear motion on the Born-Oppenheimer energy surface~$V^{nu}(\vec{R})$. 
+In the limit of low temperatures, this contribution can be described within the 
+quasi-harmonic model~(see Sec.~\ref{Sec:vib}),~i.e.,~by only accounting for 
+small elongations~$\vec{U}$ from the equibrium positions~$\vec{R}_0$ on the 
+approximative harmonic potential
+\begin{equation}
+V^{qh}(\vec{R}) \approx  V^{nu}(\vec{R}_0) + 
+\frac{1}{2}
+\sum\limits_{\substack{
+L,\alpha\\
+N,M,\beta
+}}\,
+\left. \frac{\partial^2 V^{nu}(\vec{R})}{\partial \left(R_{0,L}\right)_\alpha\;\partial \left(R_{N,M}\right)_\beta} \right\vert_{\vec{R}=\vec{R}_0}
+\, (U_{0,L})_\alpha (U_{N,M})_\beta \; .
+\label{HarmPot}
+\end{equation}
+The free energy~$F^{qh}(T,V)$ associated to the motion on such a 
+potential can be computed with the FHI-aims code, as discussed in 
+Sec.~\ref{Sec:vib}. At large temperatures, however, the quasi-harmonic 
+approximation is no longer justified, since the deviations from the equilibrium 
+are not minute. In this case, the ``thermodynamic integration'' technique can
+be employed to compute the {\it anharmonic contributions} to the free energy
+\begin{equation}
+F^{ah}(T,V) = F^{nu}(T,V) - F^{qh}(T,V)\;.
+\end{equation}
+
+For this purpose, the dynamics of the {\it hybrid} system that is characterized by the potential
+\begin{equation}
+V^{\lambda}(\vec{R},\lambda) = \lambda\; V^{nu}(\vec{R}) + (1-\lambda)\;V^{qh}(\vec{R}) \,
+\label{DeltaHTI}
+\end{equation}
+is inspected. The parameter~$\lambda$ appearing therein describes the linear interpolation between 
+the full Born-Oppenheimer potential~$V^{nu}(\vec{R})$ and the quasi-harmonic potential~$V^{qh}(\vec{R})$. 
+The free energy~$F^{\lambda}(T,V,\lambda)$ associated to the motion on this \textit{hybrid} potential 
+is directly related to the \textit{anharmonic contributions} via
+\begin{equation}
+F^{ah}(T,V) = \int\limits_{0}^{1}\;d\lambda \left(\frac{\partial F^{\lambda}(T,V,\lambda)}{\partial \lambda}  \right)\;,
+\label{DeltaFFinal1}
+\end{equation}
+as the fundamental theorem of differential and integral calculus shows.
+The relation~\cite{Vocadlo02}
+\begin{equation}
+\frac{\partial F^{\lambda}(T,V,\lambda)}{\partial \lambda} =  \left< \frac{\partial}{\partial \lambda}\,
+V^{\lambda}(\vec{R},\lambda)\right>_{V_\lambda}
+\end{equation}
+allows to replace the integrand in Eq.~(\ref{DeltaFFinal1}) with a \textit{canonical ensemble 
+average}~$\langle\cdot\rangle_{V_\lambda}$. If an ergodic thermostat is used~(see Sec.~\ref{Sec:MD}), 
+this ensemble average can then be substituted with a time average, so that the 
+\textit{anharmonic contributions} can be eventually expressed as~\cite{Vocadlo02}
+\begin{equation}
+F^{ah}(T,V) 
+ =  \int\limits_0^t\,dt'\, \frac{d\lambda}{dt'}  \left( \frac{\partial }{\partial \lambda}\,
+V^{\lambda}(\vec{R},\lambda)\right) \;.
+\label{DeltaFFinal2}
+\end{equation}
+Within this approach it is thus possible to determine the \textit{anharmonic contributions} to the free energy 
+from an \textit{ab initio} MD simulation, in which the parameter~$\lambda$ is adiabatically varied from zero 
+to unity and/or vice versa.
+
+\subsection*{Tags for \keyword{MD\_schedule} section of \texttt{control.in}:}
+
+\keydefinition{thermodynamic\_integration}{control.in}
+{	\noindent
+  Usage: \keyword{thermodynamic\_integration} \option{$\lambda_{start}$} \option{$\lambda_{end}$} \option{QH\_filename} \option{V0} \\[1.0ex]
+  Purpose: Specifies the thermodynamic integration parameters 
+  for the immediately preceding \keyword{MD\_segment} in file \texttt{control.in}. \\[1.0ex]
+  \option{$\lambda_{start}$}, \option{$\lambda_{start}$} : Initial and final value for $\lambda$ in
+   the specific \keyword{MD\_segment}.  \\[1.0ex]
+  \option{QH\_filename} : Name of the file containing the parametrization of the quasi-harmonic potential~$V^{qh}(\vec{R})$. \\[1.0ex]
+  \option{V0} : Value of the Born-Oppenheimer potential~$V^{nu}(\vec{R}_0)$ in equilibrium~$\vec{R}_0$. \\
+}
+In \texttt{control.in}, the line containing the parameters for
+the thermodynamic integration must follow the line containing 
+the \keyword{MD\_segment} that the thermodynamic integration refers
+to. Note that a \keyword{thermodynamic\_integration} line must be provided
+for all segments (or none)  within an \keyword{MD\_schedule} section,
+as shown in the following example:
+\begin{verbatim}
+MD_schedule                                          
+  # Equilibrate the system for 100 fs at 800 K with lambda = 0
+  MD_segment   0.1 NVT_parrinello 800 0.0010
+    thermodynamic_integration 0.0 0.0 FC_file.dat  -0.328E+07
+
+  # Perform the thermodynamic integration over 10 ps
+  MD_segment  10.0 NVT_parrinello 800 0.0010
+    thermodynamic_integration 0.0 1.0 FC_file.dat  -0.328E+07
+\end{verbatim}
+
+\subsection*{Tags for \texttt{QH\_filename}:}
+Note that the file \texttt{QH\_filename} can be automatically
+generated with the methods discussed in Sec.~\ref{Sec:vib}.
+As a reference, the syntax of the file is given here in spite of
+that.
+
+\keydefinition{lattice\_vector}{QH\_filename}
+{
+  \noindent
+  Usage: \keyword{lattice\_vector} \option{x} \option{y} \option{z} \option{latt\_index} \\[1.0ex]
+  Purpose: Specifies one lattice vector for periodic boundary conditions. \\[1.0ex]
+  \option{x}, \option{y}, \option{z} are real numbers (in \AA) which
+  specify the direction and length of a unit cell vector. \\[1.0ex]
+  \option{latt\_index} : Sequential integer number identifying the lattice vector.\\
+}
+Lattice vectors associated with the equilibrium geometry. Please note that
+this input has to be equal to the specifications in \texttt{geometry.in}.
+
+\keydefinition{atom}{QH\_filename}
+{
+  \noindent
+  Usage: \keyword{atom} \option{x} \option{y} \option{z} 
+  \option{species\_name} \option{atom\_index}\\[1.0ex]
+  Purpose: Specifies the equilibrium location and type of an atom. \\[1.0ex]
+  \option{x}, \option{y}, \option{z} are real numbers (in \AA) which
+  specify the atomic position. \\[1.0ex]
+  \option{species\_name} is a string descriptor which names the element on
+    this atomic position; it must match with one of the species descriptions
+    given in \texttt{control.in}. \\[1.0ex]
+  \option{atom\_index} :  Sequential integer number identifying the atom.\\
+}
+Equilibrium atom positions. Please note that this input has to be consistent 
+with the specification in \texttt{geometry.in}~(same number of atoms, same order, same species).
+
+\keydefinition{force\_constants}{QH\_filename}
+{
+  \noindent
+  Usage: \keyword{force\_constants} \option{FC\_x} \option{FC\_y} \option{FC\_z} 
+  \option{atom\_j} \option{direction} \option{atom\_i}\\[1.0ex]
+  Purpose: Specifies the force constants, i.e., the change in the forces that 
+  occur if one atom is displaced in the unit cell. \\[1.0ex]
+  \option{FC\_x}, \option{FC\_y}, \option{FC\_z} are the change in the forces 
+   in the respective cartesian coordinates. \\[1.0ex]
+  \option{atom\_j}   : is the index of the atom that is displaced. \\[1.0ex]
+  \option{direction} : is the cartesian direction in which atom\_j is displaced. \\[1.0ex]
+  \option{atom\_i}   : is the index of the atom the forces refer to.\\
+}
+Equilibrium atom positions. Please note that this input has to be consistent 
+with the rest of the specification in \texttt{QH\_filename}.\\
+
+Example for a very basic file QH\_filename:
+\begin{verbatim}
+lattice_vector    3.987    3.987    0.000    1
+lattice_vector    0.000    3.987    3.987    2
+lattice_vector    3.987    0.000    3.987    3
+
+atom              0.000    0.000    0.000    Al   1
+atom              1.993    1.993    0.000    Al   2
+atom              0.000    1.993    1.993    Al   3
+atom              1.993    3.987    1.993    Al   4
+atom              1.993    0.000    1.993    Al   5
+atom              3.987    1.993    1.993    Al   6
+atom              1.993    1.993    3.987    Al   7
+atom              3.987    3.987    3.987    Al   8
+
+# displace atom 1 ------------------------------------------
+force_constants   5.739e+00  -7.069e-16   6.805e-16    1 1 1
+force_constants  -1.909e+00  -1.455e+00  -1.324e-16    1 1 2
+force_constants   3.692e-01   2.618e-16   3.813e-16    1 1 3
+force_constants  -1.909e+00  -1.398e-16   1.201e+00    1 1 4
+force_constants  -1.909e+00   2.040e-16  -1.201e+00    1 1 5
+force_constants   3.692e-01   1.423e-16  -7.205e-16    1 1 6
+force_constants  -1.909e+00   1.455e+00   9.268e-17    1 1 7
+force_constants  -3.934e-02   4.931e-18  -4.373e-18    1 1 8
+force_constants  -2.979e-17   5.004e+00   1.698e-15    1 2 1
+force_constants  -1.016e+00  -1.430e+00  -9.899e-17    1 2 2
+............................................................
+force_constants   1.675e-19  -3.460e-02  -1.160e-17    1 2 8
+force_constants   3.498e-17   2.663e-16   5.373e+00    1 3 1
+............................................................
+force_constants  -2.894e-16   3.914e-16   3.969e-01    1 3 8
+# end atom 1 -----------------------------------------------
+# displace atom 2 ------------------------------------------
+force_constants  -1.909e+00  -1.455e+00   3.466e-17    2 1 1 
+............................................................
+force_constants  -8.873e-17   1.914e-16   3.969e-01    2 3 8 
+# end atom 2 -----------------------------------------------
+............................................................
+............................................................
+# end atom 7 -----------------------------------------------
+# displace atom 8 ------------------------------------------
+force_constants  -3.934e-02   4.931e-18  -4.373e-18    8 1 1
+............................................................
+force_constants   3.498e-17   2.663e-16   5.373e+00    8 3 8
+#-----------------------------------------------------------
+\end{verbatim}
+
+
+
+
+
+
+
+

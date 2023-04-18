@@ -1,0 +1,50 @@
+This directory contains two benchmark cases with reference results
+that can be used to (roughly) assess the parallel performance of
+FHI-aims on HPC platforms. 
+
+These cases demonstrate both the scaling with number of CPU cores as
+well as the expected approximate runtimes for FHI-aims on current
+(2016) Intel Xeon hardware with a fast interconenct between nodes.
+
+Two benchmark cases are supplied:
+
+1) "Small" benchmark: Ac-Ala19-LysH+ molecule, light settings, 
+   10 MD steps
+
+      The benchmark times supplied in this case are the total
+      runtimes for 10 MD steps. Since this is a "small" test case (220
+      atoms, 2072 basis functions), scalability on a current (2016)
+      HPC system is expected to extend up to several hundred CPU
+      cores. 
+
+2) "Large" benchmark: Graphene on SiC(0001), tight settings, 
+   2 s.c.f. iterations 
+
+      The benchmark times of interest in this case are the timings 
+      for a single s.c.f iteration (e.g., s.c.f. iteration 1). Note
+      that total times in this run include a significant component 
+      from the initialization iteration. A complete run (converged
+      s.c.f. cycle) would, however, be dominated by the time taken for
+      each s.c.f. cycle. This system is expected to show excellent
+      scaling up to several thousand CPU cores.
+
+Reference output files are provided for 48 and 240 CPU cores for 1),
+and for 240 CPU cores for 2), generated on the Max Planck Society's 
+Hydra supercomputer. The CPUs used in these runs are Intel Sandy
+Bridge-EP processors (each node has 16 cores @ 2.6 GHz each), dating
+from 2012. The interconnect is a fast InfiniBand FDR14 network. The
+"ARCHITECTURE" used in make.sys was "Generic" (using optimized AVX
+kernels for the ELPA libary would likely generate faster code), and
+Intel Fortran and MKL versions from 2016 were employed.
+
+Benchmarks at a newer facility, the South African Centre for 
+High-Performance Computing (CHPC)'s Lengau supercomputer (Intel Haswell 
+processors, 2.6 GHz each, 24 cores per node) show a rough factor 
+of 1.3-1.5 speedup per core, compared to the reference results provided 
+here, also using Intel's tools in a 2016 version.
+
+Example submit.sh scripts are specific to the PBS queueing system
+and to the installation at CHPC
+
+Two typical log-log scaling plots are also provided with the
+benchmarks. 

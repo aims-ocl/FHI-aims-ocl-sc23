@@ -1,0 +1,35 @@
+# vim: set syntax=maple:
+
+read "basics.mpl";
+read "pw92c.df";
+read "pbex.df";
+
+epsilon[Xtpss] := proc(n, grad, kin)
+    epsilon[Xunif](n)*F[Xtpss](P(n, grad), Z(n, grad, kin))
+end;
+
+F[Xtpss] := proc(p, z)
+    1+kappa-kappa/(1+x[tpss](p, z)/kappa)
+end;
+x[tpss] := proc(p, z)
+    ((10/81+c*z^2/(1+z^2)^2)*p
+    +146/2025*q[b](p, z)^2
+    -73/405*q[b](p, z)*sqrt(1/2*(3/5*z)^2+1/2*p^2)
+    +1/kappa*(10/81)^2*p^2
+    +2*sqrt(e)*10/81*(3/5*z)^2
+    +e*mu*p^3)
+    /(1+sqrt(e)*p)^2
+end;
+e := 1.537;
+c := 1.59096;
+q[b] := proc(p, z)
+    (9/20)*(Alpha(p, z)-1)/sqrt(1+B*Alpha(p, z)*(Alpha(p, z)-1))
+    +2*p/3
+end;
+B := 0.40;
+
+f := 0;
+g := rho(s)*epsilon[Xtpss](2*rho(s), 2*sqrt(sigma(ss)), 2*tau(s)/2);
+G := rho(s)*epsilon[Xtpss](2*rho(s), 2*sqrt(sigma(ss)), 2*tau(s)/2);
+
+title := "TPSS exchange functional";

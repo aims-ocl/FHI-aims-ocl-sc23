@@ -1,0 +1,37 @@
+\chapter[Multiple Instances of FHI-aims]{Split large cluster allocation to multiple
+aims instances}
+\label{appendix_multiaims}
+
+Specific tasks need to perform many small jobs rather than a few big ones. The
+job submission of such tasks on large compute facilities, which typically require
+at least a few hundreds MPI processes, can be cumbersome. FHI-aims allows for
+running multiple instances of itself and split a global MPI communicator into
+smaller, independent parts. This allows for a unified approach to submit one
+large job and let the splitting happening in aims.
+
+To use this feature, you need to compile the multiaims executable by compiling
+the multiaims target. When using CMake, this is controled via the
+\texttt{MULTIAIMS} option. When using Makefile, the target
+\texttt{multi.scalapack.mpi} should be used. In either case, a C compiler is
+mandatory in addition to the usual requirements.
+
+The multiaims environment needs its jobs distributed in subdirectories labeled
+1 to $N$, where $N$ is the total number of jobs. In the main directory one
+additional control file \textit{multiaims.in} needs to be specified. This file
+contains two keywords:
+
+\keydefinition{tasks\_per\_subjob}{multiaims.in}
+{
+  \noindent
+  Usage: \keyword{tasks\_per\_subjob} \texttt{value} \\[1.0ex]
+  Purpose: Specifies the number of processes working on one subtasks. Should be
+    a divisor of total number of processes.
+}
+
+\keydefinition{start\_id}{multiaims.in}
+{
+  \noindent
+  Usage: \keyword{start\_id} \texttt{value} \\[1.0ex]
+  Purpose: Specifies the first job folder to start with.
+}
+

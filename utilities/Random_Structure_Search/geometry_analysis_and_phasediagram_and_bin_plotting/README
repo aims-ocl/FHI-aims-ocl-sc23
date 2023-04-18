@@ -1,0 +1,70 @@
+
+    ****************************************************************************
+    *** THIS IS AN V0.0.0alpha AT BEST *****************************************
+    *** Newer versions will be most likely deleting this infrastructure soon ***
+    ****************************************************************************
+
+These tools were written by Jan Kloppenburg in 2014, jan.kloppenburg@duke.edu
+
+     WARNING:
+
+These files are very specialized to a specific structure of the input data needed.
+You CANNOT use then out-of-the-box with your data unsless you have used the 
+provided scripts to produce it.
+
+The files in here are:
+
+1x1_clean_geometry:
+    The clean slab geometry, YOU have to supply the right one for your purpose.
+
+1x1_clean_energy:
+    The total energy of the clean geometry specified in the file above.
+    YOU have to supply the correct one for your geometry as well.
+    For now these 1x1 files contain energies for the H-terminated SiC slab.
+
+start_all: 
+    bash script to create directories, copy files and queue jobs
+    YOU must modify this script AND the job_script for the cluser you submit on
+
+start_search: 
+    This bash script executes the actual computations
+
+gen_geo.py:
+    This MUST be run with python3. Generates random geometries. The underlying slab geometry
+    is currently hard coded into this file to MAKE SURE you know WHAT YOU ARE DOING. It is also
+    possible to define specific heights in a layer kind of way so the random coordinates don't
+    scatter all over the place. If this is what you want remove the routines.
+    YOU NEED TO UNDERSTAND what is HAPPENING in this file to get meaningful results.
+    This file will be copied by start_all bash script into created lower directories.
+
+control.in: 
+    MUST be MODIFIED an provided in the same directory as start_all
+    This will be copied and is the input for every sinlge run.
+
+For the data analysis after the runs are complete:
+
+make_geometries:
+    This bash script generates the neccessary files for the python
+    analyzing tool. Its fairly simple. MUST be run in the TOP directory
+    of the random search, the directory where the start_all was run in. It is
+    not needed to copy this file there, just cd into the appropriate directory
+    and then run the script.
+
+geometry_determination.py:
+    This MUST be run with python3. There are also other tools needed to run this as intended,
+    in particular BRLCAD. It is a free GPL licensed ray tracer and rendering package used to
+    render an image of the lowest geometry configuration found which then is made transparent and
+    added into the bin-plot. The tools 'convert' from linux distros is also needed there. If you 
+    do not whish to use this feature, feel free to comment those lines.
+    THIS IS MADE DELIBERATELY so you CANNOT use these tools WITHOUT at least looking through them
+    to get an idea of what is going on.
+    Once you get this script working, it will produce files called:
+      1) dots.png
+         This contains a plot of all found (converged) energies with highlights.
+      2) bins.png
+         This contains a plot of all geometries that are deemed similar and are sorted then into energy bins.
+      3) phase.png
+         This is the phase diagram with 2 phases of SiC (2x2+1Si and 3x3+13Si) structures as reference computed
+         in light and tight settings as well as the lowest found structure from the random search data.
+    Example pictures are included and for the phase diagram there are also 3 smaller pngs needed, which are included
+    as well or which can be omitted by again commenting the appropriate lines in this script.

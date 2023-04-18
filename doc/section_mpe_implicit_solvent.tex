@@ -1,0 +1,773 @@
+\section{Continuum Solvation Methods}
+\label{Sec:ContSolvMethods}
+
+Continuum or implicit solvation methods provide a fast way the influence of solvents and electrolytes on chemical reactions. Currently, FHI-aims supports two models which have different strengths and capabilities which are summarized in Table \ref{tab:ImpSolvMethods}. Both models place a dielectric continuum outside the charge distribution modeling the polarizibility of the solvent. Differences arise in the solvation cavity definition. The Multipole Expansion (MPE) implicit solvation method separates the FHI-aims grid into two domains and couples them via electrostatic boundary conditions. It therefore in fact solves two coupled Poisson equations with different dielectric permittivities. The Finite ion-size and Stern layer modified Poisson-Boltzmann (SMPB) method solves a single Poisson equation on the full FHI-aims integration grid by defining a smooth dielectric permittivity function.  In general, the accuracy of the evaluation of solvation energies is expected to be similar. In fact, both methods  merge into each other if the dielectric transition in the SMPB model is turned into a sharp step function. On top of this ion-free implicit solvation model, the SMPB approach also supports the modeling of finite ionic strengths in the solution.
+
+The MPE solvation model is the faster one of both approaches with only a small overhead with respect to vacuum calculations. The overhead of both implicit solvation methods is reduced, when performing expensive hybrid calculations, since the actual time for the implicit solvation calculations does not vary with the functional.
+
+\begin{table}[htb]
+\centering
+ \begin{tabular}{ l | c | c }
+   & \textbf{MPE} & \textbf{SMPB}\\
+  \hline		
+  Solvent Parametrizations  & H$_2$O (N,C) & H$_2$O (N,C), CH$_3$OH (N,C)\\
+    & & (more in work)\\
+  Dissolved ions/salt & no & yes (SMPB/LPB)\\
+  Salt Parametrizations & -- & Aq. Monoval. Salt Solutions\\
+  CPU speed  & fast & moderate \\
+  Forces & no & yes\\
+  PBCs & no & no (in work)\\
+  Developers	 & \href{markus.sinstein@mytum.de}{\underline{Markus Sinstein}} & \href{mailto:sringe@stanford.edu}{\underline{Stefan Ringe}}\\ 
+  & & \small{Christoph Muschielok, Marvin H. Lechner} \\
+  \hline  
+\end{tabular}
+ \caption{Comparison of the two implicit solvation methods in FHI-aims. Parameter sets for the MPE method are available in ref. \cite{Sinstein2017_MPE}, for the SMPB method in ref. \cite{Andreussi2012} and \cite{Dupont2013-bc} (parameters for methanol as more solvents in current work). N and C indicate parameter sets fitted for neutral and charged solutes, respectively.}
+ \label{tab:ImpSolvMethods}
+\end{table}
+
+In the following, both models are summarized and the key input parameters presented.
+
+\subsection{MPE Implicit Solvent Model}
+\label{Sec:MultiPoleExpansion}
+
+\emph{This is an experimental feature which is still under development. 
+Do not rely on properties calculated by this method! 
+Please contact the authors for further details.}
+
+\emph{This functionality is not yet available for periodic systems.}
+
+\emph{The current implementation does not have analytical forces yet.}
+
+\emph{Generally, when combining MPE with other functionality, you should know what you are doing. No specific interactions with other methods beyond single point DFT are implemented, so only methods which do not interfere with MPE are safe to use.}
+
+The simulation of a solvent in a quantum mechanical calculation can, in principle, be done in two ways. One way is to include explicit solvent molecules in the calculation. This straightforward approach usually requires molecular dynamics (MD) simulations in order to yield thermodynamically meaningful observables as e.g.~solvation free energies.
+
+The second way is to average the effect of the solvent and treat it as a continuum which responds to the electrostatic potential created by the solute, i.e.~the entity that is to be solvated. There are several flavors to this comparatively inexpensive approximation, e.g.~
+the polarizable continuum model (PCM) \cite{Mennucci02}, 
+the conductor like screening model (COSMO) \cite{Klamt93}, 
+the self-consistent continuum solvation (SCCS) model \cite{Andreussi2012}, 
+the ``SMx'' models \cite{Cramer2008_SM8,Marenich2009_SMD,Marenich2013_SM12}, 
+or CMIRSv1.1 \cite{You2016_CMIRS11} 
+to name some of the more popular ones. 
+Statistical sampling then only needs to be performed for the degrees of freedom of the solute which obviously makes it computationally much cheaper. 
+
+In general, the necessary integration of the solvent's degrees of freedom beforehand leads to a problem where one now needs to solve a generalized Poisson's equation, 
+\begin{align}
+\Del \left( \varepsilon_0\varepsilon(\Vect{r}) \Del \Phi(\Vect{r}) \right) = - 4\pi \varrho(\Vect{r}) \label{eq:mpe_gen_poisson}, 
+\end{align}
+to obtain the electrostatic potential $\Phi(\Vect{r})$ created by the total charge density $\varrho(\Vect{r})$ which now accounts for the electrostatic polarization potential of the solvent (often called ``reaction field''). 
+Eq.~\ref{eq:mpe_gen_poisson} contains a spatially dependent dielectric permittivity function $\varepsilon(\Vect{r})$ in contrast to the regular Poisson's equation,
+\begin{align}
+\Del \left( \varepsilon_0 \Del \Phi_\mathrm{H}(\Vect{r}) \right) = - 4\pi \varrho(\Vect{r}) \label{eq:mpe_poisson}, 
+\end{align}
+which is solved in a regular DFT calculation in every step of the SCF cycle to get the Hartree potential $\Phi_\mathrm{H}$. 
+
+As outlined in more detail in Ref.~\cite{Sinstein2017_MPE}, the multipole expansion (MPE) implicit solvent model offers an efficient way of solving Eq.~\ref{eq:mpe_gen_poisson} based on the knowledge of the Hartree potential $\Phi_\mathrm{H}$ readily available from a splined representation in FHI-aims (cf.~Sec.~\ref{Sec:Hartree}) via least-squares fitting instead of integration. 
+The dielectric function $\varepsilon(\Vect{r})$ here needs to be a step-function in 3D-space where the following boundary conditions apply at the step ($\Vect{n}$ denotes the normal direction to the interface): 
+\begin{subequations}
+\begin{align}
+\Phi_+ = \Phi_- \label{eq:mpe_bc1_gen}
+\end{align}
+\begin{align}
+\Vect{n} \cdot \varepsilon_+ \Del \Phi_+ = \Vect{n} \cdot \varepsilon_- \Del \Phi_- \label{eq:mpe_bc2_gen}
+\end{align}
+\end{subequations}
+
+Then, the above equations are discretized in two ways: 
+\begin{itemize}
+\item The potentials $\Phi_+$ and $\Phi_-$ are expressed in a truncated multipole series with expansion orders $l_\mathrm{max,R}$ and $l_\mathrm{max,O}$, and
+\item equations~\ref{eq:mpe_bc1_gen} and \ref{eq:mpe_bc2_gen} are evaluated at $N$ points on the interface manifold. 
+\end{itemize}
+Thereby, $N$ is chosen such that the resulting system of linear equations (SLE) is overdetermined (typically by a factor of two to three). 
+
+
+%\newpage
+
+
+\subsubsection*{Tags for general subsection of \texttt{control.in}:}
+
+The keywords controlling the MPE module are divided into four categories:
+\begin{itemize}
+\item[elementary] These are the most important keywords---some are even mandatory---which likely need to be specified for every calculation. 
+\item[convergence] Here, the most important convergence parameters are collected which should be checked before doing (large scale) production runs. 
+\item[expert] These settings should only be modified by an experienced user as they allow quite profound modifications. 
+\item[debug] Debug settings are intended to give valuable insight for developers into intermediate results. 
+\end{itemize}
+
+The authors strongly encourage new users to try out ``elementary'' and ``convergence'' settings first in order to gather some experience with the MPE implementation before any modifications of other settings are made.
+
+\paragraph{elementary}
+
+\keydefinition{solvent}{control.in}
+{
+  \noindent
+  Usage: \keyword{solvent} \option{method} \\[1.0ex] 
+  Purpose: Specifies the desired implicit solvent model. \\[1.0ex]
+  \option{method} is a string which specifies the implicit solvent method; 
+    currently, \option{mpe} (the method presented above) and 
+    \option{mpb} (cf.~Sec.~\ref{Sec:ModifiedPoissonBoltzmann}) 
+    are supported. \\
+}
+
+
+\keydefinition{mpe\_solvent\_permittivity}{control.in}
+{
+  \noindent
+  Usage: \keyword{mpe\_solvent\_permittivity} \option{epsilon} \\[1.0ex] 
+  Purpose: Specifies the dielectric constant of the bulk solvent. \\[1.0ex]
+  \option{epsilon} is a positive real number equal to the macroscopic 
+    dielectric constant of the solvent. Default: \option{1.0} \\
+}
+
+
+\keydefinition{isc\_cavity\_type}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_cavity\_type} \option{type} \\[1.0ex] 
+  Purpose: This keyword controls the model used to sample 
+    the implicit solvent cavity for the MPE method. 
+    Depending on \option{type}, further flags (or even lines) might be 
+    necessary. Those are explained below. \\[1.0ex]
+  Options: Currently supported options are 
+    \option{overlapping\_spheres}, 
+    \option{rho\_free}, 
+    \option{rho\_multipole\_static}, 
+    and \option{rho\_multipole\_dynamic}. \\
+}
+
+\subkeydefinition{isc\_cavity\_type}{rho\_free}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_cavity\_type} 
+    \subkeyword{isc\_cavity\_type}{rho\_free} 
+    \option{rho\_iso} \\[1.0ex] 
+  Purpose: Constructs the cavity as an iso-density surface of the 
+    superposed electron density of the neutral, free atoms in
+    the solute. \\[1.0ex]
+  \option{rho\_iso} is a positive real number specifying the 
+    desired iso-density value in units of 
+    \si{\elementarycharge\per\cubic\angstrom} .
+}
+
+\subkeydefinition{isc\_cavity\_type}{rho\_multipole\_static}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_cavity\_type} 
+    \subkeyword{isc\_cavity\_type}{rho\_multipole\_static} 
+    \option{rho\_iso} \\[1.0ex] 
+  Purpose: Constructs the cavity as an iso-density surface of the 
+    \emph{initial} (multipole-expanded) electron density of the solute. \\[1.0ex]
+  \option{rho\_iso} is a positive real number specifying the 
+    desired iso-density value in units of 
+    \si{\elementarycharge\per\cubic\angstrom} .
+}
+
+Note, that \emph{initial} electron density in this context means 
+the electron density at the time of the first call to the cavity 
+generation routine is used. Thus, the shape of the cavity depends 
+on several other parameters of the calculation, such as after how 
+many SCF steps the cavity is built (mainly influenced by 
+\option{mpe\_skip\_first\_n\_scf\_steps}) or which restart 
+information was used---if any. 
+In any case, the cavity shape then stays constant throughout 
+the whole calculation. 
+Although care should be taken due to the various influences on the 
+cavity definition, this cavity type can be used as a cheaper 
+alternative to the fully self-consistent cavity when the 
+initialization is based on the converged density of the vacuum 
+calculation, i.e.~restarting from it, as the polarization 
+potential often (not always!) has a minor influence on the 
+electron density.
+
+\emph{Caveat:} At its outermost tails, the multipole-expanded electron density
+can have `bumps' and `dents'. Therefore, for very small \option{rho\_iso} (i.e.
+large cavities), \subkeyword{isc\_cavity\_type}{rho\_multipole\_static} and
+\subkeyword{isc\_cavity\_type}{rho\_multipole\_dynamic} can lead to excessively
+rough isocavities. The superposition of free atom densities does \emph{not} show
+this behaviour. \emph{If} there is a reason to use isovalues significantly smaller
+than the ones reported in the original publication~\cite{Sinstein2017_MPE}, it is
+thus recommended to to use \subkeyword{isc\_cavity\_type}{rho\_free} instead to get
+a smooth cavity. In case of doubt, writing the cavity to a \texttt{.xyz} file via
+the \keyword{isc\_cavity\_restart\_write} keyword and visual inspection with the
+molecular visualization program of your choice might help clarify.
+
+\subkeydefinition{isc\_cavity\_type}{rho\_multipole\_dynamic}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_cavity\_type} 
+    \subkeyword{isc\_cavity\_type}{rho\_multipole\_dynamic} 
+    \option{rho\_iso} \\[1.0ex] 
+  Purpose: Constructs the cavity as an iso-density surface of the 
+    \emph{self-consistent} (multipole-expanded) electron density 
+    of the solute. \\[1.0ex]
+  \option{rho\_iso} is a positive real number specifying the 
+    desired iso-density value in units of 
+    \si{\elementarycharge\per\cubic\angstrom} .
+}
+
+With this method, the cavity is updated to the current electron 
+density in every SCF step. This also means that the MPE equations 
+have to be solved in every SCF step making it computationally 
+more expensive.
+
+Also consider \emph{Caveat} at \subkeyword{isc\_cavity\_type}{rho\_multipole\_static}!
+
+\subkeydefinition{isc\_cavity\_type}{overlapping\_spheres}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_cavity\_type} 
+    \subkeyword{isc\_cavity\_type}{overlapping\_spheres} 
+    \option{type} \option{value} \\[1.0ex] 
+  Purpose: Constructs the cavity as a superposition of overlapping 
+    spheres around all atoms. \\[1.0ex]
+  \option{type} specifies how the radii of the atomic spheres 
+    are determined.
+    \begin{itemize}
+    \item \option{radius}: all spheres have the same radius
+      given by \option{value} in units of \si{\angstrom};
+    \item \option{rho}: the atomic spheres are iso-density surfaces 
+      based on the electron density of the isolated, neutral atom 
+      with an iso-value of \option{value} in units of 
+      \si{\elementarycharge\per\cubic\angstrom} .
+    \end{itemize} %\\
+  \option{value} is a real number whose meaning and units
+    depend on the choice of \option{radius} (see above). \\
+}
+\emph{WARNING}: The usage of this cavity type is strongly discouraged! 
+It has been helpful in the development to analyze the cavity sampling 
+process itself. The resulting cavities, however, are almost certainly 
+not smooth and were never intended to be used in production calculations.
+When used with the MPE model, the whole calculation is prone to numerical 
+problems and the results are very often unphysical. 
+Instead, use the \option{rho\_free} type that builds the cavity based on the
+superposition of atomic densities (which is again smooth) or use other 
+types based on the (self-consistent) electron density of the solute. 
+
+
+\keydefinition{mpe\_nonelectrostatic\_model}{control.in}
+{
+  \noindent
+  Usage: \keyword{mpe\_nonelectrostatic\_model} \option{model} \\[1.0ex] 
+  Purpose: This keyword controls any additional, ``non-electrostatic'' terms 
+    not included in the purely electrostatic treatment of the solvent. 
+    Depending on \option{model}, further flags (or even lines) might be 
+    necessary. Those are explained below. \\[1.0ex]
+  Options: Currently, only \option{linear\_OV} is supported. \\
+}
+
+\subkeydefinition{mpe\_nonelectrostatic\_model}{linear\_OV}{control.in}
+{
+  \noindent
+  Usage: \keyword{mpe\_nonelectrostatic\_model} 
+    \subkeyword{mpe\_nonelectrostatic\_model}{linear\_OV} 
+    \option{$\alpha$} \option{$\beta$} \\[1.0ex] 
+  Purpose: Corrects the total energy term by $\alpha O + \beta V$ 
+    where $O$ is the surface area of the cavity and
+    $V$ its volume. \\[1.0ex]
+  \option{$\alpha$} is a real number in units of 
+    \si{\electronvolt\per\angstrom\squared}. 
+    Default: \option{0.0} \\
+  \option{$\beta$} is a real number in units of 
+    \si{\electronvolt\per\cubic\angstrom}. 
+    Default: \option{0.0} \\
+}
+This non-electrostatic model is in principle identical to the one 
+proposed by Andreussi~\emph{et al.} \cite{Andreussi2012}. 
+Note, however, that the surface tension of the solvent is here 
+included in the parameter $\alpha$. 
+
+
+\paragraph{convergence}
+
+\keydefinition{mpe\_lmax\_rf}{control.in}
+{
+  \noindent
+  Usage: \keyword{mpe\_lmax\_rf} \option{lmax} \\[1.0ex] 
+  Purpose: Specifies the expansion order of the 
+    polarization potential aka reaction field 
+    inside the cavity. \\[1.0ex]
+  \option{lmax} is a non-negative integer number. 
+    Default: \option{8} \\
+}
+This is a critical convergence parameter of 
+the MPE model. You should never forget to test 
+convergence with respect to this parameter before 
+doing production runs. 
+For small organic molecules, the largest and 
+successfully tested expansion order so far has been 14. 
+Note, however, that numerical problems might arise when 
+choosing even larger values for \option{lmax} or 
+when going to larger systems. 
+
+\keydefinition{mpe\_lmax\_ep}{control.in}
+{
+  \noindent
+  Usage: \keyword{mpe\_lmax\_ep} \option{lmax} \\[1.0ex] 
+  Purpose: Specifies the expansion order of the 
+    polarization potential aka reaction field 
+    outside of the cavity. \\[1.0ex]
+  \option{lmax} is a non-negative integer number. 
+    Default: maximum value of 
+      \subkeyword{species}{l\_hartree} for all
+      species. \\
+}
+This parameter is similar to but usually less critical 
+than \keyword{mpe\_lmax\_rf}. However, careful convergence 
+tests with respect to this parameter before 
+doing production runs is advisable since this parameter 
+dictates the size of the MPE matrix equation. 
+Choosing larger values than the default should 
+usually have little to no impact on the results. 
+
+
+\keydefinition{mpe\_degree\_of\_determination}{control.in}
+{
+  \noindent
+  Usage: \keyword{mpe\_degree\_of\_determination} 
+    \option{dod} \\[1.0ex] 
+  Purpose: Defines the desired ratio of number of 
+    rows to columns in left-hand side matrix of the 
+    MPE equation. \\[1.0ex]
+  \option{dod} is a real number $\ge 1.0$. 
+    Default: \option{5.0} \\
+}
+For the very limited (!) number of applications of the MPE 
+method so far, the default value of 5.0 has been a save choice. 
+However, you should never forget to test convergence with 
+respect to this parameter before doing production runs. 
+Note, that the requested degree of determination can only 
+very approximately be reached. This can lead to an under-
+determination of the MPE equations and a subsequent 
+termination of the program when values for \option{dod} 
+very close to 1 are chosen.
+
+
+\keydefinition{mpe\_tol\_adjR2}{control.in}
+{
+  \noindent
+  Usage: \keyword{mpe\_tol\_adjR2}
+    \option{tol} \\[1.0ex]
+  Purpose: Defines the tolerance for the adjusted coefficient
+    of determination $\bar{R}^2$ of the solved MPE equations.
+    Will abort if $\bar{R}^2 < 1 - tol$. \\[1.0ex]
+  \option{tol} is a real number between $0.0$ and $1.0$.
+    Default: \option{0.075} \\
+}
+The MPE equations are sometimes not solvable in the regular
+solid harmonic basis used for the reaction field. This is the case
+especially for large molecules. A low $\bar{R}^2$ indicates such
+a bad solution. In some cases increasing \keyword{mpe\_lmax\_rf}
+helps, but there are pathologic cases where increasing
+\keyword{mpe\_lmax\_rf} leads to a perpetual decrease in
+$\Delta_\text{solv}^\text{el}G$ without ever converging.
+
+For $\bar{R}^2 < 0.925$ it is likely that less than 90\%
+of $\Delta_\text{solv}^\text{el}G$ are captured. This is however
+based on experience from a limited number of cases. Feedback to
+the developers (\href{mailto:jakob.filser@tum.de}{\underline{jakob.filser@tum.de}}) will be appreciated!
+
+\keydefinition{mpe\_tol\_adjR2\_wait\_scf}{control.in}
+{
+  \noindent
+  Usage: \keyword{mpe\_tol\_adjR2\_wait\_scf}
+    \option{bool} \\[1.0ex]
+  Purpose: If \option{.true.}, will wait until the SCF cycle is
+  converged before it is checked whether $\bar{R}^2 < 1 - tol$. \\[1.0ex]
+    Default: \option{.false.} \\
+}
+Although MPE does not actively try to converge, $\bar{R}^2$
+tends to improve during the SCF procedure. Setting
+\keyword{mpe\_tol\_adjR2\_wait\_scf} can thus help borderline cases
+converge, at the cost of spending the full computation time
+of the SCF procedure on a calculation that might ultimately fail.
+
+\paragraph{expert}
+
+\keydefinition{mpe\_factorization\_type}{control.in}
+{
+  \noindent
+  Usage: \keyword{mpe\_factorization\_type} \option{type} \\[1.0ex] 
+  Purpose: Defines the numerical method used to factorize the 
+    left-hand side of the MPE equations as the first step to 
+    the numerical solution. \\[1.0ex]
+  \option{type} can be chosen from: \option{qr}, \option{qr+svd}, 
+    and \option{svd}. Default: \option{qr+svd} \\
+}
+\emph{The option} \option{qr} \emph{is temporarily disabled until
+$\bar{R}^2$ is implemented for this case!}
+
+The default behavior is to perform a QR factorization with a 
+singular value decomposition (SVD) on top. This allows to 
+robustly solve the MPE equation via the pseudo-inverse of 
+the left-hand side. 
+
+\emph{Be careful!} Using the (non rank-revealing) QR 
+factorization alone can fail when the left-hand side is 
+rank deficient which can easily happen---especially 
+for large expansion orders 
+\keyword{mpe\_lmax\_rf} and/or \keyword{mpe\_lmax\_ep}! 
+On the other hand, \option{svd} does not necessarily mean that 
+no QR factorization is performed as this (at least for 
+the parallel implementation) depends on the (Sca)LAPACK 
+driver routine used. 
+
+
+\keydefinition{mpe\_f\_sparsity\_threshold}{control.in}
+{
+  \noindent
+  Usage: \keyword{mpe\_f\_sparsity\_threshold} 
+    \option{threshold} \\[1.0ex] 
+  Purpose: Can potentially speed up the evaluation of 
+    the reaction field on the integration grid by 
+    neglecting all its coefficients smaller than
+    \option{threshold}. \\[1.0ex]
+  \option{threshold} is a non-negative real number. 
+    Default: \option{0.0} \\
+}
+Speed in this case usually comes at the price of 
+sacrificing accuracy, i.e. it should always be tested 
+if the results are still sufficiently accurate. 
+Moreover, a large threshold might cause instabilities 
+in the SCF cycle!
+
+\emph{The keyword} \keyword{mpe\_f\_sparsity\_threshold} \emph{is temporarily disabled until
+$\bar{R}^2$ is implemented for this case!}
+
+\keydefinition{mpe\_skip\_first\_n\_scf\_steps}{control.in}
+{
+  \noindent
+  Usage: \keyword{mpe\_skip\_first\_n\_scf\_steps} \option{n} \\[1.0ex] 
+  Purpose: Switch off (or rather, do not switch on) the 
+    MPE implicit solvent model in the first 
+    \option{n} SCF steps. \\[1.0ex]
+  \option{n} is a non-negative integer value. Default: \option{0} \\
+}
+\emph{Attention:} No check is performed whether the MPE 
+has been switched on before the end of the run! For example, 
+the implicit solvent will be ignored when the SCF cycle 
+happens to converge in \option{n} steps or less. 
+Note that the counting of SCF steps can deviate from the 
+regular FHI-aims counting as the re-initialization 
+from restart is also counted as one SCF step. 
+
+\keydefinition{mpe\_n\_centers\_ep}{control.in}
+{
+  \noindent
+  Usage: \keyword{mpe\_n\_centers\_ep} \option{n} \\[1.0ex] 
+  Purpose: Defines the number of centers used 
+    for the expansion of the polarization potential 
+    outside of the cavity. \\[1.0ex]
+  \option{n} is a positive integer number. 
+    Default: number of centers for the Hartree 
+    potential expansion (cf.~\ref{Sec:Hartree}) \\
+}
+The first \option{n} centers defined in 
+\texttt{geometry.in} are used as expansion centers. 
+The default is to use all of them. Only change this 
+value if you fully understand what you are doing and 
+why you want to do this! 
+
+
+\keydefinition{mpe\_n\_boundary\_conditions}{control.in}
+{
+  \noindent
+  Usage: \keyword{mpe\_n\_boundary\_conditions} \option{nbc} \\[1.0ex] 
+  Purpose: Determines the number of boundary conditions 
+    imposed at every point on the cavity interface. \\[1.0ex]
+  Valid choices for \option{nbc} are 2 and 4. Default: \option{2} \\
+}
+As outlined in Ref.~\cite{Sinstein2017_MPE}, there are at least 
+two more boundary conditions other than Eqns.~\ref{eq:mpe_bc1_gen} 
+and \ref{eq:mpe_bc2_gen} that can be imposed on the electrostatic 
+potential / field / flux at a dielectric interface. 
+The default is to enforce continuity of the potential and 
+continuity of the dielectric flux perpendicular to the interface, 
+i.e.~\option{nbc} equals 2. 
+Furthermore, continuity of the electric field parallel to the 
+interface can be imposed, i.e.~\option{nbc} equals 4. 
+However, this should automatically be satisfied by the former 
+two boundary conditions and---in the best case---only leads to 
+a higher order correction of the fit. 
+\emph{Warning:} The non-default has not been tested thoroughly. 
+Verify your results carefully when using it! 
+
+
+\keydefinition{isc\_calculate\_surface\_and\_volume}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_calculate\_surface\_and\_volume} \option{bool} \\[1.0ex] 
+  Purpose: Determines whether the surface area and volume 
+    of the cavity are calculated. \\[1.0ex]
+  \option{bool} is of Boolean type. Default: \option{.true.} \\
+}
+As the only currently implemented \keyword{mpe\_nonelectrostatic\_model} 
+\subkeyword{mpe\_nonelectrostatic\_model}{linear\_OV} requires 
+the calculated measures, this flag is automatically turned on 
+when it has been turned off but is needed. 
+
+\keydefinition{isc\_surface\_curvature\_correction}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_surface\_curvature\_correction} \option{bool} \\[1.0ex] 
+  Purpose: When this flag is turned on, the calculated surface 
+    area (and volume) of the cavity is approximately corrected 
+    for the cavity curvature. \\[1.0ex]
+  \option{bool} is of Boolean type. Default: \option{.true.} \\
+}
+The effect of this keyword is usually rather negligible. 
+For more details regarding the correction, please consult 
+Ref.~\cite{Sinstein2017_MPE}. 
+
+
+\keydefinition{isc\_rho\_rel\_deviation\_threshold}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_rho\_rel\_deviation\_threshold} 
+    \option{threshold} \\[1.0ex] 
+  Purpose: Defines the convergence criterion of the 
+    cavity generation process: The walker dynamics simulation 
+    is run until the density values for all walkers deviate 
+    from the chosen iso value by at most \option{threshold}. \\[1.0ex]
+  \option{threshold} is a small, positive real number. 
+    Default: \option{\SI{1e-3}{}} \\
+}
+This keyword is only applicable for an \keyword{isc\_cavity\_type} 
+defined by an iso-density value. 
+
+\keydefinition{isc\_max\_dyn\_steps}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_max\_dyn\_steps} \option{num} \\[1.0ex] 
+  Purpose: Determines the maximum number of allowed steps 
+    to reach convergence of the walker dynamics simulation 
+    in the cavity creation process. \\[1.0ex]
+  \option{num} is a positive integer number. Default: \option{300} \\
+}
+
+\keydefinition{isc\_try\_restore\_convergence}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_try\_restore\_convergence} \option{bool} \\[1.0ex] 
+  Purpose: When convergence of the cavity creation dynamics run 
+    could not be achieved within the number of allowed steps 
+    specified by \keyword{isc\_max\_dyn\_steps}, this flag allows 
+    to enforce convergence by simply deleting all walkers 
+    not satisfying the convergence criterion given by 
+    \keyword{isc\_rho\_rel\_deviation\_threshold}. \\[1.0ex]
+  \option{bool} is of Boolean type. Default: \option{.false.} \\
+}
+Although a simple check is done to stop the calculation when 
+too many walkers do not satisfy the convergence criterion, one 
+should always manually checking the resulting cavity for 
+larger holes that might result from the deletion of walkers 
+which can lead to a bad estimate of the cavity's surface area 
+and volume and maybe also have an impact on the quality of 
+the polarization potential. 
+
+\keydefinition{isc\_kill\_ratio}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_kill\_ratio} \option{fraction} \\[1.0ex] 
+  Purpose: This keyword can be helpful when the walker 
+    dynamics run does not converge due to trapped walkers 
+    by killing the worst \option{fraction} of walkers 
+    at each neighbor list update step (also see 
+    \keyword{isc\_update\_nlist\_interval}). \\[1.0ex]
+  \option{fraction} is a non-negative real number
+    much smaller than 1. Default: \option{0.0} \\
+}
+As the number of possibly trapped walkers depends a lot 
+on the shape of the electron density, it is rather 
+difficult to give a recommendation about a sensible 
+value for \option{fraction}. In case walkers 
+get stuck, we propose to use a rather conservative 
+kill ratio of $~\SI{1e-3}{}$ and only increase it 
+if necessary. 
+
+\keydefinition{isc\_update\_nlist\_interval}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_update\_nlist\_interval} \option{num} \\[1.0ex] 
+  Purpose: This keyword triggers a re-evaluation of the 
+    neighbor lists in the density walkers dynamics simulation 
+    after every \option{num} steps. \\[1.0ex]
+  \option{num} is a positive integer number. Default: \option{50} \\
+}
+
+\keydefinition{isc\_dynamics\_friction}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_dynamics\_friction} \option{fric} \\[1.0ex] 
+  Purpose: The value of \option{fric} determines how much 
+    ``kinetic energy'' is removed from the walkers in 
+    every step of the simulations via a simple  
+    velocity scaling. \\[1.0ex]
+  \option{fric} is a real number between 0 and 1. 
+    Default: \option{0.1} \\
+}
+A value of 0 for \option{fric} means that no energy is 
+removed from the system which may lead to a bad convergence 
+behavior. On the other hand, a value of 1 means that all 
+kinetic energy is removed at each step which tends to 
+slow down the rate of convergence. 
+
+\keydefinition{isc\_dt}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_dt} \option{delta} \\[1.0ex] 
+  Purpose: Determines the ``time'' step of the 
+    walker dynamics simulation. \\[1.0ex]
+  \option{delta} is a positive real number. Default: \option{0.1} \\
+}
+Note: Since this is no actual physical quantity, arbitrary 
+time units are used. 
+
+\keydefinition{isc\_rho\_k}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_rho\_k} \option{k} \\[1.0ex] 
+  Purpose: Determines the force constant \option{k} 
+    for the ``density'' force, i.e.~the harmonic force 
+    that pulls the walkers along the density gradient 
+    to the specified iso-density value. \\[1.0ex]
+  \option{k} is a positive real number. Default: \option{1.0} \\
+}
+Note: Since this is no actual physical quantity, arbitrary 
+time units are used. 
+
+\keydefinition{isc\_rep\_k}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_rep\_k} \option{k} \\[1.0ex] 
+  Purpose: Determines the force constant \option{k} 
+    for the repulsive interaction between walkers 
+    perpendicular to the density gradient. \\[1.0ex]
+  \option{k} is a positive real number. Default: \option{0.01} \\
+}
+Note: Since this is no actual physical quantity, arbitrary 
+time units are used. 
+
+\keydefinition{isc\_g\_k}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_g\_k} \option{k} \\[1.0ex] 
+  Purpose: Determines the force constant \option{k} 
+    for the ``gravitational'' force that drags walkers to the 
+    center of gravity of the solute in case the local 
+    density gradient is too small. \\[1.0ex]
+  \option{k} is a positive real number. Default: \option{2.0} \\
+}
+Usually this should not happen, but when walkers move too 
+far away from the solute, the density gradient becomes 
+very small and its direction is unreliable due to numerical 
+noise (see \keyword{isc\_gradient\_threshold}).
+In this case, the walker is dragged to the center of the 
+solute until the density gradient is again large enough. 
+Note: Since this is no actual physical quantity, arbitrary 
+time units are used. 
+
+\keydefinition{isc\_gradient\_threshold}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_gradient\_threshold} 
+    \option{thsq} \\[1.0ex] 
+  Purpose: When the squared norm of the electron density 
+    gradient at the position of a walker is less than 
+    \option{thsq}, this gradient is considered unreliable. 
+    Instead, a simple ``gravitational'' force towards the 
+    center of the solute is applied. \\[1.0ex]
+  \option{thsq} is a positive real number. 
+    Default: \option{\SI{1e-8}{}} \\
+}
+The force constant of the ``gravitational'' force is 
+determined by \keyword{isc\_g\_k}.
+
+
+\paragraph{debug}
+
+\keydefinition{mpe\_xml\_logging}{control.in}
+{
+  \noindent
+  Usage: \keyword{mpe\_xml\_logging} \option{filename} 
+    \option{level} \\[1.0ex] 
+  Purpose: Controls the MPE module's internal XML logging 
+    output. \\[1.0ex]
+  \option{filename} specifies the name of the log file 
+    to be written. Default: \option{mpe\_interface.xml} \\
+  \option{level} defines the detail of the output. Supported 
+    log levels are: \option{off}, \option{basic}, \option{medium}, and
+    \option{detailed}. Default: \option{off} \\
+}
+This keyword is intended for debugging purposes. 
+Note: Depending on the log level, the size of the output 
+can become quite large. 
+
+
+\keydefinition{isc\_cavity\_restart}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_cavity\_restart} \option{filename} \\[1.0ex] 
+  Purpose: Read the solvation cavity from restart file 
+    (if available) and write new cavity to same file. \\[1.0ex]
+  \option{filename} is the name of the restart file. \\
+}
+Specifying this keyword is almost equivalent to specifying 
+both \keyword{isc\_cavity\_restart\_read} and 
+\keyword{isc\_cavity\_restart\_write} with the same 
+\option{filename} option except that with 
+\keyword{isc\_cavity\_restart} the program does not abort 
+when there is no restart file to read from. \\
+Note: This keyword is intended for debugging purposes. 
+Do not rely on the current structure of the cavity restart 
+file as it might change in the future. 
+
+\keydefinition{isc\_cavity\_restart\_read}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_cavity\_restart\_read} \option{filename} \\[1.0ex] 
+  Purpose: Read the solvation cavity from restart file 
+    instead of constructing a new one. \\[1.0ex]
+  \option{filename} is the name of the file (in \texttt{.xyz} format)
+  containing the cavity points and normal vectors. Additionally, a file
+  \texttt{<filename>.bin} is written which contains the entire cavity
+  information in not human-readable form. While the primary purpose of the
+  former is visualization, the latter is the actual restart file.\\
+}
+Note: This keyword is intended for debugging purposes. 
+Do not rely on the current structure of the cavity restart 
+file as it might change in the future. 
+
+\keydefinition{isc\_cavity\_restart\_write}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_cavity\_restart\_write} \option{filename} \\[1.0ex] 
+  Purpose: Write the cavity to the specified restart file
+    once created. \\[1.0ex]
+  \option{filename} is the name of the restart file (in \texttt{.xyz} format).
+  If additionally \texttt{<filename>.bin} is present, the cavity is read from
+  the latter instead. Note that the \texttt{.xyz} file has to be present in both
+  cases. While this file itself is sufficient to create a cavity, only the
+  \texttt{.bin} file allows for a fully deterministic restart.\\
+}
+Note: This keyword is intended for debugging purposes. 
+Do not rely on the current structure of the cavity restart 
+file as it might change in the future. 
+
+
+\keydefinition{isc\_record\_cavity\_creation}{control.in}
+{
+  \noindent
+  Usage: \keyword{isc\_record\_cavity\_creation} 
+    \option{filename} \option{num} \\[1.0ex] 
+  Purpose: Controls the output of snapshots during the 
+    cavity generation process. When \option{num} 
+    is positive, every \option{num} steps an XYZ snapshot 
+    of the cavity is written to file \option{filename}. 
+    For other choices of \option{num}, no output will 
+    be generated. \\[1.0ex]
+  \option{filename} is of type string. \\
+  \option{num} is of type integer. Default: \option{0} \\
+}
+This keyword is intended for debugging purposes. Note that 
+the size of the output file can become very large! 
+

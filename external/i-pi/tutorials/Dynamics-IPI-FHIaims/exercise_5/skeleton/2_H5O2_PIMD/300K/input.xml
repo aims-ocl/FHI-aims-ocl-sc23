@@ -1,0 +1,33 @@
+<simulation verbosity="low">
+  <output prefix="ex1">
+      <properties stride='10' filename='out'>
+       [ step, time{picosecond}, temperature{kelvin}, potential{electronvolt},kinetic_cv{electronvolt} ]
+      </properties>
+     <trajectory format='xyz' filename='pos' stride='10' cell_units='angstrom'>x_centroid{angstrom}</trajectory>
+     <checkpoint filename="chk" stride="1000" overwrite="true"></checkpoint>
+  </output>
+  <prng><seed> 3924</seed></prng>
+  <total_steps>6000</total_steps>
+  <ffsocket name="DRIVER"  mode="unix">
+    <address> pimd300 </address>
+  </ffsocket>  
+  <system>
+    <initialize nbeads="64">
+      <file mode="chk" > terma300 </file>
+    </initialize>
+    <forces>
+      <force forcefield="DRIVER"> </force>
+    </forces>
+    <ensemble>
+      <temperature units="kelvin"> 300 </temperature>
+    </ensemble>
+    <motion mode="dynamics">
+      <dynamics mode="nvt">
+         <timestep units="femtosecond"> 0.5 </timestep>
+           <thermostat mode='pile_l'>
+            <tau units="femtosecond">50</tau>
+              </thermostat>
+      </dynamics>
+    </motion>
+  </system>
+</simulation>

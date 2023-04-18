@@ -1,0 +1,671 @@
+\section{Electrostatic (Hartree) potential}
+\label{Sec:Hartree}
+
+This section describes the method used to compute the
+electrostatic (Hartree) potential in FHI-aims. For a more exhaustive
+description, please refer to Ref. \cite{Blum08}. 
+
+Some central equations are repeated here in detail since, as a result, the
+calculation of the Hartree potential can be heavily customized by many
+analytically available accuracy / cutoff thresholds, given below.
+
+For production calculations, it is important to note that \emph{our standard
+accuracy thresholds in the Hartree potential are numerically sound,
+and usually do not require an explicit customization}. The only
+parameter which should be explicitly set is the angular momentum up to
+which the atom-centered partitioned charge density is expanded,
+\subkeyword{species}{l\_hartree} below. 
+
+As pointed out in
+Ref. \cite{Blum08}, our experience is that energy differences are
+usually well converged for $l_\text{hartree}$=4, and total energy
+convergence at the level of a few meV is reached at
+$l_\text{hartree}$=6. Only in exceptional cases should different
+settings be required. 
+
+---
+
+At the beginning of a calculation, we first compute the electrostatic
+potential associated with the initial superposition of free-atom
+densities, $\sum_\text{at}
+n_\text{at}^\text{free}(|\boldr-\boldR_\text{at}|)$:
+\begin{equation}
+  v^\text{es,free}(\boldr)= \sum_\text{at}
+  v_\text{at}^\text{es,free}(|\boldr-\boldR_\text{at}|) 
+\end{equation}
+This is the largest part of the Hartree potential, but is always
+accurately known from the solution of spherical free atoms on a dense
+logarithmic grid.
+
+For a given electron density $n(r)$ \emph{during} the s.c.f. cycle, we
+then only ever compute the electrostatic potential associated with the
+\emph{difference} to the superposition of free atoms, $\delta
+v_\text{es}(\boldr)$, based on
+\begin{equation}
+  \delta n(\boldr) = n(r) - \sum_\text{at}
+  n_\text{at}^\text{free}(|\boldr-\boldR_\text{at}|)
+\end{equation}
+
+$\delta n(\boldr)$ is first split up into a sum of \emph{partitioned,
+  atom-centered} charge multipoles,
+\begin{equation}
+  \label{Eq:mp}
+  \delta\tilde{n}_{\text{at},lm}(r) =
+  \int_{r=|\boldr-\boldR_\text{at}|} d^2\Omega_\text{at}
+  p_\text{at}(\boldr)\cdot\delta n(\boldr)\cdot Y_{lm}(\Omega_\text{at})
+\end{equation}
+(the sum of all partition functions at every point is always
+unity). Due to the finite extent of $\delta n(\boldr)$ and
+$p_\text{at}(\boldr)$ (both are controlled by the
+\subkeyword{species}{cut\_free\_atom} keyword), the range of each
+component $\delta\tilde{n}_{\text{at},lm}(r)$ is also bounded.
+
+The Hartree potential components $\delta\tilde{v}_{\text{at},lm}(r)$
+are then determined on a dense, one-dimensional logarithmic grid,
+using classical electrostatics. The resulting
+$\delta\tilde{v}_{\text{at},lm}(r)$ are then numerically tabulated,
+and evaluated elsewhere using cubic spline interpolation.
+
+For \emph{cluster} systems, it is important to note that the finite
+extent of $\delta\tilde{n}_{\text{at},lm}(r)$ implies that the
+numerically tabulated part of $\delta\tilde{v}_{\text{at},lm}(r)$ can
+also be kept finite. Outside this ``multipole radius'',
+$\delta\tilde{n}_{\text{at},lm}(r)$=0, and
+$\delta\tilde{v}_{\text{at},lm}(r)$ falls off analytically as 
+\begin{equation}\label{Eq:moments}
+  \delta\tilde{v}_{\text{at},lm}(r) = m_{\text{at},lm}/r^{l+1} \quad .
+\end{equation}
+Instead of a spline evaluation, faraway atoms can thus be analytically 
+accounted for using tabulated, constant \emph{multipole moments}
+$m_{\text{at},lm}$. High-$l$ components can be analytically cut off as they
+approach zero at large distances. 
+
+In this approach, the effort to create the complete Hartree potential
+on the entire grid is determined by tabulating the contribution from
+\emph{every} atom on \emph{every} grid point,
+\begin{equation}\label{Eq:ves-assembly}
+  v_\text{es}(\boldr) = v^\text{es,free}(\boldr) + \sum_{\text{at},lm}
+  \delta\tilde{v}_{\text{at},lm}(|\boldr-\boldR_\text{at}|)
+  Y_{lm}(\Omega_\text{at}) \quad .
+\end{equation}
+The scaling is thus close to $O(N^2)$ with system size, albeit
+reduced by high-$l$ multipole components falling off towards large
+distances.
+
+For \emph{periodic} systems, essentially the same equations hold,
+except that the Hartree potentials associated with the atom-centered 
+charge densities $\delta\tilde{n}_{\text{at},lm}(r)$ are here
+additionally split into a short-ranged real-space part, and a smooth,
+long-ranged reciprocal-space part (Ewald's method), by splitting
+\begin{equation}\label{Eq:Ewald}
+  \frac{1}{r} = \frac{\erf(r/r_0)+\erfc(r/r_0)}{r} 
+\end{equation}
+(and similar for components of higher angular momentum).
+The summation of long-range tails thus happens in reciprocal space,
+using Fourier transforms. As a result, the scaling of this effort is
+no longer $O(N^2)$, but rather approaches $O(N \mathrm{ln} N)$ in
+Fourier transforms.
+
+The parameter $r_0$ can be very important to determine the efficiency of the 
+actual evaluation of the Hartree potential in periodic systems; it can be 
+set in \texttt{control.in} using the
+\keyword{Ewald\_radius} keyword. The keyword is
+adaptive to some extent but especially for slab systems or 2D systems
+with large vacuum regions, specifying the value of
+\keyword{Ewald\_radius} by hand can lead to
+significant performance improvements. (FHI-aims can accommodate very
+large vacuum regions, e.g., 100 {\AA}, efficiently if this parameter is
+set correctly.) 
+
+The cutoff reciprocal space momentum for the Fourier part of the
+electrostatic potential, $|\boldG_\text{max}|$, is estimated using a
+small threshold parameter $\eta$:
+\begin{equation}\label{Eq:Fourier}
+  |\boldG_\text{max}|^{l_\text{max}^\text{es}-2} \cdot
+  \frac{1}{\boldG_\text{max}^2} \cdot \exp(-\frac{r_0^2
+  \boldG_\text{max}^2}{4}) = \frac{\eta}{10\cdot 4\pi} \, .
+\end{equation}
+Our default choice for $\eta$ (in atomic units, i.e., those used internally in
+the code) is $\eta=5\cdot 10^{-7}$, but this is somewhat overconverged, and a
+larger threshold value is probably sufficient for most situations. \emph{Note}
+that Eq. (\ref{Eq:Fourier}) is slightly modified compared to the version given
+in Ref. \cite{Blum08}.
+
+
+
+\subsection{Non-periodic Ewald method}
+\label{Sec:Hartree-non-periodic-ewald}
+
+For large, finite systems (more than 200 atoms) it is possible to use the
+so-called `non-periodic Ewald method' in aims (keyword
+\keyword{use\_hartree\_non\_periodic\_ewald}). The basic idea of this method is
+to use interpolation to reduce the effort for calculting the Hartree term.
+Specifically, the method consists in computing the electrostatic potential not
+on the fine interpolation grid points but firstly on a coarse Cartesian grid.
+Subsequently, the values of the potential on the coarse grid are interpolated to
+the fine integration grid. If the Cartesian grid is suffiently coarse, time is
+saved because of the reduced number of potential computations.
+
+We use an envenly spaced, Cartesian grid with a certain grid width. Due to this
+fixed grid width, special attention has to be paid to the near-atom regions
+where the electron density and hence also the potential oscillates strongly.
+This problem can be solved by using the Ewald decomposition which was originally
+developed for periodic systems. Ewald's method aims at separating large and
+small scales by adding and subtracting charge spheres with Gaussian radial shape
+to a lattice of monopoles. In terms of the potential, this yields $\bar{q}/r = [
+  \bar{q}/r - \Omega(r) ] + \Omega(r)$ for each monopole, where $\bar{q} := q/(4
+\pi \epsilon_0)$ and $q$ is the monopole charge. The function $\Omega(r) =
+\bar{q}\erf(r/r_0)/r$ is the potential of a Gaussian charge sphere with width
+parameter $r_0$. The first part of the decomposition $\bar{q}/r - \Omega(r)$
+decays quickly with increasing $r$ so that this part is calculated in real
+space, while the second part $\Omega(r)$ decays quickly in Fourier space so that
+it is calculated there. The two parts are often referred to as `short range' and
+`long range' part. However, this is somewhat misleading because the second part
+is actually defined in whole space. For this reason, we call the first part
+`localized' and the second part `extended'.
+
+We can translate the classical Ewald decomposition to our case of a finite
+system by calculating the smooth extended part $\Omega(r)$ on the coarse
+Cartesian grid, with subsequent interpolation to the fine integration grid
+points. In addition, we have to calculate the localized part in the vicinity of
+the nuclei where we cannot save any computational time [actually some time is
+lost since we have to compute $\Omega(r)$ there, too].
+
+In the classical Ewald method, Gaussian spheres are an excellent choice as
+auxiliary charges due to the quick convergence of both the localized part in
+real space and the extended part in Fourier space. However in our case, where we
+interpolate in real space, Gaussian spheres are not necessarily a proper choice.
+Therefore optimized charge distributions obtained from a variational method by
+W. J\"urgens are used.
+
+In order to reduce the number of grid points, we allow the Cartesian grid to
+have arbitrary orientation. More specifically, we are looking for a rectangular
+cuboid that covers all integration grid points but with minimum volume. This
+problem is solved approximately by using a common procedure that is based on
+principle component analysis.
+
+
+
+\newpage
+
+
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{adaptive\_hartree\_radius\_th}{control.in}
+{
+  \noindent
+  Usage: \keyword{adaptive\_hartree\_radius\_th} \option{threshold} \\[1.0ex]
+  Purpose: Determines the distance beyond which an analytical
+    component $\delta\tilde{v}_{\text{at},lm}(r)$ of the
+    \emph{periodic} (Ewald!) real-space Hartree 
+    potential for a given atom is considered zero. \\[1.0ex]
+  \option{threshold} is a small positive real number. Default:
+    10$^{-8}$. \\
+}
+Usually, this tag need not be modified from the default. Long-range
+multipole components $\delta\tilde{v}_{\text{at},lm}(r)$ of the
+real-space (Ewald!) Hartree potential are not evaluated for distances
+where $\delta\tilde{v}_{\text{at},lm}(r)<$\option{threshold}. This tag
+provides similar functionality as the \keyword{multipole\_threshold} tag
+for the cluster case (numerically different due to the absence of
+$\erf(r/r_0)$ in the cluster case).
+
+\keydefinition{compensate\_multipole\_errors}{control.in}
+{
+  \noindent
+  Usage: \keyword{compensate\_multipole\_errors} \option{flag} \\[1.0ex]
+  Purpose: If true, introduces a compensating normalization and 
+    density to eliminate the effects of small charge integration errors 
+    in the long-range Hartree potential. \\[1.0ex]
+  \option{flag} is either \texttt{.true.} or \texttt{.false.}. Default:
+    \texttt{.true.}. \texttt{.false.} only if a DFPT calculation (this includes:
+    \keyword{calculate\_friction} and \keyword{magnetic\_response}) is requested. \\
+}
+This keyword is especially useful when assessing the electrostatic potential
+far away from a structure, e.g., when calculating a surface dipole correction 
+(for asymmetric slabs) or work function. 
+See \keyword{use\_dipole\_correction} or \keyword{evaluate\_work\_function} for
+details on these methods.
+
+In general, keyword \keyword{compensate\_multipole\_errors} makes sure that the
+long-range charge components of the Hartree potential are exactly those expected 
+from the calculated (and normalized) electron density. Any small spurious non-zero
+components that are solely due to integration errors on a finite integration grid.
+
+%It may indeed be reasonable to use this keyword as the default in any 
+%calculation, especially with ``light'' integration grids. It is not the
+%general default because of a single test case where the harmonic vibrational 
+%frequencies of a large molecule deteriorated slightly compared to the
+%standard (uncompensated) case. However, in general, total energies with 
+%\keyword{compensate\_multipole\_errors} appear to be slightly more accurate
+%on balance than without. 
+
+\keydefinition{Ewald\_radius}{control.in}
+{
+  \noindent
+  Usage: \keyword{Ewald\_radius} \option{value}
+    \\[1.0ex]
+  Purpose: Governs the Ewald-type short-range / long-range splitting
+    of the Coulomb potential in Eq. (\ref{Eq:Ewald}). \\[1.0ex]
+  \option{value} : Either a string \texttt{automatic}, or the 
+    range separation parameter $r_0$ in Eq. (\ref{Eq:Ewald})
+    (in bohr). Default: \texttt{automatic}. \\
+}
+May also be specified as \keyword{hartree\_convergence\_parameter} or
+\keyword{ewald\_radius}.
+
+Necessary for periodic boundary conditions only. May be changed from
+the default, but should not be set too small or too large (the compensating
+Gaussian charge density of the Ewald method must cancel the actual charge
+outside a radius that is still inside the partition table / integration 
+grid for every atom.) 
+
+This parameter is performance critical especially for slab
+calculations (2D material or surface) with a large vacuum region.
+
+If the string \texttt{automatic} is chosen, then the parameter $r_0$ is
+set according to an empirically determined function as follows:
+\begin{equation}
+  r_0 = A_0 \cdot (v - A_1)^{1/3} \quad ,
+\end{equation}
+subject to the limiting conditions 2.5~bohr$\le r_0 \le$5.0~bohr. 
+Here, $v$ is the specific volume (unit cell volume divided by number of atoms),
+and $A_0$=1.47941~bohr and $A_1$=1.85873 {\AA}$^3$ are empirically determined
+parameters. 
+
+The chosen empirical form was tested and adapted for a slab model of a
+2D material with a vacuum region up to 50 {\AA}. For such systems,
+this choice entails a significant performance improvement; and for
+larger vacuum regions, even larger choices than $r_0$=5.0~bohr are
+possible. However, the same empirical relation may not be optimal for
+moderately dense solids (such as GaAs), where smaller choices of
+$r_0$ can perform better. Overall, the optimum choice of $r_0$ would
+be to adapt it on the fly over the course of a given calculation, but
+implementing such an adaptive algorithm has not yet been done.
+
+For a yet more
+refined choice, further testing would be necessary, as well as a dependence on
+\keyword{hartree\_fourier\_part\_th} (which is not yet incorporated).
+
+\keydefinition{ewald\_radius}{control.in}
+{
+  \noindent
+  Usage: \keyword{ewald\_radius} \option{value}
+    \\[1.0ex]
+  Purpose: Governs the Ewald-type short-range / long-range splitting
+    of the Coulomb potential in Eq. (\ref{Eq:Ewald}). \\[1.0ex]
+  \option{value} : Either a string \texttt{automatic}, or the 
+    range separation parameter $r_0$ in Eq. (\ref{Eq:Ewald})
+    (in bohr). Default: \texttt{automatic}. \\
+}
+This keyword has exactly the same meaning as the \keyword{Ewald\_radius} kewyord.
+
+\keydefinition{hartree\_convergence\_parameter}{control.in}
+{
+  \noindent
+  Usage: \keyword{hartree\_convergence\_parameter} \option{value}
+    \\[1.0ex]
+  Purpose: Governs the Ewald-type short-range / long-range splitting
+    of the Coulomb potential in Eq. (\ref{Eq:Ewald}). \\[1.0ex]
+  \option{value} : Either a string \texttt{automatic}, or the 
+    range separation parameter $r_0$ in Eq. (\ref{Eq:Ewald})
+    (in bohr). Default: \texttt{automatic}. \\
+}
+This keyword has exactly the same meaning as the \keyword{Ewald\_radius} kewyord.
+
+\keydefinition{hartree\_fp\_function\_splines}{control.in}
+{
+  \noindent
+  Usage: \keyword{hartree\_fp\_function\_splines} \option{.true. /
+    .false.} \\[1.0ex]
+  Purpose: Switches on the splining of the Greens functions for the
+  long-range Hartree multipole decomposition in periodic boundary
+  conditions. This accelerates the calculation of the Hartree
+  potential in large unit cells. \\[1.0ex]
+  Default: \option{.true.}
+}
+
+\keydefinition{hartree\_fourier\_part\_th}{control.in}
+{
+  \noindent
+  Usage: \keyword{hartree\_fourier\_part\_th}
+    \option{threshold} \\[1.0ex]
+  Purpose: \emph{Implicitly} determines the required reciprocal space
+    cutoff momentum $|\boldG_\text{max}|$ for the Fourier summation of
+    the long-range electrostatic potential (Ewald). \\[1.0ex]
+  \option{threshold} is a real positive small number [$\eta$ in
+    Eq. (\ref{Eq:Fourier})]. Default: 5$\cdot$10$^{-7}$ (in atomic
+    units) . \\
+}
+See Eq. (\ref{Eq:Fourier}). Usually, this tag need not be modified from the
+default. Necessary for periodic boundary conditions only.  
+
+\keydefinition{hartree\_partition\_type}{control.in}
+{
+  \noindent
+  Usage: \keyword{hartree\_partition\_type}   \option{type} \\[1.0ex]
+  Purpose: Specifies which kind of partition function
+    $p_\text{at}(\boldr)$ is used to split $\delta n(\boldr)$ into
+    atom-centered pieces. \\[1.0ex] 
+  Restriction: Presently, \option{type} should have the same
+    value as specified for integration using the
+  \keyword{partition\_type} keyword. \\[1.0ex]
+  \option{type} : A string that specifies which kind of partition
+    table is used. Default: \texttt{stratmann\_sparse} \\ 
+}
+Usually, this tag need not be modified from the default. The same
+options are available as for the \keyword{partition\_type} keyword
+(partition functions for three-dimensional integrands). See
+  \keyword{partition\_type} for details. 
+
+\keydefinition{hartree\_radius\_threshold}{control.in}
+{
+  \noindent
+  Usage: \keyword{hartree\_radius\_threshold} \option{threshold} \\[1.0ex]
+  Purpose: Technical criterion to ensure the inclusion of atoms with a
+    potentially finite real-space Hartree potential component in periodic
+    boundary conditions.  \\[1.0ex]
+  \option{threshold} is a small positive real number. Default:
+  10$^{-10}$. \\
+}
+Usually, this tag need not be modified from the default. Necessary for
+periodic boundary conditions only. For each atom, determines a safe
+real space outer radius based on $\erf(r_\text{outer}/r_0) <
+\mathtt{threshold}$. This is then used to determine which atoms need
+be included in the second term (sum over atoms) of
+Eq. (\ref{Eq:ves-assembly}). 
+
+\keydefinition{legacy\_monopole\_extrapolation}{control.in}
+{
+  \noindent
+  Usage: \keyword{legacy\_monopole\_extrapolation} \option{flag} \\[1.0ex]
+  Purpose: Specifies how the monopole ($l=0$) part of the partitioned charge
+  density is extrapolated to $r=0$ before transforming to a logarithmic grid
+  to integrate the radial Hartree potential.  If \texttt{.true.}, use the
+  legacy variant, and an improved extrapolation otherwise.
+  \\[1.0ex]
+  \option{flag} is a Boolean.  Default: \texttt{.false.}.\\%
+}%
+The effect is generally very small, but for \texttt{light} grids, this can
+have some impact on total energies.
+
+
+\keydefinition{l\_hartree\_far\_distance}{control.in}
+{
+  \noindent
+  Usage: \keyword{l\_hartree\_far\_distance} \option{value} \\[1.0ex]
+  Purpose: Sets a maximum angular momentum beyond which the components of the
+  analytic long-range Hartree potential will not be computed. \\[1.0ex]
+  \option{value} is an integer number. Default: 10. \\
+}
+Usually, this tag need not be modified from the default. In
+Eq. (\ref{Eq:moments}), the multipole moments $m_{\text{at},lm}$ are
+determined by an explicit integration of the finite real-space density
+component $\delta\tilde{n}_{\text{at},lm}(r)$. However, for very high $l$,
+even spuriously small density components (10$^{-10}$ or lower) may be
+artificially weighted up in $m_{\text{at},lm}$; on a finite integration grid,
+$m_{\text{at},lm}$ becomes prone to numerical noise. Capping the evaluation of
+such high-$l$ components increases stability, but can be undone through
+  \keyword{l\_hartree\_far\_distance} if required.
+
+\keydefinition{multip\_moments\_threshold}{control.in}
+{
+  \noindent
+  Usage: \keyword{multip\_moments\_threshold} \option{threshold} \\[1.0ex]
+  Purpose: Implicitly defines the maximum angular momentum for which
+    the analytical multipole components are non-zero at all. \\[1.0ex]
+  \option{threshold} is a small positive real number. Default:
+  10$^{-10}$. \\
+}
+Usually, this tag need not be modified from the default. Used only in
+the periodic case. If $m_{\text{at},lm}/r_\text{mp}<$\option{threshold} for all
+$l\ge l_\text{thr}$, all analytical components beyond $l_\text{thr}$
+are considered zero in the real-space and Fourier parts of the
+long-range potential. $r_\text{mp}$ is the radius determined by
+\keyword{multip\_radius\_threshold}. 
+
+\keydefinition{multip\_moments\_rad\_threshold}{control.in}
+{
+  \noindent
+  Usage: \keyword{multip\_moments\_rad\_threshold} \option{threshold}
+    \\[1.0ex]
+  Purpose: Defines the outer radius of the density
+    components $\delta\tilde{n}_{\text{at},lm}(r)$ for the purpose of
+    determining the far-field moments $m_{\text{at},lm}$. \\[1.0ex]
+  \option{threshold} is a small positive real number. Default:
+    10$^{-10}$. \\
+}
+Usually, this tag need not be modified from the default. The outer
+radius is set where
+$|\delta\tilde{n}_{\text{at},lm}(r)|<$\texttt{threshold}. The actual
+$m_{\text{at},lm}$ are then determined by inward integration from
+this point, using the standard relations of classical electrostatics.
+
+\keydefinition{multip\_radius\_free\_threshold}{control.in}
+{
+  \noindent
+  Usage: \keyword{multip\_radius\_free\_threshold} \option{threshold}
+    \\[1.0ex]
+  Purpose: Technical criterion to define the outermost charge radius
+    of the spherical free atom density $n_\text{at}^\text{free}$
+    \\[1.0ex]
+  \option{threshold} is a small non-negative real number. Default: 0.0 \\
+}
+Usually, this tag need not be modified from the default. 
+
+The free-atom radius inside the code is set to the radius where
+$n_\text{at}^\text{free}(r)$ becomes smaller than
+\option{threshold}. Note that the actual extent of the free-atom
+charge can be influenced by the \subkeyword{species}{cut\_free\_atom} keyword, and
+has ramifications not just for the electrostatic potential, but also
+for the initial charge density, and the partition functions for all
+integrals. 
+
+\keydefinition{multip\_radius\_threshold}{control.in}
+{
+  \noindent
+  Usage: \keyword{multip\_radius\_threshold} \option{threshold}
+    \\[1.0ex]
+  Purpose: Determines the (per-atom) radius outside of which the
+    analytical multipoles $m_{\text{at},lm}$ are used to construct the
+    Hartree potential $v_\text{es}(\boldr)$ \\[1.0ex]
+  \option{threshold} is a small positive real number. Default: 10$^{-12}$.\\
+}
+Usually, this tag need not be modified from the default. The outer
+radius is set where \emph{all}
+$\delta\tilde{n}_{\text{at},lm}(r)<$\texttt{threshold} for a given
+atom. At a given integration point $\boldr$, $v_\text{es}(\boldr)$ is
+assembled by evaluating Eq. (\ref{Eq:ves-assembly}). The second part
+(sum over atoms) is evaluated separately for each atom, and atoms
+outside the radius defined by \keyword{multip\_radius\_threshold}, the
+$lm$ summation is performed using the analytical expression.
+
+\keydefinition{multipole\_threshold}{control.in}
+{
+  \noindent
+  Usage: \keyword{multipole\_threshold} \option{threshold} \\[1.0ex]
+  Purpose: Cluster case only -- determines the distance beyond which
+    an analytical component $\delta\tilde{v}_{\text{at},lm}(r)$ of the
+    real-space Hartree potential is considered zero. \\[1.0ex]
+  \option{threshold} is a small positive real number. Default:
+    10$^{-10}$. \\
+}
+Usually, this tag need not be modified from the default. Long-range
+Hartree potential components $\delta\tilde{v}_{\text{at},lm}(r)$ are
+  not evaluated for distances where
+  $\delta\tilde{v}_{\text{at},lm}(r)<$\option{threshold}. This tag
+  provides similar functionality as the 
+  \keyword{adaptive\_hartree\_radius\_th} tag for the periodic case
+  (numerically different due to the absence of $\erf(r/r_0)$ in the
+  cluster case). 
+
+\keydefinition{normalize\_initial\_density}{control.in}
+{
+  \noindent
+  Usage: \keyword{normalize\_initial\_density} \option{flag} \\[1.0ex]
+  Purpose: If true, normalizes the initial electron density to reproduce the
+   exact intended number of electrons when integrated on the three-dimensional,
+   overlapping atom-centered integration grid of FHI-aims. \\[1.0ex]
+  \option{flag} is either \texttt{.true.} or \texttt{.false.}. Default:
+    \texttt{.true.}  \\
+}
+This keyword only normalizes the initial density. It should always be an exact
+subset of the functionality provided by \keyword{compensate\_multipole\_errors}.
+If used in conjunction with collinear spin and a geometry optimization (or
+\keyword{sc\_init\_iter}), no subsequent renormalizations are performed, except
+for runs which use a \keyword{fixed\_spin\_moment}.
+
+The default for \keyword{normalize\_initial\_density} was set to \texttt{.false.} 
+before August, 2017.
+
+\keydefinition{set\_vacuum\_level}{geometry.in}
+{
+  \noindent
+  Usage: \keyword{set\_vacuum\_level} \option{z-coordinate} \\[1.0ex]
+  Purpose: Surface slab calculations only -- defines a $z$-axis value that is
+  deeply within the vacuum layer.  \\[1.0ex] \option{z-coordinate} is a
+  $z$ coordinate value in the vacuum layer.  \\ 
+}
+%
+In the case of periodic surface slab calculations, this value defines the
+reference $z$ coordinate that is used to define the work function (keyword
+\keyword{evaluate\_work\_function}) and/or the location of a dipole correction
+(electrostatic potential step) to offset a potential electrostatic dipole
+formed by a non-symmetric slab (keyword \keyword{use\_dipole\_correction}).  
+As a requirement, the surface must be parallel to the $xy$ plane. The chosen
+\option{z-coordinate} must be located deep in the vacuum, as far away as
+possible from any surface. 
+
+\keyword{set\_vacuum\_level} \texttt{auto} can be used instead to
+determine the vacuum level on its own. 
+
+If \keyword{use\_dipole\_correction} or
+\keyword{evaluate\_work\_function} are specified, omitting the keyword
+\keyword{set\_vacuum\_level} causes FHI-aims to automatically
+determine a suitable $z$. 
+
+However, a vacuum plane will only be determined if the nearest
+atom is more than 6 {\AA} away from the vacuum level. Determining a
+surface dipole for distances for which basis functions or charge
+densities could overlap might lead to errors. Since
+FHI-aims does allow one to use rather large vacuum spacings at low (if any)
+computational overhead, the calculation will stop for too small vacuum
+spacings and alert the user. 
+
+
+
+\keydefinition{use\_dipole\_correction}{control.in}
+{
+  \noindent
+  Usage: \keyword{use\_dipole\_correction}  \\[1.0ex]
+  Purpose: Surface slab calculations only -- compensates a potential dipole
+  field of non-symmetric slabs by an electrostatic potential step in the
+  vacuum region.
+  \\[1.0ex]
+  Restriction: When specified for a charged periodic system,
+    this keyword is currently disabled (see below). \\
+}
+If set, this option introduces an electrostatic potential step in the vacuum
+region of a surface slab calculation, to compensate for a potential surface
+dipole. The surface must be parallel to the $xy$ plane (perpendicular to the
+$z$ direction). The $z$ location of the surface dipole must be provided by
+hand, by specifying the \keyword{set\_vacuum\_level} keyword.
+
+In practice, the dipole correction calculates the gradient of only 
+the long-range Hartree potential term of the Ewald sum (which is evaluated in
+reciprocal space). If the gradients on both sides of the vacuum level do not
+agree to better than 10 \% (i.e., the potential is not linear in this range),
+the dipole correction is not computed, and a warning is issued instead.
+
+However, it must be possible to find a vacuum plane $z$, where the
+surface dipole is compensated, that is further than 6 {\AA} away from
+the nearest atom. Otherwise, the calculation will stop and alert the user.
+
+The reason is that a surface dipole cannot be safely determined for
+vacuum spacings for which basis functions or charge densities could
+overlap. This can lead to errors. Note that FHI-aims does allow one to use
+rather large vacuum spacings at low (if any) computational overhead.
+
+%If a dipole correction is requested, keyword
+%\keyword{compensate\_multipole\_errors} is automatically switched
+%on by default. This will change total energies slightly compared to
+%the uncompensating case, and -- we believe -- even for the better. 
+
+\emph{Attention:} This keyword is currently disabled for charged periodic
+systems. The Coulomb potential of a charged surface slab will reach
+far into the vacuum, apparently leading to a completely arbitrary
+dipole correction as a result. (The dipole correction will simply
+flatten out the potential wherever it is asked 
+to do so, but for a charged surface, the residual Coulomb potential should not
+be flat.) 
+
+In order to alert user to the problem, the code presently stops
+with a warning. If you know what you are doing, the pertinent stop (one line)
+can always be commented out---if the code is recompiled, the method will be
+applied, even though the physical relevance of the result is
+uncertain. Charged periodic calculations with a
+vacuum region are physically questionable for very different reasons
+in any case; we recommend to find a different workaround with explicit
+charges whenever that is possible.
+
+\emph{Note} that for very large surface slabs, this keyword might cause 
+instabilities in the SCF cycle. If you suspect this to be the case and remove 
+\keyword{use\_dipole\_correction} from your \texttt{control.in}
+%, remember 
+%to set the keyword \keyword{compensate\_multipole\_errors}: 
+%\keyword{compensate\_multipole\_errors} is currently automatically enabled 
+%by default and changes the total  
+%energies slightly compared to the uncompensating case; we believe for 
+%the better.
+
+
+\keydefinition{use\_hartree\_non\_periodic\_ewald}{control.in}
+{
+  \noindent
+  Usage: \texttt{use\_hartree\_non\_periodic\_ewald} \option{.true.} \\
+  or:    \texttt{use\_hartree\_non\_periodic\_ewald} \option{gridspacing}
+                                                        \option{value} \\
+  or:    \texttt{use\_hartree\_non\_periodic\_ewald} \option{.false.} \\[1.0ex]
+  %
+  Purpose: This option is \emph{experimental} and applies only to non-periodic
+  calculations. In this case, the Hartree potential is decomposed according to
+  Ewald's method.  \\[1.0ex]
+}
+This method accelerates the calculation of the Hartree term in case of large
+systems (more than 200 atoms) by using Ewald's decomposition combined with
+spatial interpolation, see section \ref{Sec:Hartree-non-periodic-ewald}. The
+method can be switched on by using option ``\option{.true.}''. In this case, a
+default grid spacing of 0.6\,\r{A} ($=60\,$pm) is used for the Cartesian grid.
+Other values for the grid spacing can be chosen with option
+``\option{gridspacing} \option{value}''. If this option is used, the method is
+switched on and the grid spacing is set to \option{value} in \r{A} ($=100\,$pm).
+Finally, the method can be switched off with option ``\option{.false.}''.
+However, since this is the default behaviour, it is not necessary to switch off
+the method explicitely.
+
+
+\newpage
+
+
+
+\subsection*{Subtags for \emph{species} tag in \texttt{control.in}:}
+
+\subkeydefinition{species}{l\_hartree}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{l\_hartree} \option{value} \\[1.0ex]
+  Purpose: For a given species, specifies the angular momentum
+    expansion of the atom-centered charge density multipole for the
+    electrostatic potential. \\[1.0ex]
+  \option{value} is an integer number which gives the highest angular
+    momentum component used in the multipole expansion of $\delta
+    n(\boldr)$ into $\delta\tilde{n}_{\text{at},lm}(r)$ for the
+    present species. \emph{Must be specified.} \\
+}
+As pointed out in
+Ref. \cite{Blum08}, our experience is that energy differences are
+usually well converged for $l_\text{hartree}$=4, and total energy
+convergence at the level of a few meV is reached at
+$l_\text{hartree}$=6. Only in exceptional cases should different
+settings be required. 

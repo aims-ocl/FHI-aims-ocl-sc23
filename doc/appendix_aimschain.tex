@@ -1,0 +1,796 @@
+% My own linked keywords definitions
+% So I don't pollute the entire doc with tons of keywords
+% These won't be added to the index
+\newcommand{\chainkey}[1]
+{\hyperlink{aimsChain#1}{\texttt{#1}}}
+
+\newcommand{\chainkeydef}[2]
+{
+
+\centerline{\rule{1.0\textwidth}{1pt}}
+\hypertarget{aimsChain#1}{\textbf{Tag: \texttt{#1}}{ \color{filename_color} (chain.in)}}
+%\index{#1@\texttt{#1}}
+\\[2ex] \hspace*{0.05\textwidth}
+\begin{minipage}{0.92\textwidth}
+  #2
+\end{minipage} \\
+
+\vspace{1pt}
+}
+
+
+\section{Finding Transition States: the aimsChain}
+This project aims to provide an all-in-one package for various flavours of the chain of states methods for finding the minimum energy path(MEP). Currently the nudged elastic band method (NEB)\cite{NEBORI,NEBTAN}, the string method\cite{STRORI}, and the growing string method\cite{GSMoriginal} are included. 
+
+Please direct any questions or suggestions to \textit{yaoyingyu@hotmail.com}, we need your help to improve the package.
+
+\emph{The aimsChain code is distributed under the Lesser General
+  Public License as published in Version 3, 29 June 2007, at
+  http://www.gnu.org/licenses/lgpl.html . Some of the optimizer
+  routines in the code originated within the Atomic Simulation
+  Environment (ASE). We wish to give full credit to the developers of
+  these routines. The aimsChain code can also be found in a separate
+  distribution maintained by Yingyu Yao. The reason we distribute them
+  directly within the FHI-aims repository is for the convenience of
+  all FHI-aims users, but again: We wish to give full credit to the
+  work and the license of the original authors within ASE.}
+
+\subsection{Installation}
+The package is located in \texttt{src/aimsChain}. 
+
+In general, any computer/cluster that is capable of running FHI-ams and has numpy/scipy support can be used. 
+To install, user should follow these simple steps:
+\begin{enumerate}
+\item Copy the package to the directory where you normally install softwares, e.g. \texttt{\textasciitilde /local/bin} or your home directory.
+\item Modify your \texttt{\textasciitilde/.bashrc} to include the following lines 
+\begin{verbatim}
+ export PATH=$PATH:<package path>/tools
+ export PYTHONPATH=$PYTHONPATH:<package path>
+ module load python/scipy/2012.10
+\end{verbatim}
+These modifications are recommended but not necessary. You can also add them to your job script instead if you do not want to pollute your \texttt{.bashrc}.
+
+The last line serves to load scipy into your system. On clusters you can normally find the corresponding keyword using \texttt{module avail}, and this could also be done by including \texttt{scipy} and \texttt{numpy} in your \texttt{\$PYTHONPATH}. 
+
+Although unlikely, future updates of numpy/scipy may cause compatibility issues. If you observe anything strange in this regards, please let me know. 
+\item You are done.
+\end{enumerate}
+To test your installation, source the \texttt{.bashrc} file and start a python shell. The package is successfully linked if executing
+\begin{verbatim}
+import aimsChain
+import scipy
+import numpy
+\end{verbatim}
+reports no error. Otherwise please double check your configurations and search for installation problems. 	
+
+\subsection{A Quick Start}
+While offering an extensive list of keywords, the package is aimed to work with most systems out of the box. Often very little configuration is required to conduct a successful path search. The keywords are available, on the other hand, to make the package as adjustable as possible, so that it can be finely tuned to tackle the less conventional systems. 
+
+In the package directory, a few sample jobs have been prepared, imitating several different possible use cases. Please modify \texttt{chain.in} in each sample (other than sample 1) so that \chainkey{run\_aims} links to your own aims executable.
+\begin{itemize}
+
+ \item sample 1: This is a graphical example on a 2D analytic surface that demonstrates the principles behind the chain-of-states methods. You can skip it if you have used NEB/SM elsewhere. 
+ 
+ You can and should run this demo in your personal computer instead of the cluster, since it is not actually calling FHI-aims for calculations.
+
+ To start, you should go to \texttt{samples/sample1/run} and execute \texttt{job.sh}. This will execute the MEP finding algorithm on the 2D LEPS potential energy surface. To see the resulting process, proceed to \texttt{samples/sample1} and run \texttt{gnuplot plot.gnu} to see the evolving path on the surface. 
+ 
+ This is also the perfect test bench for testing with different configurations. However keep in mind that performance in 2D is very different from the 3N-D space in reality, and therefore this example should not be used for performance optimization.
+ \item sample 2: The inversion of an ammonia molecule. This example surveys the MEP with 8 images, using an very tight convergence setting(\chainkey{force\_thres}=0.01), which is too tight for most of the more complex systems, and will require tremendous amount of computation for non trivial systems in general. The resulting path would represent a very accurate representation of the MEP. 
+ \item sample 3: This example measures the energy barrier to transfer a methyl group from one chlorine atom to another. It is using 6 images, coupled with a relatively loose convergence setting(\chainkey{force\_thres}=0.2). The resulting MEP from this is in general not accurate enough for a quantitative analysis. However, \hyperlink{aimsChainuse\_climb}{climbing image} is turned on with a relatively tight convergence setting(\chainkey{climb\_thres}=0.05). The result is an accurate energy barrier calculation. 
+ 
+ Note that in this example we are also utilizing \keyword{constrain\_relaxation} in our input geometries to limit the movement of atoms. In this particular case, one of the chlorine atom is fixed at the origin, and the others are constrained to move along the x-axis. 
+ \item sample 4: In this example we demonstrate how to start from an \hyperlink{aimsChainexternal\_geometry}{external set of initialization images}. We are calculating the MEP for a non-trivial isomerization. Geometries from an previous calculation is provided as the starting geometries. 
+ \item sample 5: This sample provides an insight into MEP searching with periodic systems. It involves only the \texttt{interpchain.py} provided in \texttt{aimsChain/tools}, which should be already in your \$PATH if you followed the installation process. This tool will generate an initial path exactly the same way as the actual job script does. The result is printed into a directory named
+ \texttt{interpolation}. A multi-frame \textit{.xyz} file is written, as well as one \textit{.in} geometry file for each image. 
+
+Sample 5.1 and 5.2 are the same geometry, the only difference is that \hyperlink{aimsChainperiodic\_interpolation}{periodic interpolation} is set to \texttt{true} in the former, and \texttt{false} in the latter. Run \texttt{interpchain.py} in each directory and inspect the resulting path with your favourite visualization software. In sample 5.1 we acquire a smooth interpolation, but in sample 5.2 with periodic interpolation turned off, one row of atoms had to travel across the entire cluster. 
+
+Another way to do a correct interpolation is shown in sample 5.3. You can manually adjust the coordinate of the atoms so that they are set at the correct coordinate with respect to the initial geometry. \texttt{fin.in} is adjusted in this case to reflect the change. This way, the interpolated path is again correct, even though \chainkey{periodic\_interpolation} is turned off. This is the preferred method of dealing with periodic systems, because the automatic interpolation finds the shortest path, but not necessarily the correct path. When working with periodic systems you should always do a \texttt{interpchain.py} first and inspect the result before running the actual job. 
+\item sample 6: Here we show when and why the growing string(GSM) method should be used. Here the isomerization process involves rotation of in dihedral angles, and linear interpolations would result in overlapping atoms, which can be checked using the \texttt{interpchain} tool. 
+
+The traditional approach dealing with these cases is to rotate the atoms manually and generate a non-overlapping initial path. GSM provides an alternative to this approach by growing the string from end points, which eliminates the need for manually generated initial path. 
+\item sample hydra: It is essentially the same as sample 1, but prepared for the hydra cluster. This demonstrates the required modifications when transferring between different platforms.  
+\end{itemize}
+
+The samples include the following files. 
+\begin{itemize}
+ \item ini.in: initial geometry in the standard aims format
+ \item fin.in: final geometry in the standard aims format
+ \item control.in: standard control file for aims. This control will be used for all aims calculations.
+ \item job.sge: job submission script, which you submit into the cluster. 
+ \item chain.in: control file for aimsChain, see below for a detailed description
+\end{itemize}
+If everything is set up properly, you can simply \texttt{qsub job.sge} to get the job running. When running on clusters not using SGE, the job scripts must be changed accordingly. 
+
+\subsection{Configuration}
+\subsubsection*{aimsChain control file}
+The chain control file is the file that governs the evaluation of MEP. It follows the same configuration convention set by the aims \texttt{control.in}, namely a list of key value pairs. The control file should be named \texttt{chain.in}.
+
+This is a sample control file.
+
+\begin{verbatim}
+#A sample chain.in
+run_aims mpiexec -ppn 8 -n $NSLOTS ~/bin/aims.062812.scalapack.mpi.x
+initial_file ini.in
+final_file fin.in
+n_images 6
+force_thres 0.2
+use_climb true
+climb_thres 0.05
+\end{verbatim}
+
+All the available keywords for the control are listed below:
+
+\chainkeydef{run\_aims}
+{
+Usage: \chainkey{run\_aims} your command
+
+Purpose: Provide the command that is used to call aims in your environment. 
+
+Default value: mpiexec -ppn 8 -n \$NSLOTS \textasciitilde/bin/aims.081912.scalapack.mpi.x
+}
+You will need to change the default value for whatever command you are using.
+
+There is no need to quote your command, simply type it as you would in
+a bash shell. Everything after the keyword are concatenated into a single
+string. 
+
+
+\chainkeydef{initial\_file}
+{
+Usage: \chainkey{initial\_file} filename
+
+
+Purpose: Provide the initial geometry file for the path. 
+
+
+Default value: ini.in
+}
+The format should be the same as the aims \texttt{geometry.in}. Flags such as constraints are interpreted, and will affect the evaluation of MEP. All the intermediate images will have the same constraints as the initial geometry. 
+
+Atoms in the initial and final geometry must establish a one to one correspondence. The $i$th line in the initial geometry and the final geometry must correspond to the same atom. Often there are many possible combinations, it is the user's responsibility to use the most physical one and/or check different combinations. You can perform a test interpolation with the \texttt{interpchain.py} tool provided. 
+
+\chainkeydef{final\_file}
+{
+Usage: \chainkey{final\_file} filename
+
+
+Purpose: The final geometry for the path. Refer to \chainkey{initial\_file}.
+
+
+Default value: fin.in
+}
+
+\chainkeydef{n\_images}
+{
+Usage: \chainkey{n\_images} value
+
+
+Purpose: The number of images used for MEP calculation.
+
+
+Default value: 5
+}
+ Suitable value for this variable is highly dependent on the desired degree of resolution and the complexity of the system. A simple single barrier reaction will require 5 images to achieve a good result, while more complex potential energy surfaces require roughly 3 or more images per hill/trough. 
+ 
+ 
+ If the geometry is not computationally expensive(tens of seconds per calculation with a reasonable \# of CPUs), the simple principle of ``the more the merrier'' can always be applied. 
+ 
+ \chainkeydef{external\_geometry}
+{
+Usage: \chainkey{external\_geometry} file\_name
+
+
+Purpose: If this variable is set, the initial set of images will be obtained from a external source instead of a linear interpolation.
+
+Default value: None
+}
+ This flag should be set to the filename of a text file listing all of the intermediate geometries in order, e.g.
+\begin{verbatim}
+./geo/1.in
+./geo/2.in
+./geo/3.in
+\end{verbatim}
+It is advised that if you have anything better than a direct linear interpolation, you should use it as the initial guess. Linear interpolation can be highly inefficient, and would result in cases which never converges. When in doubt, you can always use the growing string method. 
+
+\chainkeydef{periodic\_interpolation}
+{
+Usage: \chainkey{periodic\_interpolation} true/false
+
+
+Purpose: Whether or not interpolation is done while considering periodic boundary.
+
+Default value: False
+}
+This setting affects periodic systems only. If set to true, each atom's final geometry will be checked against all periodic counterparts to find the shortest path between the initial and final geometry. This can resolve some problems caused by the periodic boundary condition. Consult sample 4 for detailed usage. Always use the provided \texttt{interpchain.py} tool to check the resulting interpolation and confirm that it's physical before running. 
+
+\chainkeydef{resample}
+{
+Usage: \chainkey{resample} true/false 
+
+
+Purpose: Resample the input path into arbitrary number of images. 
+
+Default value: False
+}
+This tag is effective only when \chainkey{external\_geometry} is set. When \chainkey{resample} is set to true, the package will resample the path you provided and interpolate it to have \# of images equal to \chainkey{n\_images}. This can be very useful if you find your calculation to have an inadequate number of images. You can extract the geometries from the final iteration, and start a new job by resampling them. 
+
+\chainkeydef{aims\_restart}
+{
+Usage: \chainkey{aims\_restart} value 
+
+
+Purpose: Reuse the wave function restart file to speed up the calculation. This should set to be the same as \keyword{restart} in \texttt{control.in}.
+
+\textbf{WARNING!} This function is not compatible with aims as of July 2013, and only works occasionally.  
+
+
+Default value: None
+}
+Value should be the same as \keyword{restart} in your \texttt{control.in}. The wave function restart file will be copied from iteration to the next, so that the scf cycles can start from an existing configuration. When working correctly, this can cut the computation time required by half or more. 
+
+However, at this stage \keyword{restart} has very limited check on the input restart file, resulting in an error when the wave functions don't match. Do not use this keyword unless you are sure that your version of aims will start a new scf initialization instead of reporting errors when the wrong restart file is provided. If certain of which, however, the keyword should always be used to speed up the calculation. 
+
+Setting \keyword{restart} will consume a decent amount of disk space. You may want to remove the restart files if you are planning to store the calculation permanently.
+
+
+\chainkeydef{restart}
+{
+Usage: \chainkey{restart} true/false
+
+
+Purpose: Whether the package will allow restarts. When set to true, you can simply submit the job again to continue from the previous calculations. 
+
+Default value: true
+}
+When set to true, a restart file will be written as the path iterates. When the job is submitted/resubmitted, it will first check for the restart file to see if it's possible to start from a previous calculation. This is useful, when, for example, your job is killed due to time limitations on the cluster. Please refrain from changing settings between restarts, which is always error prone. If you are planning to change some settings, it's always safer to extract the most recent geometries and use them as the initial path for a new calculation. 
+
+There is still the risk that the job is killed while the restart file is been written, in which case anything could happen when the job is resumed. However, considering the rarity of such event, it should not be a problem in practice.  
+
+\chainkeydef{method}
+{
+Usage: \chainkey{method} neb/string
+
+
+Purpose: Pick the method to use for the MEP calculation. 
+
+
+Default value: string
+}
+Currently only string method and NEB are supported. In our testing, string method have shown to be slightly more stable than NEB, and therefore is our recommended method. 
+\chainkeydef{neb\_spring\_constant}
+{
+Usage: \chainkey{neb\_spring\_constant} value 
+
+
+Purpose: This sets the spring constant used in NEB calculation, and has no effect if \chainkey{method} is string. 
+
+Default value: 20.0
+}
+It should be set to have the same magnitude as the force felt by the geometry, which is hard to determine before hand. However a generic value of 20 is good in general. Please try \chainkey{method} string first if you suspect that the spring constant have to be changed for the system to converge. 
+
+\chainkeydef{force\_thres}
+{
+Usage: \chainkey{force\_thres} value
+
+
+Purpose: The threshold for convergence. 
+
+Default value: 0.2
+}
+Optimization will stop when the residual forces in the system is smaller than this preset value. If \chainkey{use\_climb} is true, climbing-image calculation will start after this threshold has reached. $0.2eV$ is always a good starting point, and for more rigorous calculations $0.1eV$ or $0.05eV$ can be used. Do not set it too small, since some numerical noises in the forces will always exist even when the path is well converged.  
+
+Also note that adequate value is dependent on the system. A reaction with a $3 eV$ barrier can be much more well converged at $0.05 eV$ threshold than a reaction with a $0.3 eV$ barrier at the same threshold, because the former, very often, has a steeper barrier and hence larger force by nature. 
+
+\chainkeydef{optimizer}
+{
+Usage: \chainkey{optimizer} dampedBFGS/BFGS/LBFGS/trm/CG/FIRE
+
+
+Purpose: This picks the optimizer used for optimization. 
+
+Default value: dampedBFGS
+}
+
+
+\textit{BFGS} is a textbook implementation of BFGS optimizer, which was observed to have wild behaviour is some situations. The fact that BFGS series of optimizer can be used for this type of calculations is in fact purely coincidental. The series of force projections involved in the chain of states methods can severely hamper the effectiveness of quasi-Newton optimizers. Please resort to FIRE optimizer whenever you observe wild behaviour in the optimization process. 
+
+
+\textit{dampedBFGS} damps the original BFGS optimizer using several techniques, and is slightly more stable in those situations. (But they still get stuck from time to time!) This is the default setting that should always be tried first.
+
+
+\textit{LBFGS} is the limited memory version of BFGS, which uses less memory for extremely large systems. However, given that in general FHI-aims is applied to systems with hundreds of atoms at most, this optimizer has little advantage in this front. However, due the fact that LBFGS uses only recent iterations for approximation, the results can be quite different from BFGS in a some PES. Therefore it's worth trying if BFGS fails.
+
+\textit{trm} is the same trust-radius method ported from FHI-aims. In our tests it has proven to be reasonably stable and efficient. We would recommend this as another alternative along with FIRE when dampedBFGS fails.
+
+\textit{CG} is the textbook implementation of conjugate-gradient algorithm using finite difference scheme. In our tests it has not shown any advantage over other algorithms, ans is provided for the sake of completeness. 
+
+\textit{FIRE} is the Fast Inertial Relaxation Engine, one of the better non-Newton type optimizers. It is slower than BFGS series of optimizers in general, but is immune to the aforementioned instability because it does not approximate the Hessian. If dampedBFGS fails, try FIRE with \chainkey{global\_optimizer} off as an alternative. 
+
+\chainkeydef{global\_optimizer}
+{
+Usage: \chainkey{global\_optimizer} true/false
+
+
+Purpose: Whether all images are optimized as a single object, or if individual images are optimized as separated object. 
+
+
+Default value: true
+}
+The global version, when coupled with BFGS-series of optimizer, is often faster than the non-global optimizer. However, this combination is less stable, and can lead to wild results. The non-global optimizer coupled with FIRE seems to be the most stable one in our tests, but is much slower than the former. Non-global optimizer combined with BFGS, on the other hand, slows the calculation significantly due to overestimation, and should be avoided. 
+
+\chainkeydef{xyz\_lattice}
+{
+Usage: \chainkey{xyz\_lattice} a b c
+
+
+Purpose: This key only affects the \textit{.xyz} file written in \texttt{paths} directory. It governs how the lattice is repeated in each lattice vector. The default is a standard 2 2 1 setting, valid for most surfaces. 
+
+It has no effect on clusters. 
+
+
+Default value: 2 2 1
+}
+
+\chainkeydef{map\_unit\_cell}
+{
+Usage: \chainkey{map\_unit\_cell} true/false
+
+
+Purpose: This key only affects the \textit{.in} file written in \texttt{paths} directory. It determines whether atoms in these geometries are mapped back to the central unit cell. 
+
+It has no effect on clusters
+
+Default value: false
+}
+
+
+\chainkeydef{use\_climb}
+{
+Usage: \chainkey{use\_climb} true/false
+
+
+Purpose: This will turn on the climbing image\cite{HenkelmanJCP2000a} feature. 
+
+
+Default value: false
+}
+The points with highest energies will move toward a higher energy location along the path until the saddle point is reached. Please consult \chainkey{climb\_mode} for a detailed explanation of this process. If you are only interested in finding the energy barrier, it's possible to set \chainkey{force\_thres} to some larger value, such as 0.2, and set \chainkey{climb\_thres} smaller(e.g. 0.05) for a reasonably tight convergence. In this case decreasing \chainkey{force\_thres} will not affect the accuracy of climbing image, so long as the climbing image converges. Transition state finding can be sped up significantly this way by reducing the number of single point calculations required. 
+
+\chainkeydef{climb\_thres}
+{
+Usage: \chainkey{climb\_thres} value
+
+
+Purpose: Set the convergence criterion for the climbing image. 
+
+Default value: same as \chainkey{force\_thres}
+}
+The climbing image will stop when the residual forces in the system is smaller than this value. It is normally, although not necessarily, set to a value smaller or equal to \chainkey{force\_thres}. In simple systems, the climbing image is capable of pushing the system done to $meV/\AA^{2}$ range, but that's not as plausible in larger systems.
+
+
+
+\chainkeydef{interpolated\_climb}
+{
+Usage: \chainkey{interpolated\_climb} true/false
+
+
+Purpose: Determine whether the climbing image is chosen from one of the existing images or interpolated from known energies and geometries. 
+
+
+Default value: true
+}
+
+When set to true, the current energies and geometries will be fitted with a cubic spline to identify the point with highest energy. If this geometry is sufficiently far from existing nodes, then the interpolated geometry is used. If the geometry is close to one of the existing images, than that image is set to be the climbing image. 
+
+When set to false, the image with highest energy is set to be the climbing image. 
+
+
+\chainkeydef{climb\_mode}{
+Usage: \chainkey{climb\_mode} 1/2/3
+
+
+Purpose: This determines the ``mode'' of the climbing image. 
+
+Default value: 2
+}
+Increasing mode corresponds to increasing stability and decreasing efficiency. The main difference lies in the number of images that are allowed to move during the climbing process. 
+
+
+\chainkey{climb\_mode} 1: Only the image with highest energy is allowed to move. This setting can manage many circumstances, provided that \chainkey{force\_thres} is small enough so that the converged path provides a stable basin. 
+
+
+
+\chainkey{climb\_mode} 2: The image with highest energy and its two neighbouring  images are allowed to move. The two additional image provides an evolving tangent estimate as the central image climbs. This mode can tackle nearly all cases where \chainkey{climb\_mode} 1 fails under the same \chainkey{force\_thres} setting. It is safe, in general, to set \chainkey{force\_thres} to 0.3 if you are only interested in energy barrier. 
+
+
+\chainkey{climb\_mode} 3: All of the images excluding the end points are allowed to move. This is the most stable, but rarely necessary setting. The efficiency drop is highly dependent on the system and the \chainkey{force\_thres} setting. In general this should be used as a last resort when \chainkey{force\_thres} can be converged to a tight setting but climbing image on other modes fails. 
+
+
+
+
+
+
+\chainkeydef{climb\_global\_optimizer}
+{
+Usage: \chainkey{climb\_global\_optimizer} true/false
+
+
+Purpose: The same as \chainkey{global\_optimizer}, except this keyword is dedicated for climbing image. 
+
+Default value: true
+}
+The tag has no effect when \chainkey{climb\_mode} is 1, in which case the global and non-global optimizer are equivalent. Unlike \chainkey{global\_optimizer}, BFGS+Non-global setting can be a good combination for \chainkey{climb\_mode} 2 if the default setting fails, mainly due to the well behaving local basin for a roughly converged string. 
+
+
+
+\chainkeydef{climb\_optimizer}
+{
+Usage: \chainkey{climb\_optimizer} dampedBFGS/BFGS/LBFGS/CG/TRM/FIRE 
+
+
+Purpose: The same as \chainkey{optimizer}, but dedicated for climbing image.
+
+
+Default value: fire
+}
+
+
+\chainkeydef{climb\_control}
+{
+Usage: \chainkey{climb\_control} file\_name
+
+
+Purpose: Specify a different \texttt{control.in} for the climbing image. 
+
+Default value: control.in
+}
+It's possible, for example, to converge the entire path with a light setting, and then converge the climbing image with tight setting, which consumes far less computational power. 
+
+However, there are a few things to note if this feature is utilized. First, \chainkey{force\_thres} must be set smaller than normal, perhaps even the same value as \chainkey{climb\_thres}. Since a different control file can produce a radically different PES, you would like to be as accurate as possible when converging the string, so that the error is not amplified with a tighter setting. Secondly, it's better to use \chainkey{climb\_mode} 2 or 3 for these kind of computations, since the single image climbing mode can rarely recover from a bad starting point. 
+
+This feature is best suitable for production works where a tighter setting which will dramatically increase the time required for single point calculations.
+
+As an alternative, you can also kill your running process and change the \texttt{control.in} file manually before restarting the process. 
+
+
+\chainkeydef{use\_gs\_method}
+{
+Usage: \chainkey{use\_gs\_method} true/false 
+
+
+Purpose: This controls whether the growing string method is used or not. 
+
+
+Default value: False
+}
+The growing string method(GSM) is explained in sample 6. It is best suitable for cases where it is certain that linear interpolations between initial and final images will not lead to a correct path. This can be caused by movements such as rotations. It is also useful when doing large-scale automated scanning, where the user does not have the time to look at geometries on a case by case basis.
+
+When set to true, the path will start from the two end point and slowly grow inward to generate a physical path. When the path is completely grown, it will be passed onto NEB/SM for further calculations.
+
+Beware that when direct interpolation can lead to correct paths, e.g. surface dispersion, using growing string method may reduce efficiency. 
+
+\chainkeydef{gs\_thres}
+{
+Usage: \chainkey{gs\_thres} true/false 
+
+
+Purpose: The GSM counterpart for \chainkey{force\_thres}.
+
+
+Default value: \chainkey{force\_thres}*1.5
+}
+
+When the forces in the system goes below this preset value, a new node will be added to the path. It should not be set too small, since the purpose of GSM is to generate a physical path, not a well-converged path. The default value gives a good guideline for this key. 
+
+
+\chainkeydef{gs\_n\_images}
+{
+Usage: \chainkey{gs\_n\_images} value 
+
+
+Purpose: The GSM counterpart for \chainkey{n\_images}.
+
+
+Default value: \chainkey{n\_images}
+}
+
+In some circumstances, you may want to specify a different number of images for the growing stage of the calculation. This key serves this purpose. After the growing process, the path will be re-sampled to match the value of \chainkey{n\_images}
+
+\chainkeydef{gs\_optimizer}
+{
+Usage: \chainkey{gs\_optimizer} dampedBFGS/BFGS/LBFGS/trm/CG/FIRE 
+
+
+Purpose: The GSM counterpart for \chainkey{optimizer}.
+
+
+Default value: trm
+}
+
+For GSM, dampedBFGS, trm, and FIRE are optimizers worth trying. 
+
+\chainkeydef{gs\_global\_optimizer}
+{
+Usage: \chainkey{gs\_global\_optimizer} true/false
+
+
+Purpose: The GSM counterpart for \chainkey{global\_optimizer}.
+
+
+Default value: false
+}
+
+We have not done enough testings to determine conclusively the better set of optimizers. The default provided here have performed well in our benchmarks, but feel free to try other combinations.
+
+\chainkeydef{lbfgs\_alpha}
+{
+Usage: \chainkey{lbfgs\_alpha} value
+
+
+Purpose: Set the curvature used to initialize the Hessian(in $eV/\AA^{2}$) in LBFGS. In general any value that is not magnitudes off are acceptable. 
+
+
+Default value: 120.0
+}
+
+\chainkeydef{lbfgs\_memory}
+{
+Usage: \chainkey{lbfgs\_memory} value
+
+
+Purpose: Set the number of past iteration that LBFGS is going to remember. A larger value will increase memory consumption, and a small value will decrease accuracy.
+
+
+Default value: 30
+}
+
+\chainkeydef{lbfgs\_maxstep}
+{
+Usage: \chainkey{lbfgs\_maxstep} value
+
+
+Purpose: The maximum step in $\AA$ that an atom can take in a single iteration. This is similar to \keyword{max\_atomic\_move}, but defaulted to a much smaller value due to the increasing complexity.
+
+
+Default value: 0.04
+}
+
+\chainkeydef{bfgs\_alpha}
+{
+Usage: \chainkey{bfgs\_alpha} value
+
+
+Purpose: Same as \chainkey{lbfgs\_alpha}, but used by BFGS, trm, and dampedBFGS optimizers.
+
+
+Default value: 120
+}
+
+\chainkeydef{bfgs\_maxstep}
+{
+Usage: \chainkey{bfgs\_maxstep} value
+
+
+Purpose: Same as \chainkey{lbfgs\_maxstep}, but used for BFGS and dampedBFGS optimizers.
+
+
+Default value: 0.04
+}
+
+\chainkeydef{fire\_dt}
+{
+Usage: \chainkey{fire\_dt} value
+
+
+Purpose: The initial time step used by the FIRE optimizer. 
+
+Default value: 0.02
+}
+It is set to a very conservative value because FIRE is intended to be used as a fall back when BFGS fails. Values up to 0.1 can be used to speed up the calculation, provided that the PES is smooth enough. Internally, the time step is dynamically adjusted, and this key only serves to initialize the value. 
+
+\chainkeydef{fire\_maxstep}
+{
+Usage: \chainkey{fire\_maxstep} value
+
+
+Purpose: Same as \chainkey{lbfgs\_maxstep}, but used for FIRE optimizer.
+
+
+Default value: 0.04
+}
+
+\subsection{Preparation before running}
+\subsubsection*{Creating a project directory}
+You should create a directory for each and every aimsChain calculation you are planning to run. It should contain the following files.
+\begin{verbatim}
+ -Project directory
+ |
+ |--chain.in
+ |
+ |--control.in
+ |
+ |--ini.in*
+ |
+ |--fin.in*
+ |
+ |--extgeo.lst*+
+ |
+ |--images*+
+      |
+      |-image1.in*+
+      |
+      |-image2.in*+
+      |
+      |-... 
+*The filename can be set by the user
++The files are only necessary for starting from external geometry. 
+\end{verbatim}
+
+\subsubsection*{geometry file}
+The initial and final geometry should be in the standard aims input format. Keywords such as constraints will be interpreted. The \keyword{constrain\_relaxation} tag should be used with caution--it acts as a double-edged sword in terms of MEP evaluation. You can try to remove the constraint tag from sample 2 and observe the efficiency boost for example. In other cases, setting it may help convergence by reducing degree of freedoms.  
+
+In addition, you should pre-align your initial and final geometries to remove any rotational/translational component in the geometry, this will reduce the computational effort required. 
+
+The ordering of atoms in the geometry file is very crucial. The atoms in the initial and final geometry must establish a one to one correspondence, so that the $i$th line in the initial and final geometry represents the same atom. Changing the order can change the result from the evaluation dramatically. 
+
+For example, consider the diffusion of benzene on a surface. By changing the ordering of atoms you may force the diffusion to be done via rotational or translational motion, which would result in very different MEP. If you can visualize more than one possible combination, try all of them to find the lowest barrier. It is a matter of fact that there often exists more than one MEP between two geometries, but the overall barrier is only determined by the MEP with lowest barrier. Chain of states methods will evolve toward the MEP that's closest to the initial path, but not necessarily the lowest in energy. 
+
+\subsubsection*{aims control file}
+The aims control file should contain two lines.
+\begin{verbatim}
+compute_forces .true.
+final_forces_cleaned .true.
+\end{verbatim}
+This will turn on the force evaluation for aims, which is required for any chain of states method. 
+\keyword{relativistic}, when required, must be set to \texttt{atomic\_zora scalar}, since we require force evaluations. 
+
+Sometimes additional configurations can require more than the two lines listed above. For example, when using \texttt{b3lyp} you need to set 
+\begin{verbatim}
+RI_method lvl_fast 
+\end{verbatim}
+for a correct force evaluation. Generally you can find these information in the aims output. A rule of thumb is to relax the geometry using your configurations and skim through the aims output for any warnings. This will force aims to provide all warnings related to the calcualtion of forces. When you have confirmed that the configuration if warning-free, just comment out the \keyword{relax\_geometry} for aimsChain calculation.
+
+You can also set \keyword{sc\_iter\_limit} to a lower value, which should still be much higher than the normal number of cycles that your system consumes. As the path evolves, it can be the case that during a few iterations the geometry become non-physical, and its scf cycle will never converge. Such cases often recover itself within a few iteration, and will not affect the final result. However, a default limit of 1000 will consume lots of computational power in these cases,  which is a complete waste especially for larger systems. 
+
+The control file should not have \keyword{relax\_geometry}, any molecular dynamic keywords, and etc. The geometry should not be altered by aims.  
+It is advised that you always use a light setting for the first run, so that tunning settings and confirming convergence can be done efficiently. If a more accurate result is desired, you can submit a tight run using the resulting geometries from the light run, which is always faster than a direct tight run from linear interpolation. 
+
+To ensure efficiency, you should configure your control file so that each single point calculation takes at most few minutes to finish. If a tighter setting is desired, consider using \chainkey{climb\_control} for a different control file during climbing image. 
+\subsubsection*{aimsChain control file}
+It is unlikely that you will need a long list of keywords in your control. Tags should be added gradually if you find that the default settings is not sufficient for your purpose.
+Keys that should be included on the first run are \chainkey{run\_aims}, \chainkey{initial\_file}, \chainkey{final\_file}, \chainkey{n\_image}, \chainkey{force\_thres}, \chainkey{restart}, and \chainkey{external\_geometry} if so desired. Simply grabbing the control from the samples will also work most of the times. 
+
+
+If you believe that your system follows a rather straightforward path geometrically(i.e. diffusion, small rotation, etc.), you can set the climbing image on your first run and see if it works out correctly. For any complex paths, such as non-trivial isomerization, fine tunning of the control file can be required for the system to converge. 
+
+\subsubsection*{job script}
+The job script should contain a call to \texttt{runchain.py}, as well as loading the necessary modules if that is not done in \texttt{.bashrc}. No post processing should be included unless you are certain that the system will converge and terminate within the time limit.
+ 
+\subsubsection*{external geometry}
+If you have any information about the path you are trying to find, please include them here. This can be a guess for transition state, geometry reported by papers, or your own interpolation by tweaking atoms in a visualization software. Coupled with \chainkey{resample}, any number of external geometries can help speed up the calculation process, making the process very flexible. 
+
+It is a common practice to take the intermediate path from a previous calculation (perhaps before it has gone wild) and use them as the initialization path for a new job. This is perfectly fine, and aimsChain outputs intermediate paths just for this purpose. However, when doing so please remember to remove the first and last image from the path, which are the same geometry as the initial and final states. The list of external geometries should only contain intermediate images, entering initial/final states in there will most likely lead to a dead end. 
+ 
+\subsection*{growing string method}
+GSM  offers another possibility for no-trivial calculations. If you believe your geometry will result in a geometrically complex reaction path, then using GSM will be your best bet. 
+
+GSM works by starting from the two end point, and gradually adding images toward the centre of the path. Whenever an image is added, it will be evolved until its forces falls below a threshold. This way we are not requiring any a priori knowledge on the intermediate path, where the standard SM/NEB method approximates with a linear interpolation.
+
+\subsubsection*{test the interpolation}
+One of the most important step you can take to ensure a successful MEP evaluation is to ensure that the initial path is physical. This is especially true for periodic systems where the periodic boundary condition plays an unwanted part in this. 
+
+We have provided a tool in \texttt{aimsChain/tools}, the \texttt{interpchain.py}. This gadget performs the resampling and interpolation process exactly the same way that the actual script is doing it, and therefore is a good way to check if the initial path is reasonable. 
+
+When ran, the program will create the \texttt{interpolation} directory in your project directory (and will clear that folder if it already exists!). 
+\begin{verbatim}
+ -Project directory
+ |
+ |--interpolation
+      |
+      |-image001.in
+      |
+      |-image002.in
+      |
+      |-... 
+      |
+      |-path.xyz
+\end{verbatim}
+
+There will be \chainkey{n\_images}+2 aims geometry created, including initial and final geometry. A multi-frame \textit{.xyz} file is also created in the directory for use with visualization softwares that doesn't support multi-file animation. If the geometry is periodic, the \textit{.xyz} file is repeated in each lattice vector according to \chainkey{xyz\_lattice} to make visualization easier. (because the standard xyz does not encode periodic information) Always check the interpolation if you are working with a new project, which can save you lots and lots of time if you happen to spot a bad interpolation(as shown in sample 4).
+
+\subsubsection*{a note on periodic systems}
+Running aimsChain on periodic systems requires extra precaution, because initial files from a periodic system can often provide misleading initial path. 
+
+The default interpolation algorithm when \chainkey{periodic\_interpolation} works as follows. For each atom in the final geometry, the coordinates are offset by each lattice vector in both the positive and negative direction. The results are compared with the same atom in the initial geometry, and the coordinate with the shortest distance is used as the actual coordinate for the final atom. This method is good in general. 
+
+However, it's still possible to imagine cases where a longer path is the actual path. For example, when trying to simulate the effect of an edge on one end. The shortest path may corresponds to climbing over the edge to reach the other end, while the true path, moving in the other direction, is to simply walk away from the edge. 
+
+In these cases, the coordinate of the final geometry must be adjusted manually, so that its coordinate corresponds to its true coordinate after the move, and does not involve any periodic boundary condition. \chainkey{periodic\_interpolation} should be turned off, and the interpolated path should be looked in details to ensure that the atoms in the base are also correctly interpolated. 
+
+\subsection{Running the script}
+When the script is running, it will first generate a few directories and files in the project directory. 
+
+\begin{verbatim}
+ -Project directory
+ |
+ |--forces.log
+ |
+ |--climbing_forces.log+
+ |
+ |--growing_forces.log*
+ |
+ |--iterations
+ |    |
+ |    |-iteration0000
+ |    |    |
+ |    |    |-aims-chain-node-0.00000
+ |    |    |	|
+ |    |    |	|-aims-chain-node-0.00000.out
+ |    |    |	|
+ |    |    |	|-control.in
+ |    |    |	|
+ |    |    |	|-geometry.in
+ |    |    |
+ |    |	   |-aims-chain-node-0.10000
+ |    |	   |    |
+ |    |    |    |-...
+ |    |
+ |    |-...
+ |
+ |--paths
+      |
+      |-iteration0000
+      |    |
+      |    |-image001.in
+      |    |
+      |    |-image002.in
+      |    |
+      |    |-...
+      |    |
+      |    |-path.xyz
+      |    |
+      |    |-ener.lst
+      |    |
+      |    |-path.lst
+      |    
+      |-iteration0001
+      |    |
+      |    |-...
+      |    
+      |-...
+      
++only generated if climbing image is used
+*only generated if growing string method is used
+\end{verbatim}
+
+\textbf{Warning!} Directories named \texttt{optimized}, \texttt{paths}, and \texttt{iterations} may be cleared/changed if they already exist. Don't leave useful information there!
+
+The \texttt{iterations} directory is where all the aims single point calculations are done. Each iteration has its own directory, where each single point calculation is again put in its own directory. They are labelled by the unique id of the particular images as well as the iteration it is in. This is also the place where aimsChain stores optimizer and restart related files. 
+
+The \texttt{paths} directory contains useful information for you while aimsChain is running. A directory is created for each iteration, containing all the necessary information you might be interested in. The \texttt{geometry.in} for each image is written, including the initial and final state. This is the perfect place to extract intermediate path if you would like to start a new job from there. Remember not to include the initial and final geometry in your external geometry list. A \textit{.xyz} animation is written, governed by \chainkey{xyz\_lattice}, which is handy for visualizing the current stage. \texttt{ener.lst} stores the current energy of the system, which is extracted from the aims outputs. The energies are offset so that the initial state is at the zero point. This will give a rough idea of the energy landscape along the path at the current iteration. \texttt{path.lst} lists the corresponding path in the \texttt{iterations} directory, in case you want to check the aims output for diagnostics.
+
+\texttt{ener.lst} and \texttt{path.lst} also labels the state each image is in. A ``FIXED'' label indicates that the images is not been moved from iteration to the next, which can be the case for the initial and final geometry, as well as during climbing image calculation. A ``CLIMB'' label indicates that this image is the climbing image, and when converged, represents the geometry of the saddle point. Normal nodes are simply labelled ``Normal''.
+
+There are also files named \texttt{forces.log}, \texttt{growing\_forces.log}, and \texttt{climbing\_forces.log} in your project directory, which records the residual forces in the system for each iteration. They are the most straightforward way to check the current state of the system. 
+
+When the path is converged, the result will be put into a directory named \texttt{optimized}. They will have the same geometry as the last iteration in the \texttt{paths} directory, but they are copied from \texttt{iterations} directory so that the aims outputs are included. The same is down for growing string method. Once the growing process is completed all the relevant info are write to the \texttt{grownstring} directory, so you don't have to re-grow your geometries for different calculations. 
+
+\subsection{Tips \& Guides On Running}
+It is important to inspect the calculation once in a while when it's running, so that it can be stopped when going astray.
+
+
+If the forces are going to extremely big values (several hundreds) after reaching a relatively small value, please have a look at the most recent geometry in \texttt{paths} to see if it's physical. Any non-physical path is most likely to have been caused by the BFGS optimizer. You should go backward and find the last iteration at which the geometries are physical (most likely corresponding to a small residual forces), and use that as the initial geometry for a new calculation with non-global FIRE optimizer or trm optimizer. 
+
+
+If the forces goes up and down repeatedly, try switching off the global optimizer. If that doesn't help, try FIRE or trm. 
+
+
+When climbing image is not converging, your \chainkey{force\_thres} might be too large for the system. If you are using \chainkey{climb\_mode} 1, consider extract the converged path before climbing started, and experiment with mode 2. Otherwise start a new calculation with the converged path and a higher threshold. 
+
+If you are focusing on achieving a very precise calculation, and your system is not computationally intensive, you may want to do the following. Increase number of images used. Utilize \chainkey{climb\_control} for tighter convergence at climbing image. Use \chainkey{climb\_mode} 2 or 3 for climbing image. Start with non-global FIRE in the first place to avoid potential problems with BFGS.
+
+If you are working with systems that are computationally expensive for aims, try these. Decrease the number of images, but use at least 3. (or more, if you have a complex reaction) First converge a path to a reasonable value.(below 1 $eV/\AA^{2}$ for example) Extract the path and try \chainkey{aims\_restart}. Your system may be one of the few that has a consistent wave function configuration as the string evolves to MEP. If the job stops after one iteration, then that has failed, simply re-submit the job after turning the flag off. Set \chainkey{restart} in both \texttt{control.in} and \texttt{chain.in}, even if you are not using \chainkey{aims\_restart}. This will save time when your calculation is stopped when exceeding the time limit. Try to use the lightest setting possible for the calculation. Only switch to tight settings after a good result is achieved on the light setting. 
+
+When the climbing image is converged, the image that's labeled ``CLIMB'' in \texttt{ener.lst} is the transition state. It may be the case sometime that when using \chainkey{climb\_mode} 1, the converged transition state has a lower energy than its neighbour. This is not a problem in general, its neighbour was not well converged to the path. If you are worried about it, set a tighter convergence threshold or using a different climb mode will help. 

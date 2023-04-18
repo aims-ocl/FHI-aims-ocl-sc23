@@ -1,0 +1,214 @@
+\section{Physical model: Geometry, charge, spin, etc.}
+
+The present section summarizes all keywords in FHI-aims that are directly
+concerned with the \emph{physical model} of the problem to be
+tackled. Importantly, this includes some specific subtags that you
+\emph{cannot} ignore, because they define the physical question that you are
+trying to address -- and no one else but you can do that. The present section
+thus includes such things as atomic positions or unit cells, but also the
+level of theory to be used (exchange-correlation, relativistic treatment), or
+a potential charge of the system. 
+
+\subsection*{Tags for \texttt{geometry.in}:}
+
+\keydefinition{atom}{geometry.in}
+{
+  \noindent
+  Usage: \keyword{atom} \option{x} \option{y} \option{z}
+  \option{species\_name} \\[1.0ex]
+  Purpose: Specifies the initial location and type of an atom. \\[1.0ex]
+  \option{x}, \option{y}, \option{z} are real numbers (in \AA) which
+  specify the atomic position. \\
+  \option{species\_name} is a string descriptor which names the element on
+    this atomic position; it must match with one of the species descriptions
+    given in \texttt{control.in}. \\
+}
+
+\keydefinition{atom\_frac}{geometry.in}
+{
+  \noindent
+  Usage: \keyword{atom\_frac} \option{$n_1$} \option{$n_2$} \option{$n_3$}
+  \option{species\_name} \\[1.0ex]
+  Purpose: Specifies the initial location and type of an atom in fractional coordinates. \\[1.0ex]
+  \option{$n_i$} is a real multiple of lattice vector $i$.
+  \option{species\_name} is a string descriptor which names the element on
+    this atomic position; it must match with one of the species descriptions
+    given in \texttt{control.in}. \\
+}
+Fractional coordinates are only meaningful in periodic calculations.
+
+\keydefinition{lattice\_vector}{geometry.in}
+{
+  \noindent
+  Usage: \keyword{lattice\_vector} \option{x} \option{y} \option{z} \\[1.0ex]
+  Purpose: Specifies one lattice vector for periodic boundary conditions. \\[1.0ex]
+  \option{x}, \option{y}, \option{z} are real numbers (in \AA) which
+  specify the direction and length of a unit cell vector. \\
+}
+If up to three lattice vectors are specified, FHI-aims automatically assumes
+periodic boundary conditions in those directions. \emph{Note} that the
+order of lattice vectors matters, as the order of $k$ space divisions (given
+in \texttt{control.in}) depends on it!
+
+\newpage
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{charge}{control.in}
+{
+ \noindent
+ Usage: \keyword{charge} \option{q} \\[1.0ex]
+ Purpose: If set, specifies an overall charge in the system. \\[1.0ex]
+ \option{q} is a real number that specifies a positive or negative total
+   charge in the system. \\
+}
+For most normal systems, this definition is unambiguous (sum of all nuclear
+charges in \texttt{geometry.in} minus number of electrons in the system). Note
+specifically that the same definition continues to hold also in systems with
+external embedding charges (specified by keyword \keyword{multipole} in
+\texttt{geometry.in}). The charges of the external embedding charges are in
+addition to the \keyword{charge} keyword in \texttt{control.in}, and
+\emph{not} included.
+
+\keydefinition{fixed\_spin\_moment}{control.in}
+{
+ \noindent
+ Usage: \keyword{fixed\_spin\_moment} \option{value} \\[1.0ex]
+ Purpose: If set, allows to enforce a fixed overall spin moment throughout the calculation. \\[1.0ex]
+  \option{value} : real-valued number, specifies the difference of electrons
+  between spin channels, $2S = N_\text{up}-N_\text{down}$. \\ 
+} 
+Meaningful only in the spin-polarized case (\texttt{spin collinear} in
+\texttt{control.in}). 
+
+This keyword replaces the earlier keyword
+\keyword{multiplicity}. Note that the value that must be given for
+\keyword{fixed\_spin\_moment} is $2S$, which corresponds to a
+\keyword{multiplicity} $(2S+1)$ ---i.e., the values are not the same.
+Keyword \keyword{fixed\_spin\_moment} works for periodic and cluster
+systems alike, and uses two different chemical potentials (Fermi
+levels) for the spin channels.
+
+\keydefinition{species}{control.in}
+{
+  \noindent
+  Usage: \keyword{species} \option{species\_name} \\[1.0ex]
+  Purpose: Defines the name of a species (element) for possible use with atoms
+    in \texttt{geometry.in}\\[1.0ex] 
+  \option{species\_name} is a string descriptor (e.g. C, N, O, Cu, Zn,
+    Zn\_tight, ...). \\
+}
+Every \option{species\_name} used in an atom descriptor in
+\texttt{geometry.in} must correspond to a \keyword{species}
+given in \texttt{control.in}. Following the \keyword{species} tag, all
+sub-tags describing that species must follow in one block. (No particular
+order is enforced within that block). For example, the choice of the basis
+set, the atom-centered integration grid, or the multipole decomposition of
+the atom-centered Hartree potential are all specified per \keyword{species}. 
+
+\keydefinition{spin}{control.in}
+{
+ \noindent
+ Usage: \keyword{spin} \option{type} \\[1.0ex]
+ Purpose: Specifies whether or not spin-polarization is used. \\[1.0ex]
+ \option{type} is a string, either \texttt{none} or
+ \texttt{collinear}, depending on whether an unpolarized (spin-restricted) or
+ spin-polarized (unrestricted) calculation is performed. \\
+}
+In the \texttt{collinear} case, defining the moments used to create the
+initial spin density is required (see the beginning of Sec. \ref{Sec:scf} for
+an explanation). This means that an overall \keyword{default\_initial\_moment}
+(in \texttt{control.in}), or at least one individual \keyword{initial\_moment}
+tag in \texttt{geometry.in}, or both, must be set. Else, the code will stop
+with a warning. (It is not necessary to specify \keyword{initial\_moment} for
+every atom in \texttt{geometry.in}. A single one will do.) Choosing the right
+initial spin density can be performance-critical, and critical for the
+resulting physics. FHI-aims should not make this choice for you.
+
+\emph{Warning:} It is not a good idea to run each and every calculation
+with \keyword{spin} \texttt{collinear} just because that seems to be
+the more general case. In a system that will safely be non-magnetic,
+using something other than \keyword{spin} \texttt{none} \emph{will}
+roughly double the CPU time needed in the best case, and it will most
+likely lead to much worse s.c.f. convergence (i.e., more iterations
+needed to find the self-consistent electronic solution). There is no
+fundamental problem with running \keyword{spin} \texttt{collinear}, but
+again: just doing this out of some sense of impartiality may not be a
+wise use of resources.
+
+This keyword is completely independent of spin-orbit coupling, which is
+applied as a post-processed correction after the SCF cycle has converged.  
+For more information on spin-orbit coupling, please see the 
+\keyword{include\_spin\_orbit} keyword and the discussion in the associated
+chapter.
+
+\newpage
+
+\subsection*{Subtags for \emph{species} tag in \texttt{control.in}:}
+
+\subkeydefinition{species}{mass}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{mass} \option{M} \\[1.0ex]
+  Purpose: Atomic mass\\[1.0ex]
+  \option{M} is a real number that specifies the atomic mass in atomic
+  mass units (amu).\\
+}
+This tag is used only for molecular dynamics. The preconstructed
+\texttt{species\_defaults} files supplied with FHI-aims contain
+the mass \emph{average} over the different isotopes of each natural
+element. 
+
+\subkeydefinition{species}{nucleus}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{nucleus} \option{Z} \\[1.0ex]
+  Purpose: Via the nuclear charge defines the chemical element associated with
+    the present species.\\[1.0ex]
+  \option{Z} is a real number (the nuclear charge). \\
+}
+\option{Z} is usually an integer number. However, partial (non-integer) charges
+are also possible. 
+
+Fractional \option{Z} can be useful, for example, for a stoichiometric hydrogen-like 
+termination of a compound semiconductor slab (e.g., in a III-V compound, the valence of
+the connecting element would be mimicked by a fractionally charged H
+of charge 0.75 or 1.25). 
+
+If the difference between the specified nuclear charge and the nearest integer is
+greater than 0.34, keyword \subkeyword{species}{element} may be needed to be set
+explicitly in the species definition to designate an unambiguous chemical identity.
+
+Fractional \option{Z} can also be useful to
+distribute a compensating charge for an electronically charged
+periodic supercell calculation. In electronic charged periodic systems, a
+compensating background charge is always implicit. This is often
+accomplished by introducing an implicit homegeneous charged background
+density. However, the choice of such a jellium background is often
+anything but ideal. For instance, in a surface slab calculation, part
+of this compensating charge will be located in the vacuum. In such
+cases, it may be better to place the compensating charge in the system
+explicitly and ``by hand''. One good way to do this is to place the
+compensating charges on certain nuclei.\cite{Richter2013}
+
+If you add a fractional \option{Z} to a species\_default, you will
+have to take care to modify the \subkeyword{species}{valence} tags to
+reflect the exact opposite charge, creating an overall neutral
+spherical free atom as far as the \subkeyword{species}{valence}
+occupation numbers in the species definition go. 
+
+\subkeydefinition{species}{element}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{element} \option{symb} \\[1.0ex]
+  Purpose: Chemical element associated with the species.\\[1.0ex]
+  \option{symb} is a string (max.\ 2 characters) that corresponds to the symbol
+  of the chemical element. Default: see below.\\
+}
+The purpose of this tag is to specify the chemical identity of a species in the
+rare cases when it cannot be determined from \option{Z} because it has been set
+to a non-integer value. In particular, when \option{Z} is more than 0.34 from
+the nearest integer number, the species element must be set with the
+\subkeyword{species}{element} tag. Currently, this value is used only by the
+van der Waals routines, but the requirement above must be satisfied for any
+calculation.

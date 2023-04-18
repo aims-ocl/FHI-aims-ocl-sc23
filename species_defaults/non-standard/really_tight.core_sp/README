@@ -1,0 +1,91 @@
+VB, 09/21/2010
+
+"Core polarization" basis sets for FHI-aims ... and their handling.
+
+*** The species defaults given in this directory are subject to progress, and
+    not yet complete. If you discover anything here which is inaccurate or
+    outdated, please correct after coordinating with me, and also correct the
+    README file. -VB ***
+
+The species defaults given in this directory are intended for use in
+calculations that explicitly rely on both the occupied and unoccupied parts of
+the ground-state eigenfunctions to describe correlation. Currently, these are:
+
+- MP2
+- RPA
+- GW
+
+In these cases, a significant correlation contribution arises for the core
+(and possibly valence) states near the nucleus which is not captured by the
+single core radial function of a ground-state free atom. This correlation
+contribution can be large, will be incompletely captured in any multi-atom
+structure (overlap of neighboring basis functions), and can thus lead to
+sizeable basis set superposition errors for any "correlated method".
+
+The basis sets given here add specific "core correlation" basis functions that
+aim to capture the core correlation contribution already for a free atom. They
+were created by Mariana Rossi, based on the minimization(!) of MP2 total
+energies for symmetric dimers, starting from the normal "tier 2" basis
+sets. They are otherwise based on the normal "really_tight" species defaults. 
+
+At present, our experience is as follows:
+
+- For Hydrogen, no additional "core correlation" basis functions are needed
+  (or helpful).  
+
+- For the light elements C, N, O:
+
+  * The first radial functions that result are always one s- and one p-type
+  radial function, leading to high energy gains. They are labelled as
+  "core_sp" in the present directory. These two radial functions already
+  alleviate a significant part, but by no means all of the BSSE encountered in
+  simple test systems.
+
+  * The next few radial functions that are used are (in varying order) s-, p-,
+    d-, d-type, leading to basis sets labelled as "core_spspdd". For C, N, O,
+    the two d-type radial functions are hydrogen-like 3d functions with
+    effective Z approx. 15 and 30, respectively, but their order of appearance
+    differs from element to element; we therefore keep both, for now. In
+    addition, the automated basis set construction would also add f-type
+    radial functions. However, these functions are not very localized at
+    all. Empirically, they do not improve the BSSE in any way, either. They
+    are therefore currently not kept active (commented out instead). In
+    addition, the automated basis set construction would not any more s
+    functions, preferring p-, d-, f-type functiona at any given point. The
+    "best" s functions at a given point are therefore added by hand for each
+    element. It is important to note that the improvement per basis function
+    (not per radial function) is much greated from the single s function than
+    from the (multiple) d or f basis functions associated with each radial
+    function. 
+
+  * From both core_sp and core_spspdd, the "usual" tier 3 and tier 4 basis
+    functions can be added systematically as always. A reduction to tier 1
+    only is also possible.
+
+- For best results, total energy _differences_ should be computed with these
+  basis functions not directly, but from a difference of atomization
+  energies. For the atomization energies, each atom should be treated with an
+  individual BSSE correction. At least, this is my impression so far. 
+
+  For atomization energies, it is critical to pay attention to the symmetry
+  state (symmetry breaking or not) of the self-consistent electronic structure
+  of each free atom, especially O.
+
+- To Do: At present, we have no way of adding any more meaningful radial
+  functions. There are a variety of possibilities to go on:
+
+  * Use CISD instead of MP2 as an optimization target. MP2 is not variational,
+    and "just minimizing" the MP2 total energy may be a bad strategy. CISD, on
+    the other hand, is variational.
+
+  * Christoph Friedrich & Markus Betzinger of the Juelich LAPW group have a
+    well-defined way of adding analytically defined radial functions to the
+    LAPW basis set that allow to treat the polarizability correctly. This may
+    be exactly our problem, and could enable us to solve the problem of core
+    polarization functions analytically.
+
+  * More elements. Obviously, C, N, O are not everything. A partial basis set
+    for Si is in the works (but not finished); for a heavier element (Cu) we
+    ran into numerical problems. May or may not be related to the
+    non-variational nature of MP2, but not resolved yet.
+

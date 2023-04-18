@@ -1,0 +1,258 @@
+\section{Restarting FHI-aims calculations}
+\label{Sec:restarts}
+\emph{This section gives background information on restarts in FHI-aims.}
+
+\subsection{General restart procedure}
+Calculations can be restarted from previous wavefunctions using the keyword
+\keyword{restart}. In general, restarting the same calculation on the same
+computer using the same number of MPI-tasks will always work.
+
+\paragraph{Important --- Rotated systems:} FHI-aims wavefunctions are not
+symmetry-aware. While the same restart file can be used for molecules
+\emph{translated} by a vector, this does not work for \emph{rotated} molecules.
+For a way to restart systems with rotated geometries or superpositions of
+molecular densities see Section~\ref{Sec:rotated-restarts}.
+
+FHI-aims has two main means of saving the wavefunction for a later restart,
+depending on the used keywords.
+
+\paragraph{Kohn--Sham eigenvector (\emph{"wavefunction"}):} This is the default
+case always used for calculations using the LAPACK solver. The saved file
+contains some information on the system (number of basis functions, states,
+spin, k-points), the Kohn--Sham eigenvector, eigenvalues and occupations.
+
+\paragraph{Kohn--Sham density matrix (\emph{"density matrix"}):} This variant is
+only used for calculations using the scaLAPACK or ELPA solver. The saved file
+contains the density matrix ($\hat{n}_{ij}=\sum_l f_l c_{il} c_{jl}$), either in
+full or sparse storage.
+
+The corresponding keywords determining which version of storage is used are
+\keyword{KS\_method} and \keyword{density\_update\_method}. See
+Fig.~\ref{fig:restart_scheme} for possible options and outcomes.
+
+\begin{figure}[hb]
+  \centering
+  \includegraphics[width=0.9\textwidth]{./imgs/restart_scheme}
+  \caption{Scheme of different restart types depending on used methods.}
+  \label{fig:restart_scheme}
+\end{figure}
+
+For technical reasons there is not one single way, but the above mentioned
+variants with again, variants.
+
+The \emph{density matrix} based restart always
+writes one file per spin-channel, no matter how many parallel MPI tasks are
+used.
+The \emph{wavefunction} based restart generally writes a single restart file
+for all cluster calculations and one file per MPI-task for periodic
+calculations. Due to this periodic calculations using the \emph{wavefunction}
+restart need to be restarted with the same number of MPI-tasks.
+
+\subsection{Mixing variants - the "force\_single\_restartfile" option}
+For a subset of possible calculations the above described differences are not
+valid and it is possible to restart different calculations using one type of
+restart file. This is the case for all possible cluster calculations (using
+either the LAPACK or scaLAPACK/elpa solver) and for periodic calculations with
+only 1 k-point, $\Gamma$-only (using either the LAPACK or scaLAPACK/elpa solver).
+
+This is implemented via the keyword \keyword{force\_single\_restartfile}. Using
+this functionality, it is for example possible to profit from the parallel ELPA
+solver for huge systems and still get a file containing the KS-wavefunction for
+post-processing.
+
+\subsection{Comments on the 'restart' starting point and on self-consistency}
+As noted in the description of the \keyword{restart} keyword, 
+it is important to note that the \keyword{restart} infrastructure
+corresponds to a restart from the last Kohn-Sham orbitals, not from
+the last density. 
+
+In practice, this means that the code will restart
+from the last \emph{unmixed} Kohn-Sham density, not from the last
+\emph{mixed} density. When restarting from a non-selfconsistent
+starting point, this can lead to unexpected jumps in the calculated
+non-selfconsistent total energy between the ``old'' and the ``new'' 
+(restarted) FHI-aims run.
+
+Only the self-consistent total energy is truly meaningful. This quantity (the
+self-consistent) total energy should be the same for the same
+stationary density, when approached from different starting densities.
+However, note additionally that some systems may exhibit several
+different self-consistent stationary densities even for 
+the exact same atomic positions and for the exact same density functional. 
+A simple example are
+antiferromagnetic vs. ferromagnetic spin states in some systems. In
+such cases, the true ground state in a DFT sense is the stationary density 
+that yields the lowest energy. It can be found by way of a global search for
+different stationary densities, usually by varying the initial density guess.
+
+
+\subsection{Rotating the FHI-aims wavefunction}
+\emph{This feature is new and tested for the case of weakly interacting organic
+        molecules as can be found in organic crystals. If you encounter any
+        problems or strange behaviour, please let us know!}
+
+In many molecular systems a rotation does not change the electron density
+(or wavefunction) of a system. Therefore, the same wavefunction can be used
+again to restart such a calculaction.
+
+This is especially true for weakly interacting systems such as van-der-Waals
+bound organic crystals. In these cases, the wavefunction of each single molecule
+in the crystals is not too different from the isolated wavefunction of a single
+molecule. This can be exploited to start a FHI-aims calculation of huge
+molecular systems from a \emph{superposition of molecular densities} instead of
+the usual \emph{superposition of atomic densities}. 
+
+This functionality is implemented as an external tool using Python and can be
+found in the FHI-aims repository itself (Python-package \emph{aimsutils}) or at
+\url{https://gitlab.lrz.de/theochem/aimsutils}.
+
+If you use this functionality, please cite \emph{C. Schober, K. Reuter, H.
+        Oberhofer, J. Chem. Phys., 144:054103, 2016}\cite{Schober2015}.
+
+\subsubsection*{Important pre-requisites}
+This functionality only works for restart files containing the wavefunction of
+the system, not the density matrix. Therefore, please make sure you have
+wavefunction restart files or use the option
+\keyword{force\_single\_restartfile}. The FHI-aims output file of the
+calculation is also necessary.
+
+Rotations can be defined via Euler angles in \emph{zyz} convention or quaternions. 
+To avoid any confusions with rotational conventions (especially with Euler
+angles), the input geometry will be rotated and saved using the same rotation
+matrix. Please be sure to check if your expected and the actual rotation are the
+same (or directly use the generated \texttt{geometry.in}). 
+
+The final rotated restart file is again in the wavefunction format.
+
+\begin{verbatim}
+- example_calc
+|
++-- control.in              
++-- geometry.in             # necessary 
++-- aims.out                # necessary 
++-- restart.wavefunction    # name can be anything, will be parsed from outfile
+\end{verbatim}
+
+\subsubsection*{Examples}
+The two examples are shown using pre-defined scripts, but it is
+totally possibly to use the Python package directly. The full Python API is
+available via the Sphinx-documentation of the \emph{aimsutils} package.
+
+\paragraph{Rotation of a single system:} The script \texttt{RotateSingle.py} can be
+used to create the rotated geometry and restart for a single calculation.
+\begin{verbatim}
+        $: # RotateSingle alpha beta gamma -t x y z
+                          '-----.-----'    '---.---'
+                          Euler angles   translation vector
+        $: RotateSingle 45 0 123 5.4 2.3 6.3
+
+        $: # RotateSingle x_i x_j x_k x_l -t x y z
+                          '------.------' '---.---'
+                            quaternion   translation vector
+        $: RotateSingle 0.33 -0.12 0.44 0.84 5.4 2.3 6.3
+\end{verbatim}
+This will create a subfolder \emph{rotated} with the new \texttt{restart.combined}
+and \texttt{geometry.in}.
+
+\paragraph{Rotation and combination of wavefunctions} The script
+\texttt{RotateMany.py} reads a instruction file (\texttt{rotations.in}) with the
+following format:
+\begin{verbatim}
+            # Comments or empty lines are ignored
+
+            # title will also be foldername
+            title project_x
+            # lattice vector for new cell if any
+            lattice_vector 11.2 0.00 0.00
+            lattice_vector 0.00 10.5 0.00
+            lattice_vector 0.00 0.00 10.7
+            # now all rotated molecules
+            # Euler angles (zyz)
+            # alpha beta gamma x y z parent_molecule
+            33.4 12.4 167.0   10.  0.  0.  calc_2
+             0.  45.    0.     3.5 2.1 5.4 calc_1
+           130.  90.   23.     0.  2.6 12. calc_3
+            # OR Quaternion
+            # x_i x_j x_k  x_l   x y z
+            -0.4 0.15 0.33 -0.84 4 0 0 calc_2
+            -0.2 0.45 0.13  0.84 0 2 0 calc_1
+             0.0 0.00 0.00 -0.32 4 4 5 calc_3
+\end{verbatim}
+
+The necessary converged FHI-aims calculations must be in subfolders with the
+appropriate name:
+\begin{verbatim}
+- calc_something/ (main calculation folder)
+|
++-- rotations.in
++-- calc1/
+    |
+    +-- ...
++-- calc2/
+    |
+    +-- ...
++-- calc3/
+    |
+    +-- ...
+
+\end{verbatim}
+This will create a subfolder \texttt{project\_x} with the rotated wavefunction
+assembled from the individual calculations defined in the script
+(\texttt{restart.combined}) and geometry (\texttt{geometry.in}).
+
+\subsubsection*{Theory}
+\label{Sec:rotated-restarts}
+The following should give a summary of how the rotation of wavefunctions can be
+done with FHI-aims. For details on the used methods and mathematics, please
+have a look at the references.
+
+In FHIaims, a basis function is defined as
+\begin{align}
+    \Phi_{i,lm} = \frac{u_i(r)}{r}\cdot S_{l,m}(\theta, \phi),
+\end{align}
+with $S_{l,m}(\theta, \phi)$ being real valued spherical harmonics. These are
+obtained from the complex spherical harmonics $Y_{lm}$ via
+\begin{align}
+        S_{l,m}(\theta, \phi) = 
+    \begin{cases} 
+            \frac{(-1)^m}{\sqrt(2)}(Y_{lm} + Y_{lm}^*) & m > 0\\
+            Y_{l0} & m=0\\
+            \frac{(-1)^m}{i\sqrt(2)}(Y_{l|m|} - Y_{l|m|}^*) & m < 0\\
+    \end{cases}
+\end{align}
+A wavefunction is then given by
+\begin{align}
+        \Psi_k(r) = \sum_{i=1}^{\text{n\_basis}}c_i^k\Phi_i(r)
+\end{align}
+with the coefficients $c_i^k$. 
+
+A rotation of the molecule (rotation matrix $\mathbf{R}$ leads to the same set
+of YLMs $\mathcal{Y}$ (as they are fixed with respect to the xyz-coordinate
+system), but with different coefficients $\mathbf{c}$ (new linear combination
+of basis functions):
+
+\begin{align}
+    \mathbf{c'} = \mathbf{R}\mathbf{c}
+\end{align}
+
+The rotation of complex YLMs can be done with Wigner~D matrices ($D^l_{mm'}$).
+For real YLMs different schemes are
+available\cite{lessig_efficient_2012,aubert_alternative_2013,blanco_evaluation_1997}.
+Due to the non-default YLM convention in FHIaims we construct our rotation
+matrices for different $l$ from the complex Wigner~D matrices via the
+transformation matrix $\mathbf{C}^l$ (reference:
+\cite{blanco_evaluation_1997}):
+\begin{align}
+        S_{l,m} = \mathbf{C^l}Y_{l,m}
+\end{align}
+The matrix $\mathbf{C}$ is constructed according to
+\cite{blanco_evaluation_1997} with the constraint of the different sign
+convention in FHIaims. The real rotation matrix $\Delta^l(R)$,
+\begin{align}
+        \Delta^l(R) = \left(\mathbf{C}^l\right)^*\mathbf{D}^l(R)\left(\mathbf{C}^l\right)^t,
+\end{align}
+is then used to obtain the rotated coefficients for each $l, m$ for each basis
+function in the system.
+\begin{align}
+    \mathbf{c}'^{l} = \Delta^l(R)\mathbf{c}^{l}
+\end{align}

@@ -1,0 +1,163 @@
+\section{Linear macroscopic dielectric function and Kubo-Greenwood transport}
+
+The linear macroscopic dielectric tensor $\epsilon_{ij}(\omega)$, the ratio between the average of the total potential in one unit cell and the external field, 
+within the RPA is calculated. For derivation from the microscopic dielectric function $\epsilon(\vec{r},t;\vec{r'},t')$ and references see \cite{Draxl06} 
+(Chapter 1, 2 and appendix). From the complex frequency dependent dieletric function all other optical constants can be determined, e.g. optical conductivity, 
+Loss function, Reflectivity, etc. Also see Appendix K in Ashcroft/Mermin: solid state physics.\\
+The frequency dependent real and imaginary part of the inter- (eq.~\ref{inter}) and intra- (eq.~\ref{intra}) band contribution to the linear dielectric tensor is calculated as post-processing after 
+convergence of the SCF-cycle from (atomic units):
+\begin{align}
+ \epsilon_{ij}(\omega)=\delta_{i,j}&-\frac{4\pi}{ V_{cell}\omega^2}\sum_{n,\mathbf{k}}\left(-\frac{\partial f_0}{\partial \epsilon}\right)_{\epsilon_{n,\mathbf{k}}}p_{i;n,n,\mathbf{k}}p_{j;n,n,\mathbf{k}}\label{intra}\\
+                       &+\frac{4\pi}{V_{cell}}\sum_{\mathbf{k}}\sum_{c,v}\frac{p_{i;c,v,\mathbf{k}}p_{j;c,v,\mathbf{k}}}{\left(\epsilon_{c,\mathbf{k}}-\epsilon_{v,\mathbf{k}}-\omega\right)\left(\epsilon_{c,\mathbf{k}}-\epsilon_{v,\mathbf{k}}\right)^2}\label{inter}
+ \end{align}
+$f$ is the Fermi-function and $V_{cell}$ the unit cell volume. The intra band part is singular at $\omega=0$. Here the plasma frequency $\omega_{pl;ij}$ is calculated:
+\begin{equation}
+ \omega^2_{pl;ij}=\frac{1}{\pi }\sum_n\int_{\vec{k}}p_{i;n,n,\vec{k}}p_{j;n,n,\vec{k}}\delta(\epsilon_{n,\vec{k}}-\epsilon_{F})
+\end{equation}
+By adopting a Drude-like shape for the intra-band contributions a lifetime broadening $\Gamma$ is introduced and $\epsilon_{ij}^{inter}(\omega)$ becomes:
+\begin{align}
+ &\mathrm{Im}(\epsilon_{ij}^{intra}(\omega))=\frac{\Gamma\omega^2_{pl;ij}}{\omega(\omega^2+\Gamma^2)}\\
+&\mathrm{Re}(\epsilon_{ij}^{intra}(\omega))=1-\frac{\omega^2_{pl;ij}}{\omega^2+\Gamma^2}
+\end{align}
+In the case of a spin unpolarized calculation eq.~\ref{inter} and eq.~\ref{intra} have to be multiplied by $2$ to yield the correct occupation.\\
+The following quantities are needed/calculated:
+\begin{itemize}
+ \item[-] $\epsilon_{n,\vec{k}}$ - the eigenvalue of the Kohn-Sham eigenstate $(n,\vec{k})$.
+ \item[-] $\delta(\epsilon_{n^{'},\vec{k}}-\epsilon_{n,\vec{k}}-\omega)=\frac{1}{\sqrt{2\pi}width}exp\left(-\frac{1}{2}\frac{(\epsilon_{n^{'},\vec{k}}-\epsilon_{n,\vec{k}}-\omega)^2}{\Gamma^2}\right)$ - Gauss function with width $\Gamma$=$width$ for calculating the plasma frequency. In eq~\ref{inter} $\omega$ is replaced by $\omega+\mathrm{i}\Gamma$, introducing Lorentzian broadenig.
+ \item[-] $p_{j;n^{'},n,\vec{k}}=\left\langle\psi_{n^{'}\vec{k}}\vert\nabla_j\vert\psi_{n\vec{k}}\right\rangle$ - the momentum matrix elements calculated form the real space basis 
+functions in k-space and KS-eigenstate basis
+\end{itemize}
+\begin{equation}
+ \left\langle\psi_{n^{'}\vec{k}}\vert\nabla_j\vert\psi_{n\vec{k}}\right\rangle=\sum_{ij}c_{in^{'}}^{*\vec{k}}c_{jn}^{\vec{k}}\sum_{\vec{N},\vec{M}}\mathrm{e}^{\mathrm{i}\vec{k}\left[\vec{T}\left(\vec{N}\right)-\vec{T}\left(\vec{M}\right)\right]}\left\langle\phi_{i\vec{M}}\vert\nabla_j\vert\phi_{j\vec{N}}\right\rangle
+\end{equation}
+\begin{equation}
+ \left\langle\phi_{i\vec{M}}\vert\nabla\vert\phi_{i\vec{N}}\right\rangle=\int_{\text{unit cell}}\mathrm{d}^3 r \phi_{i,\vec{M}}\vec{\nabla}\phi_{j,\vec{N}}
+\end{equation}
+with the real space functions $\phi_i(\vec{r})$ centered in unit cells shifted by $\vec{T}\left(\vec{N}\right),~\vec{N}=(N_1, N_2, N_3)$, see \cite{Blum08} for details.
+
+Building up on the expressions for the dielectric function also the corresponding Kubo-Greenwood transport properties expressed via the Onsager coefficients $L_{ij}$: 
+
+\begin{equation}
+ L_{ij}(\omega) = \frac{2\pi e^{4-i-j}}{3V m^2_e \omega} \sum_{\bm{k},m,n} | \langle \Psi_m |\bm{\hat{p}} | \Psi_n \rangle|^2 \cdot   \left( \frac{\epsilon_{\bm{k}m} + \epsilon_{\bm{k}n}}{2} -\epsilon_{Fermi}   \right)^{i+j-2}   \cdot   \left(f_{\bm{k}m}-f_{\bm{k}n}\right)  \delta\left(\epsilon_{\bm{k}n}-\epsilon_{\bm{k}m}-\hbar \omega \right) 
+\end{equation}
+
+In this representation $L_{11}$ corresonds to the optical conductivity $\sigma(\omega)$. Furthermore the (frequency dependent) Seebeck coefficient is easily obtainable: 
+
+\begin{equation}
+S = \frac{L_{12}}{TL_{11}}
+\end{equation}
+\newpage
+
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+\keydefinition{compute\_dielectric}{control.in}
+{
+  \noindent
+  Usage: \keyword{compute\_dielectric}  \option{$\omega_{max}$} \option{$n_\omega$} \\[1.0ex]
+  Purpose: Sets basic parameters for calculating the imaginary and real part of the inter-band and intra-band contribution to the linear dielectric tensor within the RPA approximation.  This keyword is specified once to set parameters for the dielectric tensor calculation.\\ 
+  
+  By setting this keyword, the whole dielectric tensor components (in directions: x\_x, y\_y, z\_z, x\_z, y\_z, x\_y) would be output automatically within the corresponding absorption coefficients (in directions: x\_x, y\_y, z\_z) for the diagonal parts.  \\ 
+  The momentum matrix elements in the energy window [ VBM-(\option{$\omega_{max}$} + 10.0 eV), CBM+(\option{$\omega_{max}$} + 10.0 eV)] (in eV) relative to the internal zero will be summed. \\ 
+  The default broadening type and broadening width used for the delta function is 0.1 eV in Lorentzian type. These settings can also be changed via the \keyword{dielectric\_broadening} keyword. \\
+  In order to avoid numerical integration  errors caused by including 0 eV energy, the minimum energy ($\omega_{min}$) are automatically setting to a spefic value corresponding to the broadening width you used (broadening width/ 10.0). \\
+  The resulting output files will be named dielectric\_function\_(directions).out (e.g. dielectric\_function\_x\_x.out for the x\_x direction) and absorption\_(directions).out. \\ 
+  In order to test the impacts of different broadening type and broadening parameters, the individual tensor component for the dielectric constants can also be specified via the \keyword{output dielectric} keyword. By setting this keyword, the code would only output the dielectric functions in the directions you listed in the \keyword{output dielectric} keyword, instead of automatically outputing the whole tensor components. 
+    The calculation is very sensitive to the k-point grid, an extremely high number of k-points might be needed for convergence, especially for metals.\\[1.0ex]
+}
+\keydefinition{dielectric\_broadening}{control.in}
+{
+   \noindent 
+   Usage: \keyword{dielectric\_broadening} \option{broadening\_method} \option{width} \\[1.0ex]
+   
+   Purpose: Changing the broadening function type and broadening parameters used in the dielectric calculation. To use this keyword, the \keyword{compute\_dielectric} keyword must be specified in \texttt{control.in} \\
+   The Delta-distribution is approximated by a broadening function specified by the \option{broadening\_method} option with a defined width specified by the \option{width} option (in eV). Gaussian (\option{gaussian}) and lorentz (\option{lorentzian}) broadenings are supported.   
+}
+
+\keydefinition{output dielectric}{control.in}
+{
+   \noindent
+   Usage: \keyword{output dielectric} \option{broadening\_method} \option{width} \option{i} \option{j}\\[1.0ex]
+
+   Purpose: Output the \option{i}\option{j} tensor components (choices: i,j = x, y, z) of the imaginary and real parts of the inter-band and intra-band contribution to the linear dielectric tensor.  This keyword may be specified multiple times in \texttt{control.in} to output more than one tensor component (possibly with different broadenings) per calculation.  The RPA approximation (i.e. Lindhard theory) is used.  To use this keyword, the \keyword{compute\_dielectric} keyword must be specified in \texttt{control.in}.
+   
+   Note: This keyword are just setted for testing purpose. By setting this keyword, only the directions you listed will be output. 
+   The Delta-distribution is approximated by a broadening function specified by the \option{broadening\_method} option with a defined width specified by the \option{width} option (in eV).   Gaussian (\option{gaussian}) and Lorentz (\option{lorentzian}) broadenings are supported.  Good starting choices for parameters are \option{broadening\_method} = gaussian and \option{width}=$0.05eV$.  We encourage the user to try out different broadenings by specifying this keyword multiple times. \\[1.0ex]
+}   
+\keydefinition{compute\_absorption}{control.in}
+{
+  \noindent
+  Usage: \keyword{compute\_absorption} \option{width} \option{$E_{min}$} \option{$E_{max}$} \option{$\omega_{min}$} \option{$\omega_{max}$} \option{$n_\omega$} \option{i} \option{use\_gauss}\\[1.0ex]
+  Purpose: Calculate and output the \option{i} component (choices: x, y or z) of the linear absorption. 
+  \begin{equation}
+   \alpha_{i}(\omega)=\frac{8\pi^2}{\omega V_{cell}}\sum_{c,v}\sum_{\vec{k}}\left|p_{i;c,v,\vec{k}}\right|^2\delta(\epsilon_{c,\vec{k}}-\epsilon_{v,\vec{k}}-\omega)\mathrm{d}\vec{k}
+  \end{equation}
+  The momentum matrix elements in the energy window [\option{$E_{min}$},\option{$E_{max}$}] (in eV) relative to the internal zero are summed up. The Delta-distribution is 
+  represented by a Gaussian function (\option{use\_gauss} = .true.) or a Lorentz function (\option{use\_gauss} = .false.) with width \option{width} (in eV) 
+  for \option{$n_\omega$} $\omega$-values in the interval [\option{$\omega_{min}$}, \option{$\omega_{max}$}] (in eV). The output file is named \textit{absorption\_}\option{i}\textit{.out}. 
+  A good choice is: \option{width}=$0.1eV$, usually it is enough to include only a few states below and above the fermi level in the 
+  energy window [\option{$E_{min}$},\option{$E_{max}$}]. The unit is $a_0^{-1}$. $V_{cell}$ the unit cell volume. (see page 38, eq. 3.13 and 3.14 of http://www.tddft.org/bmg/files/papers/85619.pdf, \cite{Botti2012})\\
+  The calculation is very sensitive to the k-point grid, an extremely high number of k-points might be needed for convergence, especially for metals.\\[1.0ex]
+}
+\keydefinition{compute\_momentummatrix}{control.in}
+{
+  \noindent
+  Usage: \keyword{compute\_momentummatrix} \option{$E_{min}$} \option{$E_{max}$} \option{k-point}\\[1.0ex]
+  Purpose: Calculate and output the momentum matrix elements $\left\langle\psi_{n^{'}\vec{k}}\vert\nabla_x\vert\psi_{n\vec{k}}\right\rangle$, 
+  $\left\langle\psi_{n^{'}\vec{k}}\vert\nabla_y\vert\psi_{n\vec{k}}\right\rangle$, $\left\langle\psi_{n^{'}\vec{k}}\vert\nabla_z\vert\psi_{n\vec{k}}\right\rangle$
+  for the k-point with the number \option{k-point} for KS-eigenstates that are within the energy window [\option{$E_{min}$},\option{$E_{max}$}] (in eV) relative to the 
+  internal zero. The output file is named \textit{element\_k\_}\option{k-point}\textit{.dat}. The unit is $a_0^{-1}$ (bohr$^{-1}$).\\
+  If you are conducting a cluster calculation (no periodic boundary conditions) make sure to set \option{k-point} to 1.\\
+  Setting \option{k-point} to 0 will output the momentum matrix elements for all k-points into one container file (mommat.h5). To use this functionality, FHI-aims 
+  has to be compiled with the external hdf5 module (see Sec.~\ref{sec:CMake_variables} for details).\\[1.0ex]
+}
+\keydefinition{compute\_dipolematrix}{control.in}
+{
+  \noindent
+  Usage: \keyword{compute\_dipolematrix} \option{$E_{min}$} \option{$E_{max}$} \option{k-point}\\[1.0ex]
+  Purpose: Calculate and output the dipole matrix elements $\left\langle\psi_{n^{'}\vec{k}}\vert x\vert\psi_{n\vec{k}}\right\rangle$, 
+  $\left\langle\psi_{n^{'}\vec{k}}\vert y\vert\psi_{n\vec{k}}\right\rangle$, $\left\langle\psi_{n^{'}\vec{k}}\vert z\vert\psi_{n\vec{k}}\right\rangle$
+  (position operator!) for the k-point with the number \option{k-point} for KS-eigenstates that are within the energy window [\option{$E_{min}$},\option{$E_{max}$}] (in eV) relative to the 
+  internal zero. The output file is named \textit{element\_k\_}\option{k-point}\textit{.dat}. The unit is $a_0$ (bohr).\\
+  If you are conducting a cluster calculation (no periodic boundary conditions) make sure to set \option{k-point} to 1.\\
+  Setting \option{k-point} to 0 will output the dipole matrix elements for all k-points into one container file (dipmat.h5). To use this functionality, FHI-aims 
+  has to be compiled with the external hdf5 module (see Sec.~\ref{sec:CMake_variables} for details).\\[1.0ex]
+}
+\keydefinition{compute\_dipolematrix\_k\_k}{control.in}
+{
+  \noindent
+  Usage: \keyword{compute\_dipolematrix\_k\_k} \option{$E_{min}$} \option{$E_{max}$} \option{k\_k\_method}\\[1.0ex]
+  Purpose: Calculate and output the dipole matrix elements $\left\langle\psi_{n^{'}\vec{k'}}\vert x\vert\psi_{n\vec{k}}\right\rangle$, 
+  $\left\langle\psi_{n^{'}\vec{k'}}\vert y\vert\psi_{n\vec{k}}\right\rangle$, $\left\langle\psi_{n^{'}\vec{k'}}\vert z\vert\psi_{n\vec{k}}\right\rangle$
+  (position operator!) for all (k, k')-points for KS-eigenstates that are within the energy window [\option{$E_{min}$},\option{$E_{max}$}] (in eV) relative to the 
+  internal zero. The output file is named \textit{dipmat\_k}\textit{.h5}. The unit is $a_0$ (bohr). With the option \option{k\_k\_method} (choises: 1, 2, 3) 
+  you can chose the method for calculating the matrix elements. \textit{1} will first calculate the matrix elements (k, k')!!! for the atomic basis before 
+  transforming to the KS-basis (biggest array size: n\_basis*n\_k\_points*n\_k\_points). \textit{2} will calculate the matrix elements (k) for the atomic basis and transform to 
+  the KS-basis for all (k') (n\_k\_points times) (biggest array size: n\_basis*n\_k\_points). \textit{3} will calculate the matrix elements in the atomic basis and transform to 
+  the KS-basis for all (k, k') (n\_k\_points*n\_k\_points times) (biggest array size: n\_basis). \textit{1} needs the most memory, \textit{3} does the most (repetitive) 
+  calculations.\\
+  The dipole matrix elements for all (k,k')-points are written into one container file (\textit{dipmat\_k}\textit{.h5}). To use this functionality, FHI-aims 
+  has to be compiled with the external hdf5 module (see Sec.~\ref{sec:CMake_variables} for details).\\[1.0ex]
+}
+
+\keydefinition{compute\_kubo\_greenwood}{control.in}
+{
+  \noindent
+  Usage: \keyword{compute\_kubo\_greenwood} \option{width} \option{FD\_Temp} \option{$E_{min}$} \option{$E_{max}$} \option{$\omega_{min}$} \option{$\omega_{max}$} \option{$n_\omega$} \option{i} \option{j}\\[1.0ex]
+  Purpose: Calculate and output the \option{i} \option{j} component (choices: (x, y or z) or (a a)) of the the Kubo-Greenwood transport properties optical conductivity $\sigma(\omega)$ and Seebeck coefficient 
+  S in units $(\Omega \cdot cm)^{-1}$ and $\mu V /K$, respectively. The (a a) choice triggers the calculation of the average of the three diagonal elements $L_{ij,xx}$, $\sigma_{ij,yy}$ and $\sigma_{ij,zz}$.
+  As before, [\option{$E_{min}$},\option{$E_{max}$}] (in eV) determine the energy window (relative to the internal zero) within which the momentum-matrix elements are considered. The Delta-distribution is 
+  represented by a Gaussian function with width \option{width} (in eV) and the Fermi occupations are calculated at an electronic temperature \option{FD\_Temp} (in eV). The spectra contain \option{$n_\omega$} $\omega$-values 
+  in the interval [\option{$\omega_{min}$}, \option{$\omega_{max}$}] (in eV). The output file is named \textit{dielectric\_}\option{i}\textit{\_}\option{j}\textit{<Fermi-level>}\textit{.out} and consists of the dielectric function,
+  the optical conductivity and the Seebeck coefficient. 
+  Usually it is enough to include only a few states below and above the fermi level in the 
+  energy window [\option{$E_{min}$},\option{$E_{max}$}].\\
+  The calculation is very sensitive to the k-point grid, an extremely high number of k-points might be needed for convergence, especially for metals.\\[1.0ex]
+}
+
+\keydefinition{greenwood\_method}{control.in}
+{
+  \noindent
+  Usage: \keyword{greenwood\_method} \option{method}\\[1.0ex]
+  Purpose: Switches between the use of sparse or full transition matrices. (Choices: \textit{sparse} or \textit{full}). As of now, the keyword has to be set in case the \keyword{compute\_kubo\_greenwood} is used. The use of \textit{sparse} matrices is recommended.
+  (Keyword will be deprecated in the near future)[1.0ex]
+}

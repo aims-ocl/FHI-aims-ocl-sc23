@@ -1,0 +1,16 @@
+#!/bin/bash
+
+for i in `seq 80`
+ do 
+ echo "Starting run $i"
+ echo
+ echo "Calling mkdir"
+ mkdir $i
+ echo "Generating and copying geometry file"
+ python3.3 gen_geo.py
+ mv geometry.in $i/geometry.in
+ cp control.in $i/control.in
+ cd $i
+ poe /u/pr2d0262/bin/aims > run.light
+ cd ..
+ done

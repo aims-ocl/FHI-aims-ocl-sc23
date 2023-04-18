@@ -1,0 +1,260 @@
+!****s* FHI-aims/RRS-PBC/prepare_rrs_pbc_energy()
+!  NAME
+!    run_rrs_pbc() 
+!  SYNOPSIS
+
+    subroutine prepare_rrs_pbc_energy(iop)
+
+!  PURPOSE
+!  This routine implement the actual RRS-PBC calculation, and can only be called
+!  after parse_rrs_pbc()
+!
+!  USES
+
+      use localorb_io
+      use runtime_choices
+      use dimensions
+      use physics
+      use pbc_lists
+      use geometry
+      use numerical_utilities
+      use constants
+      use basis
+      use mpi_tasks
+      use synchronize_mpi_basic
+      implicit none
+
+!  ARGUMENTS
+
+!  INPUTS
+!    none
+!  OUTPUT
+!    none
+!  COPYRIGHT
+!   
+!   
+!   
+!  HISTORY
+!   
+!  SOURCE
+!
+
+    ! imported variables
+    integer, optional :: iop
+    integer           :: dirt
+
+    ! local variables
+    character*132 :: rrs_pbc_info, output
+    character*132 :: func = 'prepare_rrs_pbc_energy()'
+    integer :: i_k_point, i_basis, i_states, i_spin, j_basis,i_k
+    integer :: len_KS_eigenvalue
+    real*8, dimension(3)   :: tmp_k_vec
+    real*8, dimension(3)   :: tmp_d_vec
+    real*8  :: LCBM, HVBM
+    complex*16  :: tmp_elec
+    integer :: c_index, tmp_num
+    real*8  :: rrs_pbc_n_electrons
+
+    if (present(iop)) then
+        dirt = iop
+    else
+        dirt = 0
+    endif
+
+
+
+    rrs_pbc_n_electrons   = sum(rrs_pbc_n_electron)
+    rrs_pbc_KS_eigenvalue = (0.0d0,0.0d0)
+    rrs_pbc_occ_num       = 0.0d0
+    len_KS_eigenvalue     = rrs_pbc_n_states * rrs_pbc_n_spin * rrs_pbc_n_k_points
+
+    if (dirt == 0) then  ! prepare restart file for periodic energy calculation
+        open(file = rrs_pbc_restart_file, unit = 7, status = 'unknown', form = 'unformatted')
+        write(7) rrs_pbc_n_center_basis*rrs_pbc_n_states*rrs_pbc_n_spin*rrs_pbc_n_k_points_task
+
+        do i_k_point = 1, rrs_pbc_n_k_points, 1
+            if (myid == MOD(i_k_point,n_tasks) .and. myid <= rrs_pbc_n_k_points ) then
+
+                call build_rrs_pbc_k_matrices(rrs_pbc_k_point_list(i_k_point,:))
+
+                call calculate_rrs_pbc_k_matrices(i_k_point)
+
+                do i_basis = 1, rrs_pbc_n_center_basis
+                    do i_states = 1, rrs_pbc_n_states
+                        write(7) (rrs_pbc_band_vect(i_basis,i_states,i_spin), i_spin = 1, rrs_pbc_n_spin)
+                    enddo
+                enddo
+
+            endif
+        enddo
+
+        call sync_vector(rrs_pbc_KS_eigenvalue, len_KS_eigenvalue)
+
+        ! Now calculate the chemical potential of the RRS-PBC scheme
+        call get_rrs_pbc_occ_num_p0(rrs_pbc_KS_eigenvalue, rrs_pbc_n_electrons, &
+            .true., rrs_pbc_occ_num, rrs_pbc_chemical_potential)
+
+
+        LCBM = 1.0d100
+        HVBM = -1.0d100
+
+        ! Now store the complete eigenvalue in all k_points into each restart files
+        do i_k = 1, rrs_pbc_n_k_points, 1
+            !if (myid .eq. 0) then
+            !    write(use_unit,'(A,3F16.8)') 'igor debug 2:',rrs_pbc_k_point_list(i,:)
+            !endif
+            do i_states = 1, rrs_pbc_n_states
+                do i_spin = 1, rrs_pbc_n_spin
+                    write(7) rrs_pbc_KS_eigenvalue(i_states,i_spin,i_k), rrs_pbc_occ_num(i_states,i_spin,i_k)
+                    if (rrs_pbc_KS_eigenvalue(i_states,i_spin,i_k) .gt. rrs_pbc_chemical_potential) then
+                        LCBM = min(LCBM,rrs_pbc_KS_eigenvalue(i_states,i_spin,i_k))
+                    else
+                        HVBM = max(HVBM,rrs_pbc_KS_eigenvalue(i_states,i_spin,i_k))
+                    endif
+                enddo
+            enddo
+        enddo
+
+        close(7)
+
+        do i_k_point = 1, rrs_pbc_n_k_points, 1
+            if (myid == MOD(i_k_point,n_tasks) .and. myid <= rrs_pbc_n_k_points ) then
+
+                call build_rrs_pbc_k_matrices(rrs_pbc_k_point_list(i_k_point,:))
+
+                call calculate_rrs_pbc_k_matrices(i_k_point)
+
+                tmp_elec = 0.0d0
+                do i_states = 1, rrs_pbc_n_states, 1
+                    do i_basis = 1, rrs_pbc_n_center_basis, 1
+                        do j_basis = 1, rrs_pbc_n_center_basis, 1
+                            if (i_basis < j_basis) then
+                                c_index = i_basis + j_basis * (j_basis-1)/2
+                            else
+                                c_index = j_basis + i_basis * (i_basis-1)/2
+                            endif
+                            tmp_elec = tmp_elec + &
+                                rrs_pbc_band_vect(i_basis,i_states,1) * &
+                                conjg(rrs_pbc_band_vect(j_basis,i_states,1)) * &
+                                rrs_pbc_overlap_k(c_index) * rrs_pbc_occ_num(i_states,1,i_k_point)
+                        enddo
+                    enddo
+                enddo
+                write(use_unit,*) "IOGR DEBUG atom number :: ", tmp_elec, i_k_point
+                !if (i_k_point < 10) then
+                !    write(output,'(A,I1,A1,I1)') 'Output',myid,'-0',i_k_point
+                !else if (i_k_point <100) then
+                !    write(output,'(A,I1,A1,I2)') 'Output',myid,'-',i_k_point
+                !endif
+                !call output_rrs_pbc_matrix_2D(rrs_pbc_n_center_basis,&
+                !    rrs_pbc_n_states,rrs_pbc_band_vect,output)
+            endif
+        enddo
+
+        
+    else   ! read eigenvector from exist files
+        open(file = rrs_pbc_restart_file, unit = 7, status = 'old', form = 'unformatted')
+
+        read(7) tmp_num
+        write(use_unit,*) &
+            myid,tmp_num,rrs_pbc_n_center_basis*rrs_pbc_n_states*rrs_pbc_n_spin*rrs_pbc_n_k_points_task
+
+        do i_k_point = 1, rrs_pbc_n_k_points, 1
+            if (myid == MOD(i_k_point,n_tasks) .and. myid <= rrs_pbc_n_k_points ) then
+                do i_basis = 1, rrs_pbc_n_center_basis
+                    do i_states = 1, rrs_pbc_n_states
+                        read(7) (rrs_pbc_band_vect(i_basis,i_states,i_spin), i_spin = 1, rrs_pbc_n_spin)
+                    enddo
+                enddo
+            endif
+        enddo
+
+        ! Now read the complete eigenvalue in all k_points into each restart files
+        do i_k = 1, rrs_pbc_n_k_points, 1
+            !if (myid .eq. 0) then
+            !    write(use_unit,'(A,3F16.8)') 'igor debug 2:',rrs_pbc_k_point_list(i,:)
+            !endif
+            do i_states = 1, rrs_pbc_n_states
+                do i_spin = 1, rrs_pbc_n_spin
+                    read(7) rrs_pbc_KS_eigenvalue(i_states,i_spin,i_k), rrs_pbc_occ_num(i_states,i_spin,i_k)
+                enddo
+            enddo
+        enddo
+
+        close(7)
+
+        ! Now calculate the chemical potential of the RRS-PBC scheme
+        call get_rrs_pbc_occ_num_p0(rrs_pbc_KS_eigenvalue, rrs_pbc_n_electrons, &
+            .true., rrs_pbc_occ_num, rrs_pbc_chemical_potential)
+
+        LCBM = 1.0d100
+        HVBM = -1.0d100
+        do i_k = 1, rrs_pbc_n_k_points, 1
+            do i_states = 1, rrs_pbc_n_states
+                do i_spin = 1, rrs_pbc_n_spin
+                    if (myid .eq. 0) then
+                        if (rrs_pbc_KS_eigenvalue(i_states,i_spin,i_k) .gt. rrs_pbc_chemical_potential) then
+                            LCBM = min(LCBM,rrs_pbc_KS_eigenvalue(i_states,i_spin,i_k))
+                        else
+                            HVBM = max(HVBM,rrs_pbc_KS_eigenvalue(i_states,i_spin,i_k))
+                        endif
+                    endif
+                enddo
+            enddo
+        enddo
+
+        open(file = rrs_pbc_restart_file, unit = 7, status = 'old', form = 'unformatted')
+
+        read(7) tmp_num
+
+        do i_k_point = 1, rrs_pbc_n_k_points, 1
+            if (myid == MOD(i_k_point,n_tasks) .and. myid <= rrs_pbc_n_k_points ) then
+                do i_basis = 1, rrs_pbc_n_center_basis
+                    do i_states = 1, rrs_pbc_n_states
+                        read(7) (rrs_pbc_band_vect(i_basis,i_states,i_spin), i_spin = 1, rrs_pbc_n_spin)
+                    enddo
+                enddo
+                call build_rrs_pbc_k_matrices(rrs_pbc_k_point_list(i_k_point,:))
+                tmp_elec = 0.0d0
+                do i_states = 1, rrs_pbc_n_states, 1
+                    do i_basis = 1, rrs_pbc_n_center_basis, 1
+                        do j_basis = 1, rrs_pbc_n_center_basis, 1
+                            if (i_basis < j_basis) then
+                                c_index = i_basis + j_basis * (j_basis-1)/2
+                            else
+                                c_index = j_basis + i_basis * (i_basis-1)/2
+                            endif
+                            tmp_elec = tmp_elec + &
+                                rrs_pbc_band_vect(i_basis,i_states,1) * &
+                                conjg(rrs_pbc_band_vect(j_basis,i_states,1)) * &
+                                rrs_pbc_overlap_k(c_index) * rrs_pbc_occ_num(i_states,1,i_k_point)
+                        enddo
+                    enddo
+                enddo
+                write(use_unit,*) "IOGR DEBUG atom number :: ", tmp_elec, i_k_point
+            endif
+        enddo
+
+        close(7)
+
+    endif
+
+    if (myid .eq. 0) then
+        write(rrs_pbc_info,'(2X,A,1X,F16.8,A)') '|     Lowest unoccupied state:',LCBM* hartree, ' eV' 
+        call localorb_info ( rrs_pbc_info )
+
+        write(rrs_pbc_info,'(2X,A,1X,F16.8,A)') '|     Highest occupied state :',HVBM* hartree,  ' eV'
+        call localorb_info ( rrs_pbc_info )
+
+        write(rrs_pbc_info,'(2X,A,1X,F16.8,A)') '|     Energy difference      :', (LCBM - HVBM) * hartree,  ' eV'
+        call localorb_info ( rrs_pbc_info )
+
+        write(rrs_pbc_info,'()') 
+        call localorb_info(rrs_pbc_info,use_unit,'(A)')
+    endif
+
+
+    ! store the matrix of rrs_pbc_KS_eigenvalue
+    !call output_rrs_pbc_result(0,0,2)
+    end subroutine
+

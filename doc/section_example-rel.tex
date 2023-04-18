@@ -1,0 +1,127 @@
+\section{Heavy elements ($Z\gtrsim$30): Modifications for scalar relativity}
+\label{Sec:rel-example}
+
+Actually, this section could easily apply to all elements. As outlined
+in Section \ref{Sec:rel}, it seems that the \keyword{relativistic}
+\texttt{atomic\_zora scalar} keyword and the underlying ``atomic
+ZORA'' approach as implemented in FHI-aims (Equations (55) and (56) of
+Ref. \cite{Blum08}) perform on par with the best available
+scalar-relativistic benchmark methods (see
+Refs. \cite{Lejaeghereaad3000,Huhn2017_SOC}). Just use this approach
+in production, unless there is a specific reason not do do so
+(a few methods in FHI-aims that are still being implemented may
+initially only support a non-relativistic treatment).
+
+Note that total energy \emph{differences} will be very large between
+different relativistic treatments, so it is best to stick to a single
+level of scalar relativity for all calculations.
+
+With H and O, the simple H$_2$O testcase of the preceding Section
+\ref{Sec:example-Etot} involves only 
+elements so light that relativistic effects on their total energies
+can still be ignored in production calculations. 
+
+The rule of thumb that relativistic effects do not matter much for
+quantities derived from total energies (binding energies, geometries)
+holds up to elements number $Z$=20-30 (Ca or Zn), depending on the
+reqired accuracy. For example, the DFT-LDA lattice parameter for fcc
+Cu is 3.54~{\AA} in the non-relativistic case, but 3.52~{\AA} if
+relativistic effects are included. In any case, relativistic effects
+should be accounted for in accurate calculations \emph{beyond} these
+elements. As described in more detail in Ref. \cite{Blum08}, this
+process is handled by FHI-aims at different levels of approximation,
+with some overhead resulting compared to the simple non-relativistic
+case. 
+
+In a nutshell, the physical impact of relativity for heavy elements
+\emph{is} noticeable not just as a total-energy offset, but
+importantly in total energy differences, and in particular impacts
+also geometries. The underlying reason is that core and 
+valence orbitals ``see'' the near-nuclear region (where relativistic
+effects are most important) differently, depending on their 
+angular momentum $l$. Somewhat simplistically put, the increased
+relativistic mass of the electron near the nucleus results in a
+tendency for all orbitals to ``shrink'' compared to the
+non-relativistic case, but to a different degree for different
+orbitals. The shrinkage thus changes not just atom sizes, but also the
+nature of bonding itself. A detailed discussion of relativistic
+effects is beyond the scope of this manual (and can be found in many
+excellent reviews, e.g., Ref. \cite{Pyykko88}) -- but bear in mind
+that relativistic effects should not simply be shrugged off!
+
+As noted in Section \ref{Sec:rel}, we recommend ``atomic ZORA'' as the
+blanket default where possible, invoked by the keyword
+
+\keyword{relativistic} \texttt{atomic\_zora scalar}
+
+Additionally, the effects of spin-orbit coupling may be included in
+energy levels / band structures, densities of states,
+etc. post-selfconsistently, i.e., after the self-consistent
+calculation is complete. The keyword to do this is:
+
+\keyword{include\_spin\_orbit}
+
+That's it.
+
+We illustrate the practical use of atomic ZORA and spin-orbit coupling
+for the Au dimer in DFT-LDA, found in the \emph{testcases/Au\_dimer} 
+directory. Importantly, this follows the always recommended two-step
+approach for relaxations: First, a \textit{light} prerelaxation (saves
+much time for steps of the relaxation algorithm that will be
+completely irrelevant for the final result) and second, a
+\textit{tight} post-relaxation for final results.
+
+The testcase here uses semilocal DFT, which is relatively cheap. For
+the much more costly hybrid density functionals, 
+\textit{tight} settings can be prohibitively expensive, and
+\textit{intermediate} settings (where available) are often completely
+sufficient. 
+
+In the subdirectory \emph{relax\_light}, a quick but
+sufficiently accurate prerelaxation is set up, at the \texttt{atomic\_zora}
+level. The \texttt{control.in}
+file is set up to use \keyword{relativistic} \texttt{atomic\_zora}
+\texttt{scalar} and \keyword{relax\_geometry} \texttt{bfgs}
+\texttt{1.e-2} to converge forces down to 10$^{-2}$ eV/{\AA}. Since
+this is intended to be a quick prerelaxation run (starting with an
+arbitrary separation of 3 {\AA} of both atoms), the ``light'' species 
+default settings for Au are used for the \keyword{species}
+subsettings. Compared to the much more accurate ``tight'' settings,
+\begin{itemize}
+\item the radial and angular integration grids are significantly reduced, 
+\item the Hartree potential expansion is capped at
+  \subkeyword{species}{l\_hartree}=4,
+\item the cutoff potential onset and width in \subkeyword{species}{cut\_pot}
+  are reduced to a minimum that we still consider safe (3.5 {\AA} / 1.5 {\AA},
+  respectively),
+\item the basis set is the \emph{spdf} section of \emph{tier} 1 only.
+\end{itemize}.
+Among these settings, the reduction of the basis set to \emph{spdf} has the
+biggest impact on the resulting equilibrium geometry,
+$d$=2.464~{\AA}. (The difference to the \textit{tight} result below is
+quite minor -- 0.012~{\AA}.) 
+
+After this relaxation run is complete, a file \texttt{geometry.in.next\_step} is
+written out by FHI-aims. This file contains the final, relaxed geometry from
+the ``light'' prerelaxation run just performed, as well as the Hessian matrix
+estimate created by the \keyword{relax\_geometry} \texttt{bfgs} relaxation algorithm.
+This file can serve as an improved guess for \texttt{geometry.in} in the next, 
+typically more expensive ``tight'' post-relaxation step. 
+
+In the subdirectory \emph{postrelax\_tight}, the final geometry from the 
+previous step is used as the starting point for an accurate post-relaxation
+using the ``tight'' \emph{species\_defaults} settings. Note that,
+while all other settings are tightly converged at this level, the basis set
+convergence should normally still be tested explicitly. The \emph{tier} 1
+level (without the $h$ function) used here for Au is quite sufficient
+for an accurate result. The binding 
+distance converges after two additional relaxation steps, at $d$=2.452 {\AA}.
+
+We also added in spin-orbit coupling for completeness using the
+\keyword{include\_spin\_orbit} keyword.
+
+In conclusion, this section illustrates how a quick pre-relaxation followed 
+by a safe calculation of the relevant energy differences can be
+combined. The key point in this endeavour is to ensure that the final 
+relaxed geometry is accurate with as little computational overhead as
+possible. 

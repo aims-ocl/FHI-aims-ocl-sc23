@@ -1,0 +1,69 @@
+bh_max_loop	1000
+# number of basin-hopping moves
+bh_cavity_radius 100			
+# cavity radius that comprises the whole cluster. 
+# Moves that bring atoms outside the cavity are discarded
+# In principle, this parameter is obsolete since dissociation is checked otherwise (by bh_max_distance, vide infra)
+# and center of gravity is always set to the origin of the coordinate axes. A slow drift of the cluster is therewith
+# prevented. So just set it to a significantly large value. I think I will set it to a large default value or
+# throw it out completely in the next version.
+hard_sphere_radius 1.5
+# The minimal distant two atoms are allowed to come close to each other after a trial move.
+bh_kind_of_move collective-vista
+# Kind of move for basin-hopping sampling.
+# -> single-particle  : only one atom is moved at once
+# -> collective       : all atoms at once but with a primitive scheme to fulfil hard_sphere constraint
+#                     : so it's obsolete (and does not work for large clusters)
+# -> collective-vista : new collective move with a hard-sphere prerelaxing so that the hard-sphere constraint
+#                       can be fulfilled for larger clusters
+# angular_move 0.2
+# Performs an angular move if the following condition for the atomic energies are fulfilled:
+# If the ratio of the largest atomic energy to the lowest atomic energy is smaller than 0.2
+# (so if the largest atomic energy, which is negative, is large enough) than an angular move
+# is done on this atom. It's position is then replaced by 
+# vec(r) = r*e_r (theta, phi), where theta and phi are determined randomly and r is the largest
+# distance that occurs in the cluster w.r.t. to the center of gravity.
+# So the atom will be put somewhere on the surface of the cluster.
+# Not yet tested !
+# rotation_move 3
+# Every 3rd trial move, a rotation move is performed.
+bh_move_distribution poisson
+# Distribution of the step width with which atoms are displaced.
+# -> poisson 	: A poisson-distribution (effectively a gaussian, but called poisson due to historical reasons) that
+#		: focuses on the move distance bh_max_move
+# -> uniform	: A uniform distribution centered on bh_max_move, so it ranges from 0...2 x bh_max_move.
+bh_max_move 1.15
+# Maximum step width with which atoms are displaced.
+bh_max_distance 4.5
+# Maximum distance an atom is allowed to be w.r.t. all other atoms. Otherwise the cluster will be considered
+# as dissociated and the corresponding move is discarded.
+potential NN
+# What kind of potential is used. 
+# -> 	NN	 	: neural-network potential
+# ->    LJ		: Lennard-Jones
+# ->    external 	: FHI-aims
+species Cu
+# species 
+# In case of LJ, the species name is followed by epsilon and sigma.
+bh_energy_threshold_theta 0.2 
+# Acceptance criterium of basin-hopping sampling. If a new structure with E_new is energetically higher
+# then it is accepted if (E_new - E_old)/atom < bh_energy_threshold_theta.
+bh_energy_threshold_boltzmann 0.0001
+# Puts an additional boltzmann tail on the energy window defined by bh_energy_threshold_theta.
+# By a small value it is effectivly switched off.
+atomic_energy Cu -44634.56837 29
+# Atomic reference energy to calculated cohesive energies and atomic energy contribution w.r.t. to the free atomic limit.
+#
+# structure distinction parameter
+#
+diff_tolerance 1e-4
+# Two structures are considered to be equivalent if the difference in the distance norm is less than diff_tolerance.
+# The distance norm compares all sorted distances of both clusters (see my paper)
+energy_tolerance 0.0008
+# An additional energy threshold. Two structures are only identical if both the distance norm and
+# the energies are similar enough.
+# With that, the problem to distinguish larger clusters calculated with the NN might easily be solved.
+verbose .false.
+# Verbosity flag. For your HD's sake, switch it off (default)
+r_cut_off 3.0
+# Cutoff parameter for o4 order-parameter (not debugged yet).

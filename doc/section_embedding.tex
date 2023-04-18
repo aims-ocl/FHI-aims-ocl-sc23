@@ -1,0 +1,203 @@
+\section{Embedding in external fields}
+
+To simulate the effect of external field (for instance, to connect to
+a QM/MM embedding formalism), FHI-aims allows to add the effect of
+a homogeneous electrical field and/or point charges surrounding the
+molecule in question.
+
+Note that these embedding charges are \emph{in addition} to any
+\keyword{charge} specified in \texttt{control.in}, and \emph{not} already
+included there. \keyword{charge} should equal only to the sum of charges of all
+nuclei in \texttt{geometry.in} minus the overall number of electrons in the
+system, but does not count any embedding charges specified by keyword
+\keyword{multipole}. 
+
+\emph{This functionality is not yet available for periodic systems.}
+
+\textbf{Warning: When using a multipole, e.g., an external charge with
+  no basis functions etc., you are creating a Coulomb singularity. 
+  If this singularity is inside the radius of a basis function of
+  another atom, it will lead to numerical noise in integrals, up to
+  near-infinities.} 
+
+To test and/or overcome this problem, all you need to do is to place
+an integration grid on any multipole that is within the radius of a
+basis function of any atom. This radius is given by the cutoff radius
+plus width in the \subkeyword{species}{cut\_pot} keyword of each
+\keyword{species}. 
+
+Such a grid can be placed by creating an \keyword{empty} site with no basis
+functions (\subkeyword{species}{include\_min\_basis} .false.) and placing this empty
+site on the same site as the multipole in question in
+\texttt{geometry.in}. Simply taking the species defaults for a H atom
+(light settings) and adjusting them to have no basis functions should
+create the necessary definition of the empty site in question (see Fig.\ref{Fig:empty_site_for_multipole} for an example).
+
+\begin{figure}[hb]
+  \small
+  \begin{verbatim}
+
+
+[...]
+  species        empty_site
+#     global species definitions
+    nucleus             1
+    mass                1.00794
+#
+    l_hartree           4
+#
+    cut_pot             3.5  1.5  1.0
+    basis_dep_cutoff    1e-4
+#     
+    include_min_basis .false.
+
+    radial_base         24 5.0
+    radial_multiplier   1
+    angular_grids       specified
+      division   0.2421   50
+      division   0.3822  110
+      division   0.4799  194
+      division   0.5341  302
+      outer_grid  302
+################################################################################
+#
+#  Definition of "minimal" basis
+#
+################################################################################
+#     valence basis states
+    valence      1  s   1.
+#     ion occupancy
+    ion_occ      1  s   0.5
+################################################################################
+
+
+
+
+[...]
+
+  \end{verbatim}
+  \normalsize
+
+  \vspace*{-4.0ex}
+
+  \caption{\label{Fig:empty_site_for_multipole}
+Species data for what could be used as an empty site on top of monopole.
+  }
+\end{figure}
+
+\newpage
+
+\subsection*{Tags for \texttt{geometry.in}:}
+
+\keydefinition{homogeneous\_field}{geometry.in}
+{
+  \noindent
+  Usage: \keyword{homogeneous\_field} \option{E\_x} \option{E\_y}
+    \option{E\_z} \\[1.0ex]  
+  Purpose: Allows to perform a calculation for a system in a
+    homogeneous electrical field $\boldE$. \\[1.0ex]
+  \option{E\_x} is a real number, the $x$ component of $\boldE$ in
+    V/{\AA}. \\
+  \option{E\_y} is a real number, the $y$ component of $\boldE$ in
+    V/{\AA}. \\
+  \option{E\_z} is a real number, the $z$ component of $\boldE$ in
+    V/{\AA}. \\
+
+   Please note: The electrical field is usually defined to point in the direction
+   of a force exerted on a \emph{positive} probe charge. Historically grown, FHIaims
+   uses the opposite sign convention. Although this behaviour might
+ be considered a bug, we decided to leave it this way in order not to break any scripts
+people are already using.
+
+}
+
+\keydefinition{multipole}{geometry.in}
+{
+  \noindent
+  Usage: \keyword{multipole} \option{x} \option{y} \option{z}
+    \option{order} \option{charge} \\[1.0ex] 
+  Purpose: Places the center of an electrostatic multipole field at a
+    specified location, to simulate an embedding potential. \\[1.0ex]
+  \option{x} : $x$ coordinate of the multipole. \\
+  \option{y} : $y$ coordinate of the multipole. \\
+  \option{z} : $z$ coordinate of the multipole. \\
+  \option{order} : Integer number, specifies the order of the
+    multipole (0 or 1 $\equiv$ monopole or dipole). \\
+  \option{charge} : Real number, specifies the charge associated with
+    the multipole. \\
+}
+If the order of the multipole is greater than zero (presently, only
+ monopoles or dipoles are supported), a dipole moment must be 
+specified in addition to the data provided with the
+\keyword{multipole} tag itself. To that end, a line must
+immediately follow the original \keyword{multipole} line, adhering to
+the following format: \\[1.0ex]
+  \texttt{data} \texttt{m\_x} \texttt{m\_y} \texttt{m\_z}
+\\[1.0ex]
+Here, \texttt{m\_x}, \texttt{m\_y}, \texttt{m\_z} are the $x$, $y$,
+and $z$ components of the dipole moment, in $e\cdot${\AA}. 
+
+\emph{Warning: Note that monopoles amount to Coulomb singularities. When
+  inside the basis function radius of any atom, such monopoles should
+  be covered with an integration grid in \texttt{geometry.in}, as
+  explained in the beginning of this section.}
+
+\newpage
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{full\_embedding}{control.in}
+{
+  \noindent
+  Usage: \keyword{full\_embedding} \option{flag} \\[1.0ex]
+  Purpose: Allows to switch between embedding of the full electronic
+    structure (affecting the Kohn-Sham equations) or the embedding of
+    an electronic density that is calculated without knowledge of the 
+    embedding potential. \\[1.0ex]
+  \option{flag} is a logical string, \texttt{.true.} or
+    \texttt{.false.} Default: \texttt{.true.} \\
+}
+For most purposes, embedding into an external potential will involve a
+change to the electronic structure of the structure which is
+embedded. However, in some instances one may wish to embed a given
+charge density \emph{non-selfconsistently}, i.e., by calculating the
+electron density without an external field and then computing the
+energy of that unperturbed electron density in the external field.
+
+This feature is useful if multipoles are located too close
+to the quantum-mechanical region of the calculation. These act as
+Coulomb-like potentials, just like any other potential in the
+systems. If there are basis functions that cover the location of that 
+potential, some electronic charge may artificially become trapped
+there, creating a bad approximation to the core / valence
+electrons of an atom with a nucleus of charge \option{charge}. In most
+cases, this is clearly undesirable behaviour, and apart from that will
+create unwanted numerical noise since the electronic structure near
+the Coulomb-like singularity of the multipole will be represented
+solely by basis functions that are inadequate for this purpose in the
+first place. 
+
+\keydefinition{qmmm}{control.in}
+{
+  \noindent
+  Usage: \keyword{qmmm} \\[1.0ex]
+  Purpose: Allows to compute Hellmann-Feynman like forces \emph{from}
+    the quantum-mechanical part of a structure \emph{exerted on} the
+    multipoles on an external embedding field. \\[1.0ex]
+  Restriction: Works only for external monopole potentials. \\[1.0ex]
+}
+For quantum-mechanics / molecular-mechanics (QM/MM) ``hybrid''
+molecular dynamics simulations, one must evolve \emph{both} the
+quantum and classical subsystems with time. In that case, it is
+necessary to know the derivatives of the quantum-mechanical total
+energy with respect to the positions of the \emph{classical}
+multipoles (see keyword \keyword{multipole}), i.e., the forces on the
+multipoles that originate from the quantum-mechanical region. 
+
+The
+computation of these forces is switched on by adding the
+\keyword{qmmm} keyword to \texttt{control.in}. The actual QM/MM
+simulation must still be performed using an outside framework, for
+example ChemShell \cite{Sherwood03} that uses the energies and forces
+provided by FHI-aims as a ``plugin''. 
+

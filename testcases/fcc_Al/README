@@ -1,0 +1,46 @@
+VB, Duke University, 2017
+
+This test run is a single-point self-consistent run for periodic fcc Al, 
+using the "light" species defaults for Al. Use this example to set up 
+other periodic runs and test their accuracy. 
+
+The present example can also be used for band structure calculations and total
+/ partial DOS calculations by uncommenting the respective sections of
+control.in. In that case, a comparison to the "tight" settings may be an
+interesting side project.
+
+Note that the Gaussian broadening (occupation_type gaussian 0.1) is
+chosen to be suitable for metallic systems or finite systems without a
+clear gap.
+
+Finally, you may want to try out the automated unit cell relaxation with
+this test case, using the analytical stress tensor. A test
+run output file is provided. You can reproduce this run using the
+exact copy of control.in which is now included as a part of the
+FHI-aims standard output.
+
+Notice that evaluations of the stress tensor are expensive. FHI-aims
+therefore no longer tests the s.c.f. convergence of the forces or the 
+stress tensor unless explicitly requested. Rather, we now pre-set a 
+s.c.f. criterion for the density convergence, sc_accuracy_rho, that should
+be tight enough to guarantee converged relaxations.
+
+For the stress tensor, a word of warning is needed (which holds in
+general for unit cell optimizations). The energy surfaces near a local
+optimum (like fcc Al) are very flat, and can exhibit even multiple
+local minima as a result of numerical approximations. 
+
+For example, the 12x12x12 k-space grid given here for fcc Al is not
+very dense for a metal. If one starts from a much more distorted
+geometry than we do here, it is possible to find a slightly distorted
+near-fcc local minimum without much trouble. This 
+local minimum is not present, for instance, for a 24x24x24 k-space
+grid. 
+
+The important role of k-space grid accuracy in unit cell relaxation
+is not specific to the FHI-aims code, but in fact a textbook issue. In 
+that sense, this remark is simply a reminder, but an important one.
+
+As another, slower but fail-safe alternative, also consider the 
+finite-difference based "numerical" stress tensor implementation. 
+This version is a good but expensive fall-back.

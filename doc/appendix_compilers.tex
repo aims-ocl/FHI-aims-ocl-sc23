@@ -1,0 +1,133 @@
+\chapter{Compiler- / platform-specific installation parts}
+\label{appendix_compilers}
+
+All that remains is to build a FHI-aims binary from the
+source code. This part depends on your specific compiler,
+and thus on the selected platform (we have tested Linux, AIX,
+MacOS, and BlueGene so far). 
+
+We have tested a number of compilers, but there are many out there. Please
+notify us if you are successful with an install using a new compiler /
+compiler version.
+
+For efficiency, you should provide BLAS / LAPACK installations that go along
+with your compiler. When building a parallel version, you must also specify
+the location of your mpi compiler, and set the variable ``MPIF'' (location of
+MPI header files) to be empty (the MPI compiler finds this automatically).
+
+You may also leave the BLAS / LAPACK specifications away to obtain a reference
+version of FHI-aims without \emph{any} external dependencies. This is highly
+useful for testing, but the performance for real (large) systems will be very
+slow. Don't consider this for production if you can.
+
+\section{All architectures: GNU based compilers}
+
+Wouldn't it be nice if there were one compiler which supported all possible
+platforms -- and we didn't have to worry about different compiler flags,
+compiler options, and -- most notably -- compiler \emph{bugs} on different
+systems any more?
+
+In the C / C++ world, this has been achieved by the gcc (gnu compiler 
+collection) free software suite of compilers, but for many years, a viable
+free f90 compiler was lacking. As of now, this has fortunately
+changed: There are now two viable options that I know of, both stemming from
+the same root (and an unfortunate and highly unproductive split between two
+disagreeing developer groups). 
+
+\begin{itemize}
+  \item \emph{gfortran} is the compiler which is officially shipped with gcc
+    4.x. However, to my knowledge it remains buggy, but at the very
+    least not easy to use (I was unable to install a working binary version at
+    an early stage. Thus, I do not recommend this compiler as of now, but feel
+    free to notify me if you think that I am wrong. 
+  \item \emph{g95} can be found at www.g95.org ; a current working binary can
+    always be installed and downloaded from there with ease. This is
+    also a free product based on gcc, but unless you are exceptionally curious,
+    I recommend to read the developer's blog and simply download the latest
+    binary version, instead of trying to obtain the source. As of this writing,
+    all current g95 versions simply work for me.
+\end{itemize}
+
+Finally: NOTE that g95 is not yet a production quality compiler. Its execution
+times lag behind commercial compilers. For instance, FHI-aims is faster with 
+Intel's ifort by a factor of $\approx$2 for me. But, g95 is a great
+reference tool, and also provides some very useful debugging output when
+needed. I recommend to test FHI-aims with g95 on every new platform, simply to
+obtain a reference binary which works out of the box. 
+
+\textbf{Installation instructions:}
+\begin{itemize}
+  \item Go to the source directory (\texttt{./src}). Type \texttt{make
+    clean}. 
+  \item Change to the directory \texttt{./src/external}; type \texttt{make
+    -f Makefile.g95}. 
+  \item Return to the \texttt{./src} directory and edit the file
+    \texttt{Makefile}: uncomment the lines ``FC'', ``FFLAGS'', and
+    ``FFLAGS\_NO'' for your selected compiler (g95) -- leave the other lines
+    (``CBFLAGS'', ...) untouched!
+  \item Type \texttt{make} ; all source code should be compiled this way, and
+    a binary \texttt{aims.<version>.x} should be created in the
+    \texttt{./bin} directory.
+\end{itemize}
+
+\section{x86 Linux: Intel Fortran (ifort)}
+
+I have tested ifort version 8.1, 9.0, 9.1 on 32 bit and 64 bit Linux. 
+
+\textbf{Installation instructions:}
+\begin{itemize}
+  \item Go to the source directory (\texttt{./src}). Type \texttt{make
+    clean}. 
+  \item Edit the file
+    \texttt{Makefile}: uncomment the lines ``FC'', ``FFLAGS'', and
+    ``FFLAGS\_NO'' for your selected compiler (ifort) -- leave the other lines
+    (``CBFLAGS'', ...) untouched!
+  \item Type \texttt{make} ; all source code should be compiled this way, and
+    a binary \texttt{aims.<version>.x} should be created in the
+    \texttt{./bin} directory.
+\end{itemize}
+
+\section{x86 Linux: Portland Group Fortran (pgf)}
+
+I tested an evaluation version of the Portland Group compiler (pgf
+version 5.2) at an early stage, but no longer have access to this compiler. At
+the time, the resulting code was as fast as Intel's ifort, on a Pentium IV
+CPU. 
+
+\textbf{Installation instructions:}
+\begin{itemize}
+  \item Go to the source directory (\texttt{./src}). Type \texttt{make
+    clean}. 
+  \item Edit the file
+    \texttt{Makefile}: uncomment the lines ``FC'', ``FFLAGS'', and
+    ``FFLAGS\_NO'' for your selected compiler (pgf90) -- leave the other lines
+    (``CBFLAGS'', ...) untouched!
+  \item Type \texttt{make} ; all source code should be compiled this way, and
+    a binary \texttt{aims.<version>.x} should be created in the
+    \texttt{./bin} directory.
+\end{itemize}
+
+\section{Power architecture (MacOS/IBM): The xlf compiler}
+
+The xlf compiler is the commercially available compiler for MacOS, and (I
+understand) generally for IBM's Power-based architecture. I have only played
+with a demo version of xlf on an Apple Powerbook G4; while I never produced
+any fully working, code, this was likely due to an undetected bug which did
+not affect either ifort or g95. That bug is since removed, hence I see no
+reason why xlf should not work. 
+
+\textbf{Installation instructions:}
+\begin{itemize}
+  \item Go to the source directory (\texttt{./src}). Type \texttt{make
+    clean}. 
+  \item Edit the file
+    \texttt{Makefile}: uncomment the lines ``FC'', ``FFLAGS'', and
+    ``FFLAGS\_NO'' for your selected compiler (xlf) -- leave the other lines
+    (``CBFLAGS'', ...) untouched!
+  \item Regarding ``FC'', be sure to replace the compiler path for f95 (which
+    is given explicitly) with the valid compiler path on your platform. 
+  \item Type \texttt{make} ; all source code should be compiled this way, and
+    a binary \texttt{aims.<version>.x} should be created in the
+    \texttt{./bin} directory.
+\end{itemize}
+

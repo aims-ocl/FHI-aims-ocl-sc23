@@ -1,0 +1,265 @@
+\section{Calculating nonlocal correlation energy within density functional approach}
+\label{Sec:vdwdf}
+
+\emph{Warning: This functionality is available in FHI-aims, but has not seen
+  extensive testing by ourselves. It should therefore be treated as
+  experimental. If you intend to use this functionality, by all means
+  ensure that literature results obtained using this functional are
+  reproducible using the implementation presented here.} 
+
+There are currently \textbf{two} separate working implementations of
+van der Waals DF in FHI-aims:
+\begin{itemize}
+  \item Sec. \ref{vdwdf-MC}: One version that allows post-processing 
+    only (i.e., compute the self-consistent density by another XC
+    functional, the evaluate only the vdw-DF energy term again after
+    the fact), using a Monte Carlo integration scheme. This version
+    works for non-periodic as well as periodic systems. The original
+    code was developed in the group of Claudia Ambrosch-Draxl at
+    University of Leoben, Austria.
+  \item Sec. \ref{vdwdf-TKK}: A second version that relies on an
+    analytical integration scheme developed by Simiam Ghan, Andris
+    Gulans and Ville Havu at Aalto University in Helsinki. This
+    version allows non-self-consistent \emph{and} self-consistent
+    usage, as well as gradients (forces). It also has a number of
+    numerical convergence parameters that can be adjusted.
+\end{itemize}
+
+\subsection{Monte Carlo integration based vdW-DF}
+\label{vdwdf-MC}
+
+As a postprocessing step after a self-consistent calculation, the nonlocal
+part of the correlation energy can be calculated using the van der Waals
+density functional proposed by M. Dion et al.~\cite{Dion04}. This task follows
+exactly the recipe presented in the original paper~\cite{Dion04}. This
+calculation can be performed by choosing \texttt{ll\_vdwdf} as a
+\keyword{total\_energy\_method} (please see Section \ref{Sec:xc}).
+
+\textbf{Important acknowledgment:} The Langreth-Lundqvist functional and basic
+Monte Carlo integration scheme used here was made available to us by the group
+of Claudia Ambrosch-Draxl and coworkers at University of Leoben, Austria. If
+you use this functionality successfully, please cite their work (currently,
+Ref. \cite{Nabok08} and ``unpublished'').
+
+In order to perform the calculation, one should define an even
+spacing grid (followed by the \texttt{vdwdf} tag explained below), where
+the total charge densities of a system obtained after the scf cycle
+are projected.
+
+In order to effectively solve the nonlocal correlation energy part,
+presented in Equation(1) of ~\cite{Dion04}, the Monte Carlo
+integration scheme of Divonne integration method of CUBA library
+(Please visit http://www.feynarts.de/cuba for details). 
+
+This means that you should (yourself) compile the CUBA library as an external
+dependency to FHI-aims. The alternative Makefile \texttt{Makefile.cuba} the
+contains examples of how to link FHI-aims to the CUBA library, and enable the
+vdW-LL functional
+
+Parameters
+for tuning the performance of Monte Carlo integration are defined
+under the \texttt{mc\_int} tag explained below. Also, the kernel values are
+tabulated in terms of the parameters in the formula of Equation(14)
+of ~\cite{Dion04}. The aims package comes with the tabulated kernel
+data (a file called \texttt{kernel.dat}) and the name of the file should be
+included in control.in.
+
+\textbf{Necessary input file:} In your FHI-aims distribution, a version of the
+\texttt{kernel.dat} file as well as an example control.in file should be located in
+subdirectory \emph{src/ll\_vdwdf} . For an actual FHI-aims program run, the
+\texttt{kernel.dat} file (currently, \texttt{kernel\_my.dat} is provided) must
+be copied to your working directory and must be referenced in your
+\texttt{control.in} file, using the \subkeyword{mc\_int}{kernel\_data}
+sub-keyword of the \keyword{mc\_int} keyword (see below).
+
+\newpage
+
+\newpage
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{mc\_int}{control.in}
+{
+  \noindent
+  Usage: \keyword{mc\_int} \option{subkeyword(s)} \\[1.0ex]
+  Purpose: A line that begins with \texttt{vdwdf} is associated with the Monte
+  Carlo integration performed to evaluate the non-local Langreth-Lundqvist
+  functional. The \texttt{mc\_int} keyword must be followed \emph{on the same
+  line} by a subkeyword that indicates the specific setting made here. \\[1.0ex]  
+  \option{subkeyword(s)} are one or more subkeywords or data for the
+  Monte Carlo integration. \\
+}
+To use the Monte Carlo integrated Langreth-Lundqvist functional, more than one
+  subkeyword for \keyword{mc\_int} must be specified in the
+  \texttt{control.in} file. See below for valid / necessary subkeywords. You
+  may also want to check the documentation for the CUBA Monte Carlo
+  integration library (http://www.feynarts.de/cuba) that you must have built
+  and linked to the FHI-aims code in order to use the Langreth Lundqvist
+  functional. 
+
+
+\keydefinition{vdwdf}{control.in}
+{
+  \noindent
+  Usage: \keyword{vdwdf} \option{subkeyword(s)} \\[1.0ex]
+  Purpose: A line that begins with \texttt{vdwdf} is associated with the
+  non-local Langreth-Lundqvist functional. The \texttt{vdwdf} keyword must be
+  followed \emph{on the same line} by a subkeyword that indicates the specific
+  setting made here. \\[1.0ex]  
+  \option{subkeyword(s)} are one or more subkeywords or data for the
+  Langreth-Lundqvist functional. \\
+}
+To use the Langreth-Lundqvist functional, more than one subkeyword for
+\keyword{vdwdf} must be specified in the \texttt{control.in} file. See below
+for valid / necessary subkeywords.
+
+
+\subsection*{Subtags for \emph{vdwdf} tag in \texttt{control.in}:}
+ \subkeydefinition{vdwdf}{cell\_origin}{control.in} {
+  \noindent
+  Usage: \subkeyword{vdwdf}{cell\_origin} \option{$x$ $y$ $z$} \\[1.0ex]
+  \option{$x$ $y$ $z$} indicates the cartesian coordinates (in {\AA})
+  of the origin of an even-spacing cubic cell. Default: \texttt{0.0
+    0.0
+    0.0}.\\
+} This option is only valid for a cluster calculation. For the case of
+periodic system, a cell origin is automatically determined at the
+center of a supercell.
+
+\subkeydefinition{vdwdf}{cell\_edge\_steps}{control.in} {
+  \noindent
+  Usage: \subkeyword{vdwdf}{cell\_edge\_steps} \option{$N_x$ $N_y$ $N_z$} \\[1.0ex]
+  Purpose: the total number of grids in each direction are defined
+  by integer numbers, \option{$x$ $y$ $z$}.\\
+}
+
+\subkeydefinition{vdwdf}{cell\_edge\_units}{control.in} {
+  \noindent
+  Usage: \subkeyword{vdwdf}{cell\_edge\_units} \option{$d_{x}$ $d_{y}$ $d_{z}$}. \\[1.0ex]
+  Purpose: The real numbers \option{$d_{x}$ $d_{y}$ $d_{z}$} (in
+  {\AA}) define the length of grid units in each direction. Therefore,
+  the full grid length is ($N_x d_x$,$N_y d_y$, $N_z d_z$).  }
+
+\subkeydefinition{vdwdf}{cell\_size}{control.in} {
+  \noindent
+  Usage: \subkeyword{vdwdf}{cell\_size} \option{$L_{x}$ $L_{y}$ $L_{z}$} \\[1.0ex]
+  Purpose: this defines number of interacting cells in x, y, z
+  directions for van der Waals interactions. This option is meaningful
+  for periodic calculation.\\[1.0ex] \option{$L_{x}$ $L_{y}$ $L_{z}$}
+  are
+  integer. Default: \texttt{0 0 0}.\\
+}
+
+Note: As a temporary restriction, FHI-aims currently supports only
+grids with vectors aligning along $x$, $y$, and $z$ axes.
+
+Calculations for periodic systems: In defining even spacing grid of
+a periodic system, only information of cell\_edge\_steps and
+cell\_size (if needed) is necessary and other parameters will be
+automatically determined from that.
+
+\newpage
+
+\subsection*{Subtags for \emph{mc\_int} tag in \texttt{control.in}:}
+
+\subkeydefinition{mc\_int}{kernel\_data}{control.in} {
+  \noindent
+  Usage: \subkeyword{mc\_int}{kernel\_data} \option{kernel.dat} \\[1.0ex]
+  Purpose: the name of the tabulated kernel file.  }
+
+\subkeydefinition{mc\_int}{output\_flag}{control.in} {
+  \noindent
+  Usage: \subkeyword{mc\_int}{output\_flag} \option{flag} \\[1.0ex]
+  Purpose: this controls output of Monte Carlo integration process,
+  level 0 for no output, level 1 for ``reasonable'', and level 3
+  prints further the subregion results(if applicable).
+  \option{flag} is an integer number. Default: \texttt{0} \\
+}
+
+\subkeydefinition{mc\_int}{number\_of\_MC}{control.in} {
+  \noindent
+  Usage: \subkeyword{mc\_int}{number\_of\_MC} \option{N} \\[1.0ex]
+  Purpose: the total number of Monte-Carlo integration steps.\\[1.0ex]
+  \option{N} is an integer number. Default: \texttt{5E5}\\
+}
+
+\subkeydefinition{mc\_int}{relative\_accuracy}{control.in} {
+  \noindent
+  Usage: \subkeyword{mc\_int}{relative\_accuracy} \option{E$_{acc}$} \\[1.0ex]
+  Purpose: control the accuracy of Monte-Carlo integration performed by Cuba library.\\[1.0ex]
+  \option{E$_{acc}$} is a real number. Default: \texttt{1E-16}\\
+}
+
+ \subkeydefinition{mc\_int}{absolute\_accuracy}{control.in} {
+  \noindent
+  Usage: \subkeyword{mc\_int}{absolute\_accuracy} \option{E$_{abs}$} \\[1.0ex]
+  Purpose: control the error bar of nonlocal correlation energy.\\[1.0ex]
+  \option{E$_{abs}$} is a real number (in the unit of Hartree). Default: \texttt{1E-2}\\
+}
+
+\newpage
+
+\subsection{Analytic integration scheme for non-selfconsistent and
+  self-consistent vdW-DF}
+\label{vdwdf-TKK}
+
+This method calculates the non-local part of the correlation energy as
+described in~\cite{Dion04} allowing for both non-self-consistent and
+self-consistent treatment. It works for both cluster and periodic
+geometries and can be used to compute forces. The implementation as
+well as the kernel function are from~\cite{Gulans09}. At each
+scf-cycle the following steps are performed:
+\begin{itemize}
+\item An octree is built to interpolate the current electron density
+  to the new integration grid below.
+\item To each grid point of the main integration grid another grid of
+  similar form is attached. The non-local correlation is then
+  integrated on this grid using density and its gradient interpolated
+  from the octree. In each node of the tree a tricubic interpolation
+  is used.
+\end{itemize}
+The first step of building the octree is not parallel but the second
+step of integration is MPI-parallel the usual way.
+
+\newpage
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{nlcorr\_nrad}{control.in}
+{
+  \noindent
+  Usage: \keyword{nlcorr\_nrad} \option{number}\\[1.0ex] 
+  Purpose: Sets
+  the number of radial shells used in the integration of the non-local
+  correlation potential and energy. Default: \texttt{10}\\
+}
+\keydefinition{nlcorr\_i\_leb}{control.in} 
+{
+  \noindent
+  Usage: \keyword{nlcorr\_i\_leb} \option{number}\\[1.0ex] 
+  Purpose:
+  Sets the index of angular Lebedev grid used in the integration of
+  the non-local correlation potential and energy. Maximum value
+  available is \texttt{15}. Default: \texttt{7}\\ 
+}
+\keydefinition{vdw\_method}{control.in} 
+{
+  \noindent
+  Usage: \keyword{vdw\_method} \option{type}
+  \option{accuracy}\\[1.0ex] 
+  Purpose: Sets the method for density
+  interpolation for the integration of the non-local correlation
+  potential and energy.\\[1.0ex] 
+  \option{type} is the method selected,
+  either \texttt{octree}, \texttt{mixed}, or \texttt{multipoles}.
+  Default: \texttt{octree}\\[1.0ex] 
+  \option{accuracy} applies to
+  methods \texttt{octree} and \texttt{mixed}. It is the targer
+  accuracy of the interpolation. In case of \texttt{multipoles} all
+  available multipoles are used. Default: \texttt{1E-6}\\
+}
+The point of providing three different options for \texttt{type} is
+simply that any prospective user should test which one is fastest for
+a given problem. The difference is simply the style of integration of
+the non-local part. Ideally, the results should be the same. However,
+as always, please check in case of doubt.

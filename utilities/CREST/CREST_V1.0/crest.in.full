@@ -1,0 +1,78 @@
+# Input file for CREST program
+# *Empty ([]) values are equivalent to not setting the value at all
+
+# CONTROL VARIABLES
+# Command to call interface script
+run_electr_structure_command = '/home/ofersin/scripts/offpath/CREST_run_AIMS.sh xxQsheetxx 4'
+# Directory to look for atomistic electronic structure program output
+atomistic_output_dir = 'atom2crest'
+# Calculate total energy correction
+calculate_energy_correction = true     # [DEFAULT]
+# Use calculation energy levels + weights output to speed up convergence
+use_DOS = true     # [DEFAULT]
+# Attempt to extrapolate development in the slab of the local vacuum level (U)
+# from a bulk-like position in the slab
+extrapolate_bulklike_U = true     # [DEFAULT]
+# Interval in which U data in general is averaged (smoothed) to avoid numerical noise
+U_averaging_interval = 3.159     # Angstrom [DEFAULT]
+# Alternative interval in which bulk-like U data is averaged (relevant
+# only if extrapolate_bulklike_U = true)
+Ubl_averaging_interval = U_averaging_interval     # Angstrom [DEFAULT]
+# Energy gap under which the doping is degenerate (eff. mass treatment)
+degeneracy_limit = 3.5     # kT [DEFAULT]
+# If numeric solution of eff. mass Poisson-Boltzmann fails, continue with analytical solution
+fallback_analytical_PBsol = true     # [DEFAULT]
+
+# SELF CONSISTENCY
+# Convergence criteria (all will be met)
+convergence_criterion_Qsheet = Inf     # e/cm^2 [DEFAULT]
+convergence_criterion_Ef = 1e-3     # eV [DEFAULT]
+convergence_criterion_delta_phi_b = 1e-3     # V [DEFAULT]
+# Maximum iterations
+max_n_iterations = 20     # [DEFAULT]
+# Negative values indicate that linear mixing (not secant) is desired
+mixing_parameter = 1     # [DEFAULT]
+# Initial guess for value of Qsheet (default 0 or next guess from a previous run if available)
+initial_Qsheet = 0     # e/cm^2 [DEFAULT]
+# Initial guess for value of band bending (default 0). Do not specify both
+# initial_Qsheet and initial_delta_phi_b
+initial_delta_phi_b = 0     # eV [DEFAULT]
+# Path to xml file containing results from previous run. Qsheet input and output
+# history, and next guess for Qsheet if available, will be read
+xml_from_previous = []     # [DEFAULT]
+
+# SEMICLASSICAL BULK PARAMETERS
+T = 298.15     # K
+bulk_Nv = 2.65e19     # 1/cm^3
+bulk_Nc = 2.8e19     # 1/cm^3
+bulk_epsilon = 11.9
+bulk_Eg = 0.7026     # eV
+# Doping density - positive (negative) values indicate n-type (p-type)
+doping_density = 1e17     # e/cm^3
+
+# INFO FROM FULLY-PASSIVATED SLAB SYSTEM
+# Work function
+flatband_WF = 4.1336     # eV
+# U drop across surface (required if extrapolate_bulklike_U = true)
+flatband_eDelta_phi_v = -1.0466     # eV [CONDITIONAL]
+
+# SLAB SYSTEM
+# Position well within the vacuum between the sheet and the slab's virtual surface
+z_vacuum = 17     # Angstrom
+# Position of charged sheet (required if calculate_energy_correction = true)
+z_sheet = 9     # Angstrom [CONDITIONAL]
+# Bulk-like positions in the slab. It is recommended that they be evenly 
+# spaced (required if extrapolate_bulklike_U = true)
+z_bulklike_1 = 38.682     # Angstrom [CONDITIONAL]
+z_bulklike_2 = 41.841     # Angstrom [CONDITIONAL]
+z_bulklike_3 = 45.000     # Angstrom [CONDITIONAL]
+# Estimate of the position at which the virtual (sheet-facing) side of the 
+# slab formally "ends" and the vacuum between it and the sheet "begins"
+# (required if extrapolate_bulklike_U = false or if extrapolation fails)
+z_bisection_estimated = 23.8     # Angstrom [CONDITIONAL]
+z_bisection_uncertainty = 2     # Angstrom [DEFAULT]
+# Area of surface cell (required if use_DOS = true)
+surface_cell_area = 12.9643442649     # Angstrom^2 [CONDITIONAL]
+# Total "intrinsic" number of electrons in the slab, i.e. excluding electrons
+# added from / removed to bulk reservoir (required if use_DOS = true)
+intrinsic_num_electrons = 365.00005324127770     # e [CONDITIONAL]

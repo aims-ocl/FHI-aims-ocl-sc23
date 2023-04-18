@@ -1,0 +1,181 @@
+\section{Electronic Transport}
+\label{section electronic transport}
+
+Electronic transport in FHI-aims can be computed either using the
+built-in routine described in this chapter or with the help of
+aitranss-package (see Chapter \ref{sec:aitranss:source}). The built-in
+routine computes the electronic transport through a nanostructure
+connected to two, three or four semi-infinite leads using the
+Landauer-B\"uttiker formalism. Only calculations within the zero-bias
+limit are supported. All transport related actions are initiated with
+the keyword \keyword{transport} that is followed by the action
+required.
+
+A typical work-flow of a transport calculation is as follows
+\begin{enumerate}
+\item Information for the semi-infinite leads are created. To this end
+  the action \option{lead\_calculation} should be used. Separate
+  periodic calculation is required for each lead and the third lattice
+  vector must point away from the nanostructure, i.e., into the
+  semi-infinite lead. The region used to model the semi-infinite lead
+  should be large enough so that the basis functions from the
+  nanostructure region do not extend beyond the lead region.
+\item Once all the leads are calculated transport through the
+  nanostructure is calculated using the action
+  \option{transport\_calculation}.  This produces the tunneling
+  information through the nanostructure for each pair of the
+  leads. The nanostructure should be large enough so that the basis
+  functions from different leads do not overlap. In this calculation
+  the lead atoms need to be included in the file \texttt{geometry.in}
+  and their positions must be exactly the same as in the calculation
+  for the lead information. In particular, they should not be relaxed
+  when the geometry of the nanostructure is optimized. This
+  calculation should also be run as a periodic calculation using a
+  sufficient amount of k-points. The transport part of the calculation
+  is done using only one k-point but in order to ensure converged
+  density and potential of the nanostructure region more k-points are
+  usually needed.
+\end{enumerate}
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{transport}{control.in}
+{
+  \noindent
+  Usage: \keyword{transport} \option{action} [\option{further
+      options}]\\[1.0ex] 
+  Purpose: This is the keyword that is used to
+  control the built-in transport routines. \\[1.0ex] 
+  \option{action} is a string that specifies the kind of requested action in the
+  transport calculation; any further needed options depend on
+  \option{action}. \\ }
+
+\subsection*{Specific actions \texttt{transport} keyword:}
+
+\subkeydefinition{transport}{lead\_calculation}{control.in}
+{
+  \noindent
+  Usage: \keyword{transport} \subkeyword{transport}{lead\_calculation} \\[1.0ex]
+  Purpose: Computes the lead information for the given lead. Only one
+  lead can be calculated at at time and each lead needs to be
+  calculated separately.  The calculation is periodic and the third
+  lattice vector must point into the lead.}
+
+\subkeydefinition{transport}{transport\_calculation}{control.in}
+{
+  \noindent
+  Usage: \keyword{transport} \subkeyword{transport}{transport\_calculation} \\[1.0ex]
+  Purpose: Performs the transport calculation. Using this keyword
+  requires that the information for all the semi-infinite leads is
+  already calculated.  }
+
+\subkeydefinition{transport}{tunneling\_file\_name}{control.in}
+{
+  \noindent
+  Usage: \keyword{transport} \subkeyword{transport}{tunneling\_file\_name} \option{filename} \\[1.0ex]
+  Purpose: Specifies the name of the file where the tunneling
+  information is written. Each pair of the leads is written to a separate
+  column in plain text format.}
+
+\subkeydefinition{transport}{energy\_range}{control.in}
+{
+  \noindent
+  Usage: \keyword{transport} \subkeyword{transport}{energy\_range} \option{$E_\mathrm{min}$} \option{$E_\mathrm{max}$} \option{$n_\mathrm{steps}$} \\[1.0ex]
+  Purpose: Sets the energy range for which the tunneling information
+  is calculated. The energy range $E_\mathrm{max} - E_\mathrm{min}$ is
+  divided into $n_\mathrm{steps}$ steps and the tunneling information
+  is calculated for each step. The energy zero is referenced at the
+  chemical potential of the nanostructure.}
+
+\subkeydefinition{transport}{lead\_i}{control.in}
+{
+  \noindent
+  Usage: \keyword{transport} \subkeyword{transport}{lead\_i} \option{atom\_index} \option{filename} \\[1.0ex]
+  Purpose: Tells the transport calculation where the information on
+  the semi-infinite leads is stored. One line for each lead is
+  required and the index i is substituted by the lead index (1, 2, 3,
+  or 4). The option \option{atom\_index} is set to the index of the
+  first atom of the lead in question in the file \texttt{geometry.in}
+  and the coordinates of the lead atoms must be the same used when
+  calculating the lead information. The option \option{filename}
+  provides the name of the file where the lead information is
+  stored. Note that for a successful transport calculation information
+  for at least two leads is needed. Hence, this keyword must be
+  invoked at least twice. The maximum number of leads supported is
+  currently four.}
+
+The Green's function for the semi-infinite leads needs to be solved
+iteratively for each energy step. The iteration is regularized adding
+a small complex part to the energy of the step being computed. At each
+iteration the magnitude of the regularizing part is decreased until
+either convergence of lower bound of the parameter is reached. The
+iteration can be controlled by several keywords.
+
+\subkeydefinition{transport}{number\_of\_boundary\_iterations}{control.in}
+{
+  \noindent
+  Usage: \keyword{transport} \subkeyword{transport}{number\_of\_boundary\_iterations} \option{number} \\[1.0ex]
+  Purpose: Sets the maximum number of iterations to solve the Green's
+  function for each lead. Default: 10 }
+
+\subkeydefinition{transport}{boundary\_treshold}{control.in}
+{
+  \noindent
+  Usage: \keyword{transport} \subkeyword{transport}{boundary\_treshold} \option{number} \\[1.0ex]
+  Purpose: Sets the convergence criterion for the iteration of the
+  Green's functions. The metric used is the maximum absolute value
+  change in the matrices for the Green's functions of the
+  leads. Default: 1.0 }
+
+\subkeydefinition{transport}{boundary\_mix}{control.in}
+{
+  \noindent
+  Usage: \keyword{transport} \subkeyword{transport}{boundary\_mix} \option{number} \\[1.0ex]
+  Purpose: Mixing value for the linear mixer in the iteration of the
+  Green's function. Values below one correspond to
+  under-relaxation. Default: 0.7}
+
+\subkeydefinition{transport}{epsilon\_start}{control.in}
+{
+  \noindent
+  Usage: \keyword{transport} \subkeyword{transport}{epsilon\_start} \option{number} \\[1.0ex]
+  Purpose: Starting value for the regularizing complex parameter in
+  the iteration for the Green's function for the semi-infinite
+  lead. Only the magnitude of the parameter should be given with this
+  keyword. Default: $0.02\imath$}
+
+\subkeydefinition{transport}{epsilon\_end}{control.in}
+{
+  \noindent
+  Usage: \keyword{transport} \subkeyword{transport}{epsilon\_end} \option{number} \\[1.0ex]
+  Purpose: Ending value for the regularizing complex parameter in
+  the iteration for the Green's function for the semi-infinite
+  lead. Only the magnitude of the parameter should be given with this
+  keyword. Default: $0.0001\imath$}
+
+\subkeydefinition{transport}{fermi\_level\_fix}{control.in}
+{
+  \noindent
+  Usage: \keyword{transport} \subkeyword{transport}{fermi\_level\_fix} \\[1.0ex]
+
+  Purpose: Set the potential reference of the leads to their Fermi
+  level. Since in the transport calculations the leads are calculated
+  first and only after that incorporated into the system there is a
+  question of a potential reference. Currently two options are
+  available. The default option is to use the average of the energy
+  levels of the lowest orbitals of the lead atoms. The second option
+  invoked by this keyword is to align the Fermi levels of the leads
+  between the lead calculations and the transport calculation.
+  
+  Note that since the calculation of the lead is separate from the
+  transport calculation in general the distance from the energy of the
+  lowest lying orbital to the Fermi level of the calculation is not
+  necessarily the same. This means that the leads in the lead
+  calculation are not in the same environment as in the transport
+  calculation and bringing them together introduces an alignment
+  problem for the potential. From the transport calculation point of
+  view this implies that a gate voltage is introduced into the
+  system. In the transport calculation the value of this gate voltage
+  is printed. In the tunneling results the energy is always
+  referenced to the Fermi level of the transport calculation. Default:
+  \texttt{.false.}}

@@ -1,0 +1,108 @@
+%\newcommand{\doublekeydefinition}[3]
+% {{\textbf{Tag: \texttt{#1}}{ \color{filename_color} (#2)}}
+% #3
+% 
+% }
+
+\section{Plugin for free-energy calculations with molecular dynamics: \texttt{PLUMED}}
+\label{appendix_PLUMED}
+
+
+Molecular dynamics based free-energy calculations can be performed
+with the aid of the external plugin \texttt{PLUMED}.\\
+Methods included are metadynamics \cite{mtd}, well-tempered metadynamics \cite{wmtd}, umbrella sampling \cite{usa1,usa2,usa3}, Jarzynski-equation based steered molecular dynamics \cite{smd1,smd2}.
+A large and nearly exhaustive set of collective variable (CV) is accessible through a simple input script.
+
+\texttt{PLUMED} is a free package that, after registration, can be downloaded from 
+\url{http://merlino.mi.infn.it/~plumed/PLUMED/Home.html}
+Currently, a copy of the \texttt{PLUMED} library is
+kept in the \emph{external} directory of the FHI-aims source code, and
+must be compiled separately using the makefile Makefile.meta (see section
+\ref{Sec:Makefiles}). In the future a patch for modifying FHI-aims in order to compile it with PLUMED will be available on the PLUMED webpage.\\
+
+\subsection{Usage}
+
+The actual use of the plugin is switched on by this single line in \texttt{control.in}:
+\begin{verbatim}
+ plumed .true.
+\end{verbatim}
+With \texttt{plumed .false.} (default) or nothing, the code would behave exactly as compiled without
+this plugin. It is implied that some MD scheme must be used in \texttt{control.in}, in order to see PLUMED acting. What PLUMED does, in facts, is to modify the molecular dynamics forces according to the selected scheme.\\
+All the specific controls of the free energy calculation are contained in the file \texttt{plumed.dat} (which must be in the working directory, together with \texttt{control.in} and \texttt{geometry.in}, if \texttt{plumed .true.} is set).
+For all the details on \texttt{plumed.dat}, we defer to \texttt{PLUMED} manual which can be found on the project website.\\
+Here we report a minimal example for metadynamics:
+\begin{verbatim}
+PRINT W_STRIDE 10
+DISTANCE LIST 1 <g1> SIGMA 0.35
+g1->
+2 3 4
+g1<-
+HILLS HEIGHT 0.003 W_STRIDE 10
+ENDMETA
+\end{verbatim}
+This script would make \texttt{PLUMED} deposit Gaussians (\texttt{HILLS}) of \texttt{HEIGHT} $0.003$ hartree, every \texttt{W\_STRIDE} timesteps.
+The (only) CV that will be biased by metadynamics is a distance between atom `1' and the center of mass of atoms `2', `3', and `4'. The number labelling the atoms follows their order of appearance in \texttt{geometry.in}. The results will be printed (see below) every \texttt{PRINT W\_STRIDE} time steps.
+The width of the Gaussian for the distance CV is specified by \texttt{SIGMA}
+
+A note on the units: the units in \texttt{plumed.dat} and in the output(s) are the internal ones in FHI-aims, i.e. energies in hartree, distances in bohr, forces in hartree/bohr.
+
+When using \texttt{PLUMED}, some extra output files are created. 
+In \texttt{log.dat} the specifics of the run are given. \texttt{COLVAR} contains the trajectory of
+the selected CVs. 
+Notably, if no biasing method is selected, but one or more CVs are defined in \texttt{plumed.dat}, PLUMED prints nonetheless the trajectory of those CVs in \texttt{COLVAR} (one can also explicitly switch off the biasing of \textit{some} CVs via the \texttt{NOHILLS} directive).\\
+In case metadynamics is used, then also \texttt{HILLS} is generated, which contains the informations for reconstructing the free energy profile. This is done with the postprocessing tool, ``sum\_hills'', which is given with the distribution. \\
+For umbrella sampling a powerful tool for reconstructing the free-energy from
+\texttt{COLVAR}, can be downloaded from: \url{http://membrane.urmc.rochester.edu/Software/WHAM/WHAM.html}.
+
+
+
+
+
+% \option{NEB.pl}
+% \keyword{input\_template}. 
+% 
+% \keydefinition{aims\_control\_file\_template}{control\_NEB.in}
+% {\begin{itemize}
+%   \item Usage: \keyword{aims\_control\_file\_template} \option{filename}
+%   \item Location of the AIMS template file to be used for the TS search.
+%   \end{itemize}}
+% 
+% \keydefinition{input\_template}{control\_NEB.in}
+% {\begin{itemize}
+%     \item Usage: \keyword{input\_template} \option{filename}
+%     \item The location of the initial guess for the TS-search. The file name contains 
+%       the number of the iteration, followed by \option{.xyz}, while 
+%       \keyword{input\_template} should be without those two points. 
+%     \item Example: An initial guess called \option{space\_dog\_0.xyz} 
+%       would be described with \\
+%       \option{input\_template space\_dog\_}
+%     \item This file has to be a multi-frame xyz file with the following format:\\
+%       \option{<n\_atoms>} \\
+%       \option{start} \\
+%       \option{<species1> <xstart> <ystart> <zstart> }\\
+%       $\ldots$\\
+%       \option{<n\_atoms>}\\
+%       \option{image 1}\\
+%       \option{<species1> <x1> <y1> <z1> }\\
+%       $\ldots$\\
+%       \option{<n\_atoms>}\\
+%       \option{image <n\_images>}\\
+%       \option{<species1> <x1> <y1> <z1> }\\
+%       $\ldots$\\
+%       \option{<n\_atoms>}\\
+%       \option{END}\\
+%       \option{<species1> <x1> <y1> <z1> }\\
+%       $\ldots$\\      
+%   \end{itemize}}
+% 
+% \doublekeydefinition{max\_atomic\_move}{control\_NEB.in}
+% {\begin{itemize}
+%     \item Usage: \option{max\_atomic\_move} \option{value}
+%     \item The maximally allowed displacement during a single NEB step.
+%     \item This value should be relatively small (default is 0.1\AA) as the
+%       algorithm might literally tear apart some of the images if the 
+%       force constants are not set ideally and the transition path is not 
+%       extremely close to the actual path. 
+%     \item Same as keyword \keyword{max\_atomic\_move} in AIMS
+%   \end{itemize}}
+% 

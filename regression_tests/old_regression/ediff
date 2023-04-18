@@ -1,0 +1,218 @@
+#!/bin/bash
+# $Id$
+
+# TODO:
+# * Allow diffs of directories.
+
+doerror-usage () {
+    echo >&2 "$*"
+    usage 2
+}
+
+doerror () {
+    echo >&2 "$*"
+    exit -1
+}
+
+usage () {
+    echo "ediff [options] A B [C]
+ Do a two (or three) way diff/merge of A and B and optionally save the
+ result to C.
+      --parent      -p P    Common ancestor for three way merge
+      --auto        -a      Try automatic three way merge (only with -p P & C)
+      --readonly    -r      Make buffers A, B, P read-only.
+      --backup              Save old contents in .orig file
+                    -L ARG  Echo ARG [for compatibility]
+                    -u      Ignore
+      --help        -h      This message"
+    exit $1
+}
+
+
+A=
+B=
+C=
+P=
+AUTO=
+READ=
+BACKUP=
+while [[ $# -gt 0 ]]
+  do
+  opt=$1
+  shift
+  case "$opt" in
+      (--help|-h)            usage 0;;
+      (--parent|-p)          P="$1"; shift;;
+      (--auto|-a)            AUTO=1;;
+      (--readonly|-r)        READ=1;;
+      (--backup)             BACKUP=1;;
+      (-L) echo $1; shift;;
+      (-u) ;;
+      (--) ;;
+      (-*)                   doerror-usage "Unknown option $opt";;
+      (*)
+      if [ -z "$A" ]; then
+	  A="$opt"
+      elif [ -z "$B" ]; then
+	  B="$opt"
+      elif [ -z "$C" ]; then
+	  C="$opt"
+      else
+	  doerror-usage "More than three command line arguments"
+      fi
+  esac
+done
+
+if [ -z "$A" -o -z "$B" ]; then
+    doerror-usage "Need at least two files."
+elif [ -d "$A" -o -d "$B" ]; then
+    if [ ! -d "$A" -o ! -d "$B" ]; then
+	doerror "Cannot compare file to directory."
+    elif [ -n "$P" ]; then
+	doerror "Cannot do three way merges on directories (yet)."
+    fi
+    emacs --eval "(ediff-directories \"$A\" \"$B\" \"\")"
+    exit $?
+elif [ ! -f "$A" ]; then
+    doerror "File $A does not exist."
+elif [ ! -f "$B" ]; then
+    doerror "File $B does not exist."
+elif [ -n "$P" -a ! -f "$P" ]; then
+    doerror "File $P does not exist."
+elif [ -n "$AUTO" -a -z "$P" ]; then
+    doerror-usage "No --auto without common ancestor (--parent)."
+elif [ -n "$AUTO" -a -z "$C" ]; then
+    doerror-usage "No --auto without target buffer (C)."
+    if [ "$A" = "$C" -o "$B" = "$C" ]; then
+	doerror "C has to differ from A and B if using --auto."
+    fi
+fi
+
+Fullpath () {
+    name="$1"
+    if [[ "$name" == /* ]]; then
+	echo "$name" # absolute path
+    else
+	echo "$PWD/$name"
+    fi
+}
+
+Backup () {
+    if [ -z "$BACKUP" ]; then return; fi
+    X="$1"
+    if [ -f "$X.orig" ]; then
+	if ! cmp -s "$X" "$X.orig"; then
+	    doerror "Cannot backup $X because $X.orig exists and differs"
+	fi
+    else
+	cp -p "$X" "$X.orig"
+    fi
+}
+
+Restore ()
+{
+    if [ -z "$READ" -a -z "$BACKUP" ]; then
+	cp -p "$A.orig" "$A"
+	cp -p "$B.orig" "$B"
+	if [ -n "$C" -a -f "$C.orig" ]; then cp -p "$C.orig" "$C"; fi
+    fi
+    return 0
+}
+
+TidyUpX ()
+{
+    if [ -z "$READ" -a -n "$BACKUP" ]; then
+	X="$1"
+	if cmp -s "$X" "$X.orig"
+	    then rm -f "$X.orig"
+	else
+	    echo >&2 "Warning: $X changed.  Saved original in $X.orig."
+	fi
+    fi
+}
+
+TidyUpAndGo ()
+{
+    RET=$?
+    if [ -z "$READ" ]; then
+	TidyUpX "$A"
+	TidyUpX "$B"
+	if [ -n "$C" -a -f "$C.orig" ]; then TidyUpX "$C"; fi
+    fi
+    exit $RET
+}
+
+# === Back up
+
+if [ -z "$READ" ]; then
+    Backup "$A"
+    Backup "$B"
+    if [ -n "$C" -a -f "$C" ]; then
+	Backup "$C"
+    fi
+else
+    A="$(Fullpath $A)"
+    B="$(Fullpath $B)"
+    if [ -n "$P" ]; then P="$(Fullpath $P)"; fi
+    if [ -n "$C" ]; then C="$(Fullpath $C)"; fi
+fi
+
+# === Try auto merge
+
+if [ -n "$AUTO" ]
+    then
+    # We are guaranteed to have both P and C.
+    if which merge > /dev/null 2>&1 ; then
+	cp "$A" "$C"
+	if merge "$C" "$P" "$B" 2> /dev/null; then
+	    TidyUpAndGo
+	else
+	    Restore
+	fi
+    elif which diff3 > /dev/null 2>&1 ; then
+	if diff3 -m "$A" "$P" "$B" > "$C" ; then
+	    TidyUpAndGo
+	else
+	    Restore
+	fi
+    fi
+fi
+
+# === Prepare read-only
+
+if [ -n "$READ" ]; then
+    roA="(find-file-read-only \"$A\")"
+    roB="(find-file-read-only \"$B\")"
+    if [ -n "$P" ]; then
+	roP="(find-file-read-only \"$P\")"
+    else
+	roP=
+    fi
+    ro="$roA $roB $roP"
+fi
+
+# === Prepare main command
+
+if [ -n "$P" ]
+    then
+    EMERGE=ediff-merge-with-ancestor
+    if [ -n "$C" ]; then
+	emerge="(ediff-merge-with-ancestor \"$A\" \"$B\" \"$P\" nil \"$C\")"
+    else
+	emerge="(ediff-merge-with-ancestor \"$A\" \"$B\" \"$P\")"
+    fi
+else
+    if [ -n "$C" ]; then
+	emerge="(ediff-merge-files \"$A\" \"$B\" nil \"$C\")"
+    else
+	emerge="(ediff-files \"$A\" \"$B\")"
+    fi
+fi
+
+#vt="(ediff-toggle-wide-display) (ediff-toggle-split)" # Does not work
+
+# === Run and tidy up
+
+emacs --eval "(list $ro $emerge)"
+
+TidyUpAndGo

@@ -1,0 +1,128 @@
+ #########################################################################
+
+ The "aitranss" (ab initio transport simulations) package is a project
+ under continuous development at the Institute of Nanotechnology of the
+ Karlsruhe Institute of Technology (KIT), Germany, since 2002. In brief, 
+ when combined with FHI-aims, "aitranss" provides a post-processor
+ module that enables, e.g., calculation of the electron transport
+ characteristics of molecular junctions based on a Landauer formalism 
+ in a (non-equilibrium) Green's function formulation.
+
+ Current version of the "aitranss" module, available to FHI-aims users, is
+ limited to computation of the ballistic Landauer-Buettiker transmission
+ function and local density of states projected on atoms.
+
+ This file contains a brief overview of the included material, and
+ few remarks on how to compile and use the module. For further details,
+ we encourage interested users to refer to a corresponding chapter in
+ the FHI-aims manual.
+
+ For question and bug reports, please contact: Alexej.Bagrets <at> kit.edu
+
+ #########################################################################
+
+
+ OVERVIEW OF THE INCLUDED MATERIAL: 
+ ----------------------------------
+
+ subdirectory ./source : contains a Fortran 90 code and the draft
+                         Makefile. A mandatory prerequisite to build the
+                         code is a Fortran90/95 capable compiler and a
+                         compiled version of LAPACK and BLAS (for example,
+                         Intel's MKL). Please, use an included example
+                         of the Makefile and adjust variables FC, LD,
+                         FLAGS and LIBS appropriately.
+
+                         A binary ("aitranss.x") built by the Makefile
+                         will go to the ./bin directory of the FHI-aims.
+
+                         Current release of the transport code, in
+                         contrast to FHI-aims, is not yet based on MPI.
+                         However, you are encouraged to use a fortran
+                         compiler's option(s), aka "-openmp" and "-O2"
+                         for Intel's ifort, to build a multithreaded
+                         code based on OpenMP directives.
+
+			 According to our experience, a generated code
+			 can be safety executed in parallel within a
+			 single compute node with multiple processors,
+			 and with a significant gain in computation time.
+
+ subdirectory ./tcontrol.script :
+
+			 contains a script "tcontrol.aims.x" which
+			 is served to prepare a mandatory input file
+			 "tcontrol" for the "aitranss" module
+
+			 Please, refer to the FHI-aims documentation on
+			 how to use this script. You may also wish to
+			 copy a "tcontrol.aims.x" to your ~/bin directory
+			 to make it generally available. For a short
+			 description, type: "tcontrol.aims.x --help"
+
+ subdirectory ./electrodes.library :
+
+			 contains a library of representative Au clusters,
+			 which should be linked to your molecular
+			 system to create an "extended molecule":
+			 its electronic structure (Kohn-Sham molecular
+			 orbitals and energies) is a prerequisite to
+			 compute transport characteristics.
+
+			 Each included library file contains a mandatory
+			 argument to be used with the "tcontrol.aims.x"
+			 script.
+
+ subdirectory ./examples : contains two examples, with input and output
+			 files of the FHI-aims and "aitranss" module.
+			 Examples are: (i) Au-benzene-dithiol-Au junction, 
+			 and (ii) Au-alkyl_chain-Au molecular junction. 
+			 Please, look also into local README files, for 
+			 short guidelines on how to run a particular 
+			 transport calculation.
+
+
+ BRIEF COMMENTS ON USAGE: 
+ ------------------------
+
+ (i)   Having your favorite molecule at hands, link it via anchoring
+       groups to metallic Au clusters (found in ./electrodes.library
+       subdirectory) and create an "extended molecule".
+
+ (ii)  Run the FHI-aims exploiting a "cluster" type (non-periodic)
+       calculation (no k-points). Your "control.in" file should contain
+       a line :
+
+       output aitranss
+
+       After FHI-aims run, you'll find in your directory following
+       files: 
+       
+       -- "basis.indices.out" (compressed information on basis functions) 
+       -- "omat.aims" (overlap integrals) 
+       -- "mos.aims"  (Kohn-Sham molecular orbitals and energies) 
+       
+       If spin channels of your system are not identical, corresponding 
+       files will be called "alpha.aims" and "beta.aims"
+
+ (iii) Use a "tcontrol.aims.x" script with options and arguments described
+       in the FHI-aims manual, and create a mandatory file "tcontrol"
+       to enable transport calculation.
+
+ (iv)  Use a binary file "aitranss.x" to run a post-processor transport
+       calculation after FHI-aims.
+
+       The FHI-aims output files ("basis.indices.out", "omat.aims",
+       "mos.aims" or "alpha.aims" & "beta.aims") together with information
+       provided from files "tcontrol" and "geometry.in" will be used by
+       transport code to reconstruct a Kohn-Sham Hamiltonian (H) of the
+       "extended molecule", to supplement H with the self-energy, and to
+       compute a ballistic (Landauer-Buettiker) transmission function,
+       exploiting Green's function formalism.
+
+ #########################################################################
+
+ Best wishes,
+
+ and happy electron transport calculations with "aitranss" & FHI-aims!
+

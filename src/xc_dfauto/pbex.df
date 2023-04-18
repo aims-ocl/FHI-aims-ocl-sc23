@@ -1,0 +1,21 @@
+# vim: set syntax=maple:
+
+read "basics.mpl";
+read "diracx.df";
+read "pbec.df";
+
+epsilon[Xpbe] := proc(n, grad)
+    epsilon[Xunif](n)*F[Xpbe](S(n, grad))
+end;
+
+F[Xpbe] := proc(s)
+    1+kappa-kappa/(1+mu*s^2/kappa)
+end;
+mu := beta*(pi^2/3);
+kappa := 0.804;
+
+f := 0;
+g := rho(s)*epsilon[Xpbe](2*rho(s), 2*sqrt(sigma(ss)));
+G := rho(s)*epsilon[Xpbe](2*rho(s), 2*sqrt(sigma(ss)));
+
+title := "PBE exchange functional";

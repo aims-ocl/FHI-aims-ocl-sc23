@@ -1,0 +1,483 @@
+\documentclass[12pt,a4paper,twoside,openany,titlepage,final]{book}
+
+\usepackage[dvips]{geometry}
+\geometry{textwidth=15cm,textheight=24cm,top=3.5cm}
+
+\usepackage[small,sf]{caption}
+
+\usepackage{sectsty}
+\allsectionsfont{\sffamily\raggedright}
+
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage{textcomp}
+
+\usepackage{array}
+\extrarowheight4pt
+
+\usepackage{supertabular}
+
+% \usepackage{floatflt}
+
+\usepackage{graphicx}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{bm}
+\usepackage{framed}
+
+\usepackage{multicol}
+\premulticols0.0em
+
+\usepackage{fancyhdr}
+
+\pagestyle{fancy}
+
+\bibliographystyle{plain}
+
+\usepackage{makeidx}
+
+\usepackage{color}
+\usepackage{braket}
+\usepackage{siunitx}
+
+\usepackage{subfigure}
+\usepackage{wrapfig}
+\DeclareGraphicsExtensions{.png, .jpg, .pdf, .eps}
+
+\definecolor{link_color}{rgb}{0,0,1}
+\definecolor{MARK_color}{rgb}{1,0,0}
+\definecolor{filename_color}{rgb}{0.6,0.6,0.6}
+% This usepackage command MUST BE LAST !!!
+% More details on the hyperref package, including an extensive list of global package options
+% can be found at http://www.tug.org/applications/hyperref/manual.html
+\usepackage[backref           = page,
+            colorlinks        = true,
+            linkcolor         = link_color,
+            menucolor         = link_color,
+            citecolor         = link_color,
+            urlcolor          = link_color,
+            bookmarksnumbered = true,
+            hyperindex        = true]{hyperref}
+\hypersetup{pdfauthor  = {Volker Blum et al.},
+            pdftitle   = {AIMS Manual},
+            pdfsubject = {A users manual for the code package FHI-AIMS}}
+% For handling underscores with hyperref
+\usepackage{xstring}
+\let\oldhypertarget\hypertarget
+\renewcommand{\hypertarget}[2]{
+  \StrSubstitute{#1}{\_}{_}[\tempa]
+  \StrSubstitute{\tempa}{\$}{dummy}[\tempb]
+  \oldhypertarget{\tempb}{#2}
+}
+\let\oldhyperlink\hyperlink
+\renewcommand{\hyperlink}[2]{
+  \StrSubstitute{#1}{\_}{_}[\tempa]
+  \StrSubstitute{\tempa}{\$}{dummy}[\tempb]
+  \oldhyperlink{\tempb}{#2}
+}
+
+%\pagestyle{headings}
+%\pagenumbering{arabic}
+
+\linespread{1.0}
+
+\newcommand{\la}{$\langle$}
+\newcommand{\ra}{$\rangle$}
+\newcommand{\boldk}{\mbox{\boldmath$k$}}
+\newcommand{\boldr}{\mbox{\boldmath$r$}}
+\newcommand{\bolds}{\mbox{\boldmath$\sigma$}}
+\newcommand{\boldp}{\mbox{\boldmath$p$}}
+\newcommand{\boldR}{\mbox{\boldmath$R$}}
+\newcommand{\boldE}{\mbox{\boldmath$E$}}
+\newcommand{\boldF}{\mbox{\boldmath$F$}}
+\newcommand{\boldG}{\mbox{\boldmath$G$}}
+\newcommand{\erf}{\mathop{\mathrm{erf}}}
+\newcommand{\erfc}{\mathop{\mathrm{erfc}}}
+\DeclareMathOperator{\Tr}{Tr}
+\newcommand{\bfr}{{\bf r}}
+\newcommand{\bfrp}{{\bf r'}}
+\newcommand{\bfk}{{\bf k}}
+\newcommand{\bfq}{{\bf q}}
+\newcommand{\bfR}{{\bf R}}
+\newcommand{\bfRp}{{\bf R'}}
+\newcommand{\bfRpp}{{\bf R''}}
+\newcommand*{\Vect}[1]{{\ensuremath{\boldsymbol{\mathbf{#1}}}}}
+\newcommand*{\Mat}[1]{{\ensuremath{\underline{\mathbf{#1}}}}}
+\newcommand*{\D}{\mathrm{d}} % differential
+\newcommand*{\Laplacian}{\mathop{}\!\mathbin\bigtriangleup}
+\newcommand*{\Del}{\Vect{\nabla}}
+
+\renewcommand{\floatpagefraction}{0.75}
+
+% don't like something in the Manual? \MARK{} it and readers will definitely notice!
+\newcommand{\MARK}[1]{\textbf{\color{MARK_color} #1}}
+
+\newcommand{\keyword}[1]
+{\hyperlink{#1}{\texttt{#1}}}
+
+\newcommand{\subkeyword}[2]{\hyperlink{#1 #2}{\texttt{#2}}}
+
+\newcommand{\option}[1]{\texttt{#1}}
+
+
+% use this to define a keyword, automatically creates all the links here.
+\newcommand{\keydefinition}[3]
+{
+\centerline{\rule{1.0\textwidth}{1pt}}
+\hypertarget{#1}{\textbf{Tag: \texttt{#1}}{ \color{filename_color} (#2)}}
+\index{#1@\texttt{#1}}
+\\[2ex] \hspace*{0.05\textwidth}
+\begin{minipage}{0.92\textwidth}
+  #3
+\end{minipage} \\
+}
+
+\newcommand{\subkeydefinition}[4]
+{
+\centerline{\rule{1.0\textwidth}{1pt}}
+\hypertarget{#1 #2}{\textbf{\keyword{#1} sub-tag: \texttt{#2}} { \color{filename_color} (#3)}}
+\index{#1@\texttt{#1}!#2@\texttt{#2}}
+\\[2ex] \hspace*{0.05\textwidth}
+\begin{minipage}{0.92\textwidth}
+  #4
+\end{minipage} \\
+}
+
+\newcommand{\keydefinitiontwo}[4]
+{
+\centerline{\rule{1.0\textwidth}{1pt}}
+\hypertarget{#1}{\textbf{Tags:\ \texttt{#1}}{ \color{filename_color} (#3)}}
+\hypertarget{#2}{\textbf{\newline\phantom{Tags:}\ \texttt{#2}\phantom{a}}{ \color{filename_color} (#3)}}
+\index{#1@\texttt{#1}}
+\index{#2@\texttt{#2}}
+\\[2ex] \hspace*{0.05\textwidth}
+\begin{minipage}{0.92\textwidth}
+  #4
+\end{minipage} \\
+}
+
+\newcommand{\keydefinitionthree}[5]
+{
+\centerline{\rule{1.0\textwidth}{1pt}}
+\hypertarget{#1}{\textbf{Tags:\ \texttt{#1}}{ \color{filename_color} (#4)}}
+\hypertarget{#2}{\textbf{\newline\phantom{Tags:}\ \texttt{#2}}{ \color{filename_color} (#4)}}
+\hypertarget{#3}{\textbf{\newline\phantom{Tags:}\ \texttt{#3}}{ \color{filename_color} (#4)}}
+\index{#1@\texttt{#1}}
+\index{#2@\texttt{#2}}
+\index{#3@\texttt{#3}}
+\\[2ex] \hspace*{0.05\textwidth}
+\begin{minipage}{0.92\textwidth}
+  #5
+\end{minipage} \\
+}
+
+
+\makeindex
+
+\begin{document}
+
+\fancyhf{}
+\fancyhead[LO]{\sffamily\slshape \nouppercase{\rightmark}}
+\fancyhead[RE]{\sffamily\slshape \nouppercase{\leftmark}}
+\fancyhead[LE,RO]{\sffamily \thepage}
+\fancypagestyle{plain}{
+  \fancyhf{}
+  \fancyhead[LE,RO]{\sffamily \thepage}
+  \renewcommand{\headrulewidth}{0pt}
+                      }
+\renewcommand{\linespread}{1.0}
+
+\parindent0.0ex
+\parskip1.3ex
+
+%\renewcommand{\baselinestretch}{1.0}
+
+\sffamily
+
+\thispagestyle{empty}
+\vspace*{-2.0cm}
+
+\begin{center} \huge
+\centerline{\rule{1.0\textwidth}{1pt}}
+
+\textbf{Fritz Haber Institute \\ \emph{ab initio} molecular
+       simulations: FHI-aims}
+
+\centerline{\rule{1.0\textwidth}{1pt}}
+
+\vspace*{0.5cm}
+
+\includegraphics[width=0.7\textwidth]{aims_logo}
+
+\vspace*{0.5cm}
+
+\LARGE {All-Electron Electronic Structure Theory \\ with Numeric Atom-Centered
+  Basis Functions \\[3.0cm] A Users' Guide}
+\end{center}
+
+\vspace*{0.0cm}
+
+\centerline{\rule{1.0\textwidth}{1pt}}
+\begin{center} \large
+     FHI-aims team
+     \\
+     with many contributors around the world. \\
+\today
+\end{center}
+
+\newpage
+
+\tableofcontents
+
+\include{chapter_overview}
+
+\include{chapter_quickstart}
+
+\chapter{Input Files: Basic Handling}
+\label{Ch:basic}
+
+\include{section_input_files}
+
+\include{section_species_defaults}
+
+\include{section_converging}
+
+\include{section_efficiency}
+
+\include{section_abort_files}
+
+
+\chapter{The Full Monty: All Keywords and Capabilities}
+\label{Ch:full}
+
+The present chapter aims to give a comprehensive overview and summary of all
+input options (keywords) that are available in FHI-aims: a full listing of
+keywords according to their intended use. In each of the following
+sections, keywords related to a
+given class of tasks are grouped together, and then listed according
+to whether they belong into \texttt{geometry.in}, the general section
+of \texttt{control.in}, or the species subsection(s) of
+\texttt{control.in}.
+
+FHI-aims is a computer
+code under active development. Aside from established, stable and well-tested
+features, you may also find features that someone is still working on. Such
+features are marked as ``experimental''. If you are interested in using one or
+more of those features, contact us, and we will try to be of assistance as
+much as we can.
+
+For the truly curious: All input and output options are managed by the
+subroutines \texttt{read\_control.f90}, \texttt{read\_geo.f90}, and
+\texttt{read\_species\_data.f90}. In cases of doubt, those subroutines
+are the ultimate place to determine a keyword's exact invocation and
+function.
+
+
+\include{section_convenience}
+
+\include{section_physical_model}
+
+\include{section_exchange_and_correlation}
+
+\include{section_basis_sets}
+
+\include{section_grids}
+
+\include{section_density}
+
+\include{section_Hartree}
+
+\include{section_rel}
+
+\include{section_EV}
+
+\include{section_scf_convergence}
+
+\include{section_forces_and_geometry}
+
+\include{section_md}
+
+\include{section_tdi}
+
+\include{section_electronic_constraints}
+
+\include{section_embedding}
+
+\include{section_qmmm_embedding}
+
+\include{section_mpe_implicit_solvent}
+
+\include{section_mpb}
+
+\include{section_dftpU}
+
+\include{section_vdw}
+
+\include{section_mbd}
+
+\include{section_vdwdf}
+
+\include{section_auxil}
+
+\include{section_periodic_hf}
+
+\include{section_tddft}
+
+\include{section_bse}
+
+\include{section_DFPT}
+
+\include{section_friction}
+
+\include{section_linear_macroscopic_dielectric_function}
+
+\include{section_electronic_transport}
+
+\include{section_esp_charges}
+
+\include{section_magnetic_response}
+
+\include{section_large_scale}
+
+\include{section_fodft}
+
+\include{section_symmetry}
+
+\include{section_output}
+
+\include{section_deprecated}
+
+\chapter{Running FHI-aims: Guides to specific tasks}
+\label{CH:running}
+
+The complete specification of all keywords available in FHI-aims and
+their capabilities was given in the previous chapter. The present
+chapter attempts to illustrate these capabilities in a tutorial
+way. The purpose of this exercise is threefold: (i) to provide clear
+starting points for the most common types of production calculations;
+(ii) to provide clear examples that can be modified (but need not be
+completely reinvented) for the many further capabilitues of FHI-aims;
+(iii) to describe specific ``higher-level'' tasks that bind together
+multiple FHI-aims calculations by way of scripts (e.g., vibrations, or
+nudged-elastic band calculations to find transition barriers).
+
+\include{section_example-Etot}
+
+\include{section_example-rel}
+
+\include{section_kgrid}
+
+\include{section_band_structure_dos}
+
+\include{section_visualizing}
+
+\include{section_vibrations_and_phonons}
+
+\include{section_restart}
+
+%\include{appendix_ASENEB}
+\include{appendix_aimschain}
+
+\include{appendix_NEB}
+
+\include{appendix_GA-2}
+\include{appendix_PLUMED}
+
+\include{appendix_rex}
+
+\include{appendix_charged_defects}
+
+\chapter[The AITRANSS package]{The {\LARGE AITRANSS} package}
+\label{Ch:aitranss}
+
+The \textsc{aitranss} ({\it ab initio} transport simulations) package is
+a project under continuous development at the Institute of Nanotechnology
+of the Karlsruhe Institute of Technology (KIT), Germany, since 2002. In
+brief, when combined with FHI-aims, \textsc{aitranss} provides a
+post-processor module that enables, e.g., calculation of the electron
+transport characteristics of molecular junctions based on a Landauer
+formalism in a (non-equilibrium) Green's function formulation.
+
+Currently, the version of the code accessible to FHI-aims users is
+limited to computation of the ballistic (Landauer-B\"uttiker) transmission
+function and partial atom-projected density of states.
+According to current planning advanced options, e.g., out of
+equilibrium transport response, will be available in the future releases.
+
+A discussion of the underlying physical formalism and details of the
+implementation are described in the references \cite{Arnold2007,Wilhelm2013,Bagrets2013}:
+
+\begin{center}
+\parbox[c]{0.85\textwidth}
+{\small
+A.\ Arnold, F.\ Weigend, and F.\ Evers,
+"Quantum chemistry calculations for molecules coupled to reservoirs:
+Formalism, implementation, and application to benzenedithiol."
+J.\ Chem.\ Phys.\ \textbf{126}, 174101 (2007).
+}
+\medskip
+
+\parbox[c]{0.85\textwidth}
+{\small
+J.\ Wilhelm, M.\ Walz, M.\ Stendel, A.\ Bagrets, and F.\ Evers,
+"Ab initio simulations of scanning-tunneling-microscope
+images with embedding techniques and application to C58-dimers
+on Au(111)." Phys.\ Chem.\ Chem.\ Phys.\ \textbf{15}, 6684 (2013).
+}
+\medskip
+
+\parbox[c]{0.85\textwidth}
+{\small
+A.\ Bagrets, "Spin-polarized electron transport across metal-organic
+molecules: a density functional theory approach."
+J.\ Chem.\ Theory Comput.\ \textbf{9}, 2801 (2013).
+}
+\medskip
+
+\end{center}
+
+Please, cite the above works together with
+FHI-aims publications, when using \textsc{aitranss}.
+
+For questions and bug reports, contact
+Alexej Bagrets (\verb,Alexej.Bagrets@kit.edu,).
+
+\include{chapter_aitranss}
+
+%--------------------- APPENDICES --------------------------------
+\appendix
+
+\include{appendix_trouble_shooting}
+
+\include{appendix_structure}
+
+\include{appendix_regression}
+
+\include{appendix_debugmanager}
+
+\include{appendix_xml_output}
+
+\include{appendix_external_packages_and_variants}
+
+\include{appendix_multiaims}
+
+\include{appendix_gpu_acceleration}
+
+\include{appendix_cmake}
+
+\include{appendix_make_sys}
+
+%--------------------- REFERENCES --------------------------------
+%\addcontentsline{toc}{chapter}{Bibliography}
+\bibliography{FHI-aims}
+\addcontentsline{toc}{chapter}{Bibliography}
+
+
+%--------------------- INDEX -------------------------------------
+\section*{Following pages: Index}
+(this page inserted to enforce proper hyperlink to index)
+\addcontentsline{toc}{chapter}{Index}
+\printindex
+
+\end{document}

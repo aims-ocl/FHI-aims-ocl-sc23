@@ -1,0 +1,333 @@
+!****s* FHI-aims/cpscf_solver
+!  NAME
+!    cpscf_solver
+!  SYNOPSIS
+
+    subroutine cpscf_solver &
+    (converged)
+
+!  PURPOSE
+!  an cpscf process.
+!  USES
+
+      use dimensions
+      use timing
+      use physics
+      use species_data
+      use localorb_io
+      implicit none
+
+!  ARGUMENTS
+
+      logical, intent(OUT) :: converged
+
+!  INPUTS
+!    none
+!  OUTPUT
+!    o  converged -- did the cpscf cycle converged or not.
+!
+!  AUTHOR
+!    FHI-aims team, Fritz-Haber Institute of the Max-Planck-Society
+!  SEE ALSO
+!    Volker Blum, Ralf Gehrke, Felix Hanke, Paula Havu, Ville Havu,
+!    Xinguo Ren, Karsten Reuter, and Matthias Scheffler,
+!    "Ab initio simulations with Numeric Atom-Centered Orbitals: FHI-aims",
+!    Computer Physics Communications (2008), submitted.
+!  COPYRIGHT
+!   Max-Planck-Gesellschaft zur Foerderung der Wissenschaften
+!   e.V. Please note that any use of the "FHI-aims-Software" is subject to
+!   the terms and conditions of the respective license agreement."
+!  HISTORY
+!    Release version, FHI-aims (2008).
+!  SOURCE
+!
+      ! imported variables
+
+
+
+      ! local variables
+      character*100 :: info_str
+      logical :: below_it_limit
+
+      character*8  :: cdate
+      character*10 :: ctime
+      character(*), parameter :: deffmt = '2X'
+
+      real*8, parameter:: alpha=0.2d0
+
+
+  !-------------------shanghui add here------------------------------------
+     real*8, target, dimension(3, n_atoms, n_full_points) :: first_order_rho
+     real*8, target, dimension(3, n_atoms, n_full_points) :: first_order_potential
+  !------------------shanghui end add------------------------------------- 
+
+
+      ! counters
+
+      integer :: i_spin
+      integer :: i_atom
+      integer :: i_basis, j_basis, i_coord, i_point,i_state
+
+
+      character(*), parameter :: func = 'cpscf_solver'
+      
+      logical first_iteration
+     !shanghui------------------------------------------------------------------------
+      real*8  first_order_S(3, n_atoms, n_basis,n_basis)
+      real*8  first_order_U(3, n_atoms, n_basis,n_basis)
+      real*8  first_order_C(3, n_atoms, n_basis,n_basis)
+      real*8  first_order_E(3, n_atoms, n_basis)
+      real*8  first_order_density_matrix(3, n_atoms, n_basis,n_basis)
+      real*8  old_first_order_density_matrix(3, n_atoms, n_basis,n_basis)
+      real*8  first_order_H(3, n_atoms, n_basis,n_basis)
+      real*8  change_of_first_order_DM
+      real*8  time_start, time_end
+      integer  max_occ_number(n_spin)
+     !shanghui------------------------------------------------------------------------
+
+
+      ! begin work
+      number_of_loops = 0
+
+      below_it_limit = (number_of_loops.lt.sc_iter_limit)
+     
+      first_iteration = .true.
+
+   !--------------shanghui test first_order_S-------------------
+     first_order_S=0.0d0  
+    call integrate_first_order_S(partition_tab, l_shell_max, first_order_S)
+    write(use_unit,*) '************shanghui begain first_order_S(atom1,X)****************'
+      do i_basis=1,n_basis
+      write(use_unit,'(6f15.9)') (first_order_S(1,1,i_basis,j_basis),j_basis=1,n_basis )
+      enddo
+    write(use_unit,*) '************shanghui end first_order_S****************'
+    write(use_unit,*) ''
+   !--------------shanghui end test first_order_S---------------   
+
+!     find the max_occ_number
+        do i_spin = 1, n_spin, 1
+            max_occ_number(i_spin) = 0
+            do i_state = n_states, 1, -1
+             if (dabs(occ_numbers(i_state,i_spin,1)).gt.0.d0) then
+              max_occ_number(i_spin) = i_state
+              exit
+             endif
+            enddo
+        enddo
+
+     
+     write(use_unit,*) '-----------------------------------------------'
+     write(use_unit,*) 'shanghui test n_basis,max_occ:',n_basis,max_occ_number(1)
+     write(use_unit,*) 'shanghui test n_max_compute_ham',n_max_compute_ham
+     write(use_unit,*) '-----------------------------------------------'
+
+
+
+
+    first_order_density_matrix=0.0d0
+    old_first_order_density_matrix=0.0d0
+    first_order_H=0.0d0
+    first_order_U=0.0d0 
+    first_order_E=0.0d0
+
+      !----shanghui change back later for cpscf-----------
+       call evaluate_first_order_DM(first_order_S,  &
+             KS_eigenvector, KS_eigenvalue, occ_numbers,max_occ_number,   &
+             first_order_U,old_first_order_density_matrix)
+
+! ------------------------ self-consistency loop -------------->>
+  SCF_LOOP: do while ( (.not.converged) .and.  &
+  &                    below_it_limit )
+        number_of_loops = number_of_loops + 1
+
+        write(info_str,'(A)') ''
+        call localorb_info(info_str, use_unit,'(A)', OL_norm  )
+        write(info_str,'(A)') "---------------------shanghui@@@CPSCF---------------------------------------"
+        call localorb_info(info_str, use_unit,'(A)', OL_norm  )
+        
+          write(info_str,'(10X,A,1X,I4)') "Begin CP-self-consistency iteration #", number_of_loops
+        call localorb_info(info_str, use_unit,'(A)', OL_norm )
+        
+        write(info_str,'(A)') ''
+        call localorb_info(info_str, use_unit,'(A)', OL_norm )
+        call date_and_time(cdate, ctime)
+        write(info_str,'(2X,A,A,A,A)') "Date     :  ", cdate, ", Time     :  ", ctime
+        call localorb_info(info_str, use_unit,'(A)', OL_norm )
+        write(info_str,'(A)') "------------------------------------------------------------"
+        call localorb_info(info_str, use_unit,'(A)', OL_norm )
+
+
+
+!---------------(1) Begin  update first_order_rho-----------------------------------
+        !call cpu_time(time_start) old version for the whold cpscf one step 
+       call evaluate_first_order_DM(first_order_S,  &
+             KS_eigenvector, KS_eigenvalue, occ_numbers,max_occ_number,   &
+             first_order_U,first_order_density_matrix)
+
+         !shanghui: we need to perform density matrix mixing here
+    
+          change_of_first_order_DM =0.0d0         
+
+         do i_basis = 1,n_basis
+         do j_basis = 1,n_basis
+
+            do i_atom = 1,n_atoms
+ 
+            do i_coord = 1,3
+         change_of_first_order_DM =                &
+         max( change_of_first_order_DM,             &
+         dabs(first_order_density_matrix(i_coord,i_atom,i_basis,j_basis)  &
+         - old_first_order_density_matrix(i_coord,i_atom,i_basis,j_basis)) )
+         
+         first_order_density_matrix(i_coord,i_atom,i_basis,j_basis) =       &
+         (1.0d0-alpha)*old_first_order_density_matrix(i_coord,i_atom,i_basis,j_basis)+  &
+         alpha*first_order_density_matrix(i_coord,i_atom,i_basis,j_basis)
+     
+         old_first_order_density_matrix(i_coord,i_atom,i_basis,j_basis) =   &
+         first_order_density_matrix(i_coord,i_atom,i_basis,j_basis)
+            enddo
+
+            enddo
+       
+         enddo
+         enddo
+
+        write(use_unit,*) "((((((((((((((((((((((((((((((((("
+        write(use_unit,*) change_of_first_order_DM
+        write(use_unit,*) ")))))))))))))))))))))))))))))))))"
+!-------------(1) end first-order-density update and mixing--------
+
+
+!  ------------(2)begain to calculate first_order_H-----------------
+        call integrate_first_order_rho(partition_tab, l_shell_max,  &
+             KS_eigenvector(:,:,1,1),first_order_density_matrix,max_occ_number, &
+             first_order_rho)
+ 
+        do i_atom=1,n_atoms
+           do i_coord=1,3
+
+        call update_hartree_potential_p2_shanghui &
+            ( hartree_partition_tab,first_order_rho(i_coord,i_atom,1:n_full_points),& 
+            delta_v_hartree_part_at_zero, &
+            delta_v_hartree_deriv_l0_at_zero, &
+            multipole_moments, multipole_radius_sq, &
+            l_hartree_max_far_distance, &
+            outer_potential_radius )
+
+       write(use_unit,*) '{----shanghui in cpscf_solver.f:-----for first_order_hartree_potential:'
+       write(use_unit,*) 'i_coord,i_atom',i_coord,i_atom,forces_on
+       write(use_unit,*) '----shanghui in cpscf_solver.f:-----for first_order_hartree_potential}'
+
+        call sum_up_whole_potential_p2_shanghui &
+                ( delta_v_hartree_part_at_zero, &
+                delta_v_hartree_deriv_l0_at_zero, multipole_moments, &
+                partition_tab, first_order_rho(i_coord,i_atom,1:n_full_points), &
+                first_order_potential(i_coord,i_atom,1:n_full_points),  & !<--------get first_order_DM_potential
+                .false., multipole_radius_sq, &
+                l_hartree_max_far_distance, &
+                outer_potential_radius)
+
+
+           enddo
+        enddo
+
+   call  integrate_first_order_H &
+        (hartree_potential,first_order_potential, rho, rho_gradient,&
+        partition_tab, l_shell_max, en_xc, en_pot_xc,    &
+        KS_eigenvector(:,:,1,1),first_order_density_matrix,max_occ_number, &
+        first_order_H &
+       )
+    write(use_unit,*) '************shanghui begain first_order_H(atom1,X)****************'
+      do i_basis=1,n_basis
+      write(use_unit,'(6f15.9)') (first_order_H(1,1,i_basis,j_basis),j_basis=1,n_basis )
+      enddo
+    write(use_unit,*) '************shanghui end first_order_H****************'
+    write(use_unit,*) ''
+! ------------(2) end to calculate first_order_H-----------------
+
+        first_iteration = .false.
+
+
+
+!--------------(3) begin to calculate first_order_U-----------------
+
+        call cpu_time(time_start) 
+        call evaluate_first_order_U(first_order_H, first_order_S,  &
+             KS_eigenvector, KS_eigenvalue, occ_numbers,  max_occ_number, &
+             first_order_U,first_order_E)
+        call cpu_time(time_end) 
+        write(use_unit,*) '@@@@@@@@time for DFPT-DM1@@@@@@@@@@@@@@@@@@',time_end-time_start
+
+!--------------(3) end solve first_order_U problem----------------
+
+
+! --------- Check convergence ----->>
+
+!         Check convergence.
+!         Continue with density update and new Hartree potential.
+!         Get total energy pieces for next iteration.
+
+
+!         check convergence of self-consistency loop
+         
+
+        converged = (change_of_first_order_DM.lt.1.0d-6).and.(number_of_loops.gt.1)
+
+!  ---------- Update electron density and perform mixing ---->>
+
+        if (converged) then
+!           We are done - no further evaluation of density / potential needed
+
+          write(info_str,'(A)') ''
+          call localorb_info(info_str, use_unit,'(A)',OL_norm)
+          write(info_str,'(2X,A)') "CP-self-consistency cycle converged."
+          call localorb_info(info_str, use_unit,'(A)',OL_norm)
+          write(info_str,'(A)') ''
+          call localorb_info(info_str, use_unit,'(A)',OL_norm)
+ 
+
+
+        else if (number_of_loops.ge.sc_iter_limit) then
+!           This was the last self-consistency cycle - we do not need any more potential / density evaluations
+
+          below_it_limit = .false.
+        end if
+
+
+        ! current SCF loop ends here
+
+! ----- Printing out time data -- >>
+
+
+! << ---- end printing out data---------
+
+
+!       this is the end of the self-consistency cycle.
+
+  end do SCF_LOOP
+! << ------ end self consistent cycle--------
+
+      total_number_of_loops = total_number_of_loops + number_of_loops
+
+      ! Perform any post-processing that is required after every scf cycle:
+      ! * scaled ZORA, if required
+      ! * output of a band structure
+      ! * Direct calculation of a binding energy
+      !
+      !!! Please add any other postprocessing right here in the future !!!
+
+!      require_post_prc = ( (flag_rel.eq.REL_zora) .and. (force_potential.eq.0) ) &
+!                         .or. out_band .or. use_qmmm &
+!                         .or. out_hirshfeld .or. out_hirshfeld_iterative &
+!                         .or. use_vdw_correction_hirshfeld &
+!                         .or. use_ll_vdwdf.or. flag_compute_kinetic .or. use_meta_gga &
+!                         .or. use_nlcorr_post .or. use_vdw_post
+!
+!      
+!      if (require_post_prc) then
+!      end if
+
+
+
+    end subroutine cpscf_solver
+!******

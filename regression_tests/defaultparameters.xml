@@ -1,0 +1,60 @@
+<defaults>
+    <testparameter
+        name = "DFT/HF total energy (eV)"
+        comparison = "cmp_float.abs_diff(1E-5)"
+        importance = "mandatory"
+        regex = "Total energy of the DFT / Hartree-Fock s.c.f. calculation      :[ ]+([-0-9.]+) eV"
+    />
+    <testparameter
+        name = "Post-SCF total energy (eV)"
+        comparison = "cmp_float.abs_diff(1E-5)"
+        importance = "consistent"
+        regex = "Total energy after the post-s.c.f. correlation calculation     :[ ]+([-0-9.]+) eV"
+    />
+    <testparameter
+        name = "Total calculation time (sec)"
+        comparison = "cmp_float.rel_diff(5,2)"
+        importance = "informative"
+        regex = "Total time[ ]+:[ ]+([-0-9.]+) s"
+    />
+    <testparameter
+        name = "Residual memory (MB)"
+        comparison = "cmp_float.abs_diff(1E-7)"
+        importance = "mandatory"
+        regex = "\| Residual value for overall tracked memory usage.+([-0-9]+\.[0-9]+) MB \(should be 0\.[0]+ MB\)"
+    />
+    <testparameter
+        name = "Number of SCF steps"
+        comparison = "cmp_int.abs_diff(0)"
+        importance = "optional"
+        regex = "Number of self-consistency cycles[ ]+:[ ]+([0-9]+)"
+    />
+    <testparameter
+        name = "Initialization Energy (eV)"
+        comparison = "cmp_float.abs_diff(1E-5)"
+        importance = "mandatory"
+        regex="\| Total energy[ ]+:[ ]+[-0-9.]+ Ha[ ]+([-0-9.]+) eV"
+        occurence="1"
+    />
+    <testparameter
+        name = "SCF HOMO energy (eV)"
+        comparison = "cmp_float.abs_diff(1E-5)"
+        importance = "mandatory"
+        regex="Highest occupied state \(VBM\) at[ ]+([-0-9.]+) eV"
+        occurence="-1"
+    />
+    <testparameter
+        name = "SCF HOMO occupation number"
+        comparison = "cmp_float.abs_diff(1E-5)"
+        importance = "mandatory"
+        regex="\| Occupation number:[ ]+([-0-9.]+)"
+        occurence="-2"
+    />
+    <testparameter
+        name = "HOMO-LUMO gap"
+	comparison = "cmp_float.abs_diff(2E-5)"
+	importance = "consistent"
+	regex="verall HOMO-LUMO gap:[ ]+([-0-9.]+) eV"
+	occurence="-1"
+    />
+</defaults>

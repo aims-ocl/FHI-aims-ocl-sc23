@@ -1,0 +1,79 @@
+This testcase is a 10 fs MD run with the nose-hoover thermostat for 
+a large peptide (220 atoms). It illustrates the settings recommended
+for large scale problems.
+
+In principle, this 220 atom
+"large" peptide will run happily on 20 cores (the present runs). It
+also runs on 8 cores with 1 GB of memory each, and perhaps less.
+
+The key point here is that the problem would scale up to a much higher
+number of CPU cores - probably around 512 cores or so. That, in turn,
+would enable a meaningfully long MD trajectory. 
+
+***** Standard settings in control.in:
+
+-  density_update_method density_matrix:  
+
+  ...  switches on the density update via the density matrix [scales
+       O(N)]. This is now automatically switched by the code for large
+       molecules, but in cases where the optimum setting can be
+       pre-determined, setting the better update method does not hurt.
+
+-  collect_eigenvectors .false.:          
+
+  ... if scalapack is used, switches off the collection of
+      eigenvectors to each CPU, which are only needed for some
+      post-processing functionality. Requires density-matrix based
+      density update anyway (see above).
+
+-  empty_states 3:                        
+
+   ... gives some small extra speedup, only recommended for
+       light-element molecules with a clear HOMO-LUMO gap.
+
+
+***** Optional settings in control.in that help if memory is tight:
+
+-  use_local_index .true. TOGETHER with load_balancing .true.: 
+
+   ... ensures that a very large, memory consuming run is efficiently
+   distributed over (ten) thousands of CPUs. Obviously, the effect of
+   these switches will be much more noticeable and  possibly essential
+   for systems that are ten times as large. 
+
+***** and one possible speedup that corresponds to a small
+      approximation but takes off an (otherwise) O(N^2) increase of
+      the timing for the Hartree potential for much larger
+      non-periodic systems:
+
+-  use_hartree_non_periodic_ewald
+
+   ... uses a faster spline interpolation method to deal with the
+       long-range part of the Hartree potential in non-periodic
+       systems. This is not yet the default as it corresponds to a
+       very small approximation (~1 meV in the present example after
+       10 steps), but it should become the default in the future for
+       large non-periodic systems. Saves about 10% in the present
+       case, but savings should increase for larger systems.
+
+
+***** We here provide four examples directories and runs:
+
+-  "none":                                        
+
+   Only the first three ("standard") settings are active
+
+
+-  "local-index-load-balancing":
+
+   use_local_index .true. TOGETHER with load_balancing .true.
+   (costs a small amount of time but caps per-processor memory) 
+
+
+-  "non_periodic_ewald"
+
+   Fastest settings provided here - standard settings plus
+   use_hartree_non_periodic_ewald .
+   Saves time; the numerical discrepancies to the "none" run are very
+   small. (consider that this is a 220 atom system!)
+

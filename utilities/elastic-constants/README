@@ -1,0 +1,20 @@
+aims_elastic serves as structure generation tool for determination of the
+elastic constanst e1-e6.
+This tool does not use any symmetry information, so the number of 
+calculations is NOT minimal, however is a sound basic for evaluation
+elastic constants based on linear response theory.
+
+The tool elongates the given set of lattice vectors by a parameter gamma, based on the user input of which elastic constant is of interest and returns the functional energy-gamme relation, which can be used for fitting to determine the elestic parameters.
+
+To use this tool the user has to provide a geometry optimized structure including control.in, geometry.in AND a jobsubmission script submit.sh. The latter should contain information about how submit the job to a compute cluster and/or how to execute FHI-aims. 
+
+By invoking aims_elastic with the option(s) --e1 ... --e6, the user specifies which lattice vector elongations are performed. The option maxGamma definies the maximum percentage of elongation and is set to 2% (0.02) by default.
+The option maxStruct defines how many geometries around the given structure minimum are generated an is set by default to 5 structures: "Two left and two right the minimun, including the minimal geometry for structure verification".
+Since the resulting energy-gamma realtion can be quadratically aproximated close to the minimal structure 5 structures are in general sufficient, however can be set to 10 ore more structures if the harmonic approximation is cumbersome.
+
+The aims_geometry tool provides multiple functionality I used and constructred during my daily work with FHI-aims and serves as a general purpose structure manipulation tool. If this tool is helpful for your own project fell free to add or modify the tool to your needs.
+
+If you have suggestions for improvement to any of these tools, please contact me:
+
+Bjoern Lange
+bl126@duke.edu

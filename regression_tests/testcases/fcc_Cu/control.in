@@ -1,0 +1,154 @@
+#########################################################################################
+#
+#  Volker Blum, FHI 2010 : Input file for FHI-aims
+#
+#  Input file control.in : All computational details for structure geometry.in
+#
+#  Since this is out number one periodic test case, I have updated it to
+#  reflect the current "light" settings as of 04/05/2010 . VB
+#
+#########################################################################################
+  #
+  #  Physical model settings
+  #
+    xc               pw-lda
+    charge           0.
+    spin             none
+    relativistic zora scalar 1e-12
+  #
+  #  SCF convergence settings
+  #
+    occupation_type  gaussian 0.1
+    mixer            pulay
+      n_max_pulay             10
+      charge_mix_param        0.2
+      # ini_linear_mixing     10
+      # ini_linear_mix_param  0.05
+      # preconditioner kerker 1.5
+      # precondition_max_l    4
+      # preconditioner turnoff charge 1e-4
+      # preconditioner turnoff sum_ev 1e-1
+    sc_accuracy_rho  1E-4
+    sc_accuracy_eev  1E-2
+    sc_accuracy_etot 1E-5
+    sc_iter_limit    100
+  #
+  #  Efficiency settings - no longer needed by default, so kept as comments only.
+  #
+  #  KS_method        lapack
+  #    empty_states     5
+  #    basis_threshold  1.e-5
+   distributed_spline_storage .true.  # use this for parallel runs / large systems
+  #
+  #  For periodic boundary conditions
+  #
+    k_grid 12 12 12 # this is not high for a metal. before economizing here,
+                    # note that the eigensolver-related part only takes about
+		    # 10% of the time in this example even with 12x12x12. The
+                    # bulk of the time are real-space operations.
+    symmetry_reduced_k_grid .true.
+
+    output k_point_list
+
+  #
+  #  For relaxation:
+  #
+#    relax_geometry bfgs 1.e-2
+  #
+  #  Output options:
+  #
+  #  output mulliken
+  #  output Hirshfeld
+  #  output dipole
+  #
+  #  High-symmetry k-points for fcc band structure output, if requested.
+  #
+  #  output l_proj_dos -20 30 1000 0.3
+  #  output band  0.25  0.50  0.75  0.5   0.5   0.5   100	W      L
+  #  output band  0.5   0.5   0.5   0.25  0.25  0.25  100	L      Lambda
+  #  output band  0.25  0.25  0.25  0     0     0     100	Lambda Gamma
+  #  output band  0     0       0   0.00  0.25  0.25  100	Gamma  Delta
+  #  output band  0.00  0.25  0.25  0     0.5   0.5   100	Delta  X
+  #  output band  0     0.5   0.5   0.125 0.5   0.625 100	X      Z 
+  #  output band  0.125 0.5   0.625 0.25  0.50  0.75  100	Z      W
+  #  output band  0.25  0.50  0.75  0.375 0.375 0.75  100	W      K
+################################################################################
+#
+#  FHI-aims code project
+#  VB, Fritz-Haber Institut, 2010
+#
+#  Suggested "light" defaults for Cu atom (to be pasted into control.in file)
+#  Be sure to double-check any results obtained with these settings for post-processing,
+#  e.g., with the "tight" defaults and larger basis sets.
+#
+################################################################################
+  species        Cu
+#
+    nucleus      29
+    mass         63.546
+#
+    l_hartree    4
+#
+    cut_pot      3.5  1.5  1.0
+    basis_dep_cutoff    1e-4
+#
+    radial_base        53 5.0
+    radial_multiplier  1
+    angular_grids       specified
+      division   0.5231   50
+      division   0.8642  110
+      division   1.1767  194
+      division   1.5041  302
+#      division   1.9293  434
+#      division   2.0065  590
+#      division   2.0466  770
+#      division   2.0877  974
+#      division   2.4589 1202
+      outer_grid   302
+################################################################################
+#
+#  Definition of "minimal" basis
+#
+################################################################################
+#     valence basis states
+    valence      4  s   1.
+    valence      3  p   6.
+    valence      3  d  10.
+#     ion occupancy
+    ion_occ      4  s   0.
+    ion_occ      3  p   6.
+    ion_occ      3  d   9.
+################################################################################
+#
+#  Suggested additional basis functions. For production calculations, 
+#  uncomment them one after another (the most important basis functions are
+#  listed first).
+#
+#  Constructed for dimers: 1.8, 2.2, 3.0, 4.0 Ang
+#
+################################################################################
+#  "First tier" - improvements: -211.42 meV to -9.17 meV
+     ionic 4 p auto
+     hydro 4 f 7.4
+     hydro 3 s 2.6
+     hydro 3 d 5
+#     hydro 5 g 10.4
+#  "Second tier" - improvements: -2.49 meV to -1.08 meV 
+#     hydro 4 p 5.8
+#     hydro 3 d 2.7
+#     hydro 6 h 15.2
+#     hydro 5 s 10.8
+#     hydro 4 f 16
+#  "Third tier" - improvements: -0.50 meV to -0.21 meV
+#     hydro 4 d 6
+#     hydro 3 p 2.4
+#     hydro 4 f 6.4
+#     hydro 3 s 6.8
+#     hydro 5 g 11.2
+#  "Fourth tier" - improvements: -0.13 meV to -0.05 meV
+#     hydro 4 p 7
+#     hydro 4 s 4
+#     hydro 6 h 14
+#     hydro 4 d 8.6
+#     hydro 5 f 15.2
+

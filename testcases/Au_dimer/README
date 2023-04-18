@@ -1,0 +1,34 @@
+Simple testcase to illustrate the intended handling of structure relaxation
+etc. for scalar-relativistic calculations in FHI-aims: Relaxation of the gold
+dimer, Au_2.
+
+Note that steps 1 and 2, i.e., the "atomic_zora" method, is the
+recommended method at this point (following the "Delta project",
+https://molmod.ugent.be/deltacodesdft). 
+
+The exchange-correlation choice is pw_lda, and all calculations are
+non-spinpolarized. Spin-orbit coupling is included into the energy
+levels non-selfconsistently after the second step.
+
+
+Step 1: ./relax_light/
+
+        Choose a starting geometry (3.0 AA in this case) and set up a fast
+        control.in file using the "light" species defaults for Au. 
+
+        The "relativistic" setting is atomic_zora. 
+
+Step 2: ./postrelax_tight/
+
+        The final geometry of step 1 (from the standard output or from the file
+        geometry.in.next_step) is used as the starting point for a more
+        accurate post-relaxation, this
+        time using the "tight" species_defaults for Au. Spin-orbit
+        coupling is included. Note that this corrects ONLY the
+        Kohn-Sham eigenvalues. For the total energy, only the scalar
+        relativistic total energy should be trusted.
+
+This testcase used to include an example of scaled ZORA, but, as
+outlined in the manual, multiple tests convinced us that scaled ZORA
+adds no discernible value. Just use atomic ZORA plus (optionally)
+spin-orbit coupling for production.

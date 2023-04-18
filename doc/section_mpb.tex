@@ -1,0 +1,185 @@
+\subsection{SMPB Implicit Electrolyte Model}
+\label{Sec:ModifiedPoissonBoltzmann}
+
+In FHI-aims, implicit solvation effects or electrolyte effects (z:z electrolytes) can be included by solving the Stern- and finite ion-size \emph{Modified Poisson-Boltzmann} equation (\emph{(S)MPBE}) in each SCF step:
+
+\begin{equation}
+\nabla \cdot \left[\varepsilon[n_{\rm el}(\bm{r})]\nabla v(\bm{r})\right] \;=\; -4\pi n_{\rm sol}(\bm{r}) - 4\pi n_\mathrm{ion}^\mathrm{MPB}(\bm{r}) \quad ,
+\label{eq:PBE}
+\end{equation}
+with
+\begin{equation}
+n_\mathrm{ion}^\mathrm{MPB}(\bm{r}) \;=\; z \left[ c^{\rm s}_+(\bm{r}) - c^{\rm s}_-(\bm{r}) \right] \quad ,
+\label{eq:PBE_fv}
+\end{equation}
+where
+$\varepsilon[n_\mathrm{el}]$ is a parameterized function of the electron density, $v$ is the electrostatic potential, $n_\mathrm{sol}$ is the solute charge density consisting of electrons and nuclei and $n_\mathrm{ion}^\mathrm{MPB}$ is the ionic charge density modeled as a function of the exclusion function $\alpha_\mathrm{ion}[n_\mathrm{el}]$ being parameterized via the electron density and the electrostatic potential $v$. The implementation so far supports different kind of models for the ionic charge density, that is the modified, the linearized or the standard PBE. All models include a model for the Stern layer by a repulsion of the ions from the solute modeled via $\alpha_\mathrm{ion}[n_\mathrm{el}]$ and the size-modified version also a finite ion size $a$. Parameterizations are needed for the dielectric function ($n_\mathrm{min}$ and $n_\mathrm{max}$) and nonmean-field interaction of solvent with solute ($(\alpha+\gamma)$ and $\beta$) which are readily available for water solvents but have to be obtained first for other solvents. Ionic parameters (ion size $a$ and Stern layer defining parameters $d_{\alpha_\mathrm{ion}}$ and $\xi_{\alpha_\mathrm{ion}}$) are not known so far and we are currently working on deriving them.
+
+The energies are outputted in the end of FHI-aims under the header \texttt{MPBE Solvation Additional Free Energies}:
+
+\begin{itemize}
+\item \texttt{Total energy} = Electrostatic part of the energy. This does NOT consider yet any non-electrostatic corrections (see next term)
+\item \texttt{Free Energy in Electrolyte} = $\Omega_\circ$ in ref.~\cite{Ringe2016}. Free energy of solute in electrolytic environment, which is \texttt{Total energy} + \texttt{Nonelectrostatic Free Energy} + \texttt{Additional Nonelstatic MPBE Solvation Energy}, where \texttt{Total energy} is the normally outputted energy in Aims (electrostatic part)
+\item \texttt{Surface Area of Cavity} = quantum surface of solvation cavity
+\item \texttt{Volume of Cavity} = quantum volume of solvation cavity
+\item \texttt{Nonelectrostatic Free Energy} = non-electrostatic part of solvation energy due to solute-solvent interactions, $\Omega^\mathrm{non-mf}$ in the publication
+\item \texttt{Additional Nonelstatic MPBE Solvation Energy} = non-electrostatic part of free energy due to ions. For ion-free calculations this is zero.
+\end{itemize}
+
+For more details see \cite{Ringe2016,Ringe2017}. If you want to do any calculations considering solvent or ion effects, please contact the authors, we are happy to help and cooperate. 
+
+The keywords listed here are the main part of all keywords. Some of the keywords were left out because they are highly experimental, if one is interested in more options, please contact the authors.
+
+\newpage
+
+\subsubsection*{Tags for general subsection of \texttt{control.in}:}
+
+\keydefinition{solvent mpb}{control.in}
+{
+  \noindent
+  Usage: \keyword{solvent mpb}\\[1.0ex]
+  Purpose: Switches MPB solvent effects on.\\[1.0ex]
+  Restriction: Only for cluster systems (no periodic systems). \\ 
+}
+
+\subkeydefinition{solvent mpb}{dielec\_func}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{solvent mpb}{dielec\_func} \option{type parameters} \\[1.0ex]
+  Purpose: Define the dielectric function. \\[1.0ex]
+  \option{type} integer describes the type of dielectric function used, \option{type}=0 Fattebert \& Gygi\cite{Fattebert2002} or \option{type}=1 Andreussi \& Marzari\cite{Andreussi2012}\\[1.0ex]
+  \option{parameters} settings for dielectric function, separated by space:\\
+    \option{type}=0: bulk dielectric constant $\epsilon^\mathrm{s,bulk}$, $\beta$, $n_0$\\[1.0ex]
+    \option{type}=1: bulk dielectric constant $\epsilon^\mathrm{s,bulk}$, $n_\mathrm{min}$, $n_\mathrm{max}$\\[1.0ex]
+  Default: \texttt{1 78.36 0.0001 0.005}\cite{Andreussi2012} 
+}
+
+\subkeydefinition{solvent mpb}{ions\_\{parameter\}}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{solvent mpb}{ions\_\{parameter\}} \option{parameter} \\[1.0ex]
+  Purpose: Set the parameters defining the ions in the electrolyte. In our recent publication\cite{Ringe2017} we explain how to choose these for different monovalent salt solutions. \\[1.0ex]
+  \option{parameter} \{parameter\} = 
+  \begin{itemize}
+  \item \textit{temp} (temperature (K))
+  \item  \textit{conc} (bulk concentration $c^\mathrm{s,bulk}$ (mol/L))
+  \item  \textit{charge} ($z$)
+  \item \textit{size} (lenght of lattice cell \textit{a} (\AA))
+  \item \textit{kind} (0 for sharp step function, 1 for smooth function)
+  \item \textit{mod\_alpha} ($d_{\alpha_\mathrm{ion}}$,$\xi_{\alpha_\mathrm{ion}}$)
+  \end{itemize}  
+  Defaults: T = \texttt{300}K, $c^\mathrm{s,bulk} = $\texttt{1}M,z=\texttt{1},a=\texttt{5}, \texttt{kind} = \texttt{1}, $d_{\alpha_\mathrm{ion}}=$\texttt{0.5},$\xi_{\alpha_\mathrm{ion}}=$\texttt{1.0}\\[1.0ex]
+  Remarks: The inclusion of a second $\alpha_\mathrm{ion}$ function for the anions is experimental and should not be used. The use of a sharp cutoff function for $\alpha_\mathrm{ion}$ is not recommended, not properly implemented and just there for testing purposes.
+}
+
+\subkeydefinition{solvent mpb}{SPE\_\{setting\}}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{solvent mpb}{SPE\_\{setting\}} \option{parameter} \\[1.0ex]
+  Purpose: Change numerical parameters of the SPE solver. \\[1.0ex]
+  \option{parameter} \{setting\} = 
+  \begin{itemize}
+  \item \textit{lmax} (maximum angular momentum $l_\mathrm{max}$ of multipole expansion and of all species)
+  \item  \textit{conv} ($\tau_\mathrm{MERM}$, $\eta$, separated by space)
+  \item  \textit{cut\_and\_lmax\_ff} (distance from atom centers at which far field is turned on -- \texttt{multipole\_radius\_SPE}, $l_\mathrm{max}^\mathrm{ff}$ -- maximum angular momentum in the far field, separated by space)
+  \end{itemize}  
+  Defaults: $l_\mathrm{max}$ = \texttt{max(l\_hartree)}, $\tau_\mathrm{MERM} =$ \texttt{1e-10}, $\eta = $\texttt{0.5}, ${l_\mathrm{max}^\mathrm{ff} = l_\mathrm{max}}$, \texttt{multipole\_radius\_SPE} is per default not used and the species dependent \texttt{multipole\_radius\_free} + 2.0 is used as far field cutoff radius. \\[1.0ex]
+  Remarks: Due to our present tests, we do not recommend to use ${l_\mathrm{max}^\mathrm{ff} < l_\mathrm{max}}$, the errors in the energies at the normal cutoff radius are too big. $\tau_\mathrm{MERM} =$\texttt{1e-8} can be enough in most cases and speed up the calculation. The species dependend \texttt{l\_hartree} can be by implementation not larger than $l_\mathrm{max}$, so it is reduced to $l_\mathrm{max}$ if higher for the SPE solver. 
+}
+
+\subkeydefinition{solvent mpb}{dynamic\_\{quantity\}\_off}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{solvent mpb}{dynamic\_\{quantity\}\_off} \\[1.0ex]
+  Purpose: If these keywords are used, \{quantity\} is parameterized before the SCF cycle from the superposition of free energy densities. \\[1.0ex]
+  \{quantity\} = 
+  \begin{itemize}
+    \item \textit{cavity} dielectric function $\varepsilon$
+    \item \textit{ions} exclusion function $\alpha_\mathrm{ion}$
+  \end{itemize}  
+  Default: both keywords not used by default, so both quantities are calculated self-consistently by parameterizing it with the full electron density.
+}
+
+\subkeydefinition{solvent mpb}{delta\_rho\_in\_merm}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{solvent mpb}{delta\_rho\_in\_merm}\\[1.0ex]
+  Purpose: Setting this keyword, evaluates the change of the source term ${q -\frac{1}{4\pi}\hat{L}_1 \delta v_{n+1}}$ during the MERM iteration and solves the SPE for this change rather than the full source density. \\[1.0ex]
+  Default: Not used. This keyword is under development and experimental, do not use it, yet.
+}
+
+\subkeydefinition{solvent mpb}{nonsc\_Gnonmf}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{solvent mpb}{nonsc\_Gnonmf}\\[1.0ex]
+  Purpose: Setting this keyword, calculates the free energy term $\Omega^\mathrm{non-mf}$ as a post-correction after the convergence of the SCF cycle, so no Kohn-Sham correction is added which would normally arise from this term. This has been proven to give very similar results for solvation energies like the fully self-consistent calculation of this term. Since people observed numerical instabilities due to this term, sometimes it might be better to set this flag.\\[1.0ex]
+  Default: Not used. Fully self-consistent evaluation of $\Omega^\mathrm{non-mf}$
+}
+
+\subkeydefinition{solvent mpb}{Gnonmf\_FD\_delta}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{solvent mpb}{Gnonmf\_FD\_delta} \option{parameter}\\[1.0ex]
+  \option{parameter} $\Delta$ parameter defining the thickness of the cavity \\[1.0ex]
+  Purpose: Used to calculated the quantum surface $S$ and volume $V$ to evaluate the free energy contribution $\Omega^\mathrm{non-mf}$\\[1.0ex]
+  Default: 1e-8
+}
+
+\subkeydefinition{solvent mpb}{not\_converge\_rho\_mpb}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{solvent mpb}{not\_converge\_rho\_mpb}\\[1.0ex]
+  Purpose: Setting this keyword, runs a vacuum calculation first and then subsequently solves the MPBE once with the vacuum electron density and then outputs all energetics.\\[1.0ex]
+  Default: Not used. This could be of interest for either very big systems to get first approximations without running the Newton method in each SCF step but only once, but of course then does not involve any self-consistent solution of the coupled Kohn-Sham and MPB equations. Originally, this feature was introduced to evaluate electrostatic potentials and compare them to other codes, like e.g. FEM codes.
+}
+
+
+
+\subkeydefinition{solvent mpb}{solve\_lpbe\_only}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{solvent mpb}{solve\_lpbe\_only} \option{logical} \\[1.0ex]
+  Purpose: Instead of solving the MPBE, solve the linearized version of this, also called the LPBE. For neutral molecules electrostatic fields are often small, so the LPBE electrostatic potential is often a good approximation to the true MPBE potential. The solution of the LPBE can be done directly using the MERM without the Newton method and is therefore faster for most cases. \\[1.0ex]
+  \option{logical} if \texttt{.True.}, use the LPB electrostatic potential, but the MPB free energy expression which contains additional entropic terms compared to the LPB expression. \\[1.0ex]
+  Default: By default the MPBE is solved, so this is not used. 
+}
+
+\subkeydefinition{solvent mpb}{MERM\_in\_SPE\_solver}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{solvent mpb}{MERM\_in\_SPE\_solver} \option{logical} \\[1.0ex]
+  Purpose: Do the MERM iterations inside the \texttt{SPE\_solver.f90} routine without updating $\delta v_{n+1}$ on the full integration grid at each step, but only on the points where we actually need it to form the source term. By this, we can gain speed, especially for $c^\mathrm{s,bulk}=0$. \\[1.0ex]
+  \option{logical} \\[1.0ex]
+  Default: \texttt{.true.} 
+  Remark: In general the both options should give exactly the same result at convergence. If any difficulties arise, one is however recommended to try the \texttt{.False.} options, since it should be the more stable version of the solver.
+}
+
+\subkeydefinition{solvent mpb}{MERM\_atom\_wise}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{solvent mpb}{MERM\_atom\_wise} \option{logical} \\[1.0ex]
+  Purpose: Do the MERM iterations for each atom separately, i.e. we write eq. (33)\cite{Ringe2016} (Generalized Poisson or LPB-kind of equation) as:\\
+  \begin{align}
+          &\left(\nabla \left[\varepsilon \nabla\right] - h^2[v_{n}]\right) \delta v_{n+1,\mathrm{at}} = -4 \pi \varepsilon p_\mathrm{at} q[v_n]\\
+          &\delta v_{n+1} = \sum_\mathrm{at} \delta v_{n+1,\mathrm{at}}\\
+          &q[v_n] = \sum_\mathrm{at} p_\mathrm{at} q[v_n]
+  \end{align}
+  In order to perform the MERM iterations for each atom, the full grid of the respective atom has to be used, i.e. also the electron density needs to be updated on points where commonly the \texttt{partition\_tab} is vanishing. However, by this we avoid the cross-update of atomic potentials on the atomic grid of other atoms as needed in the original method and this is usually most costly in particular for larger systems. In terms of convergence with the maximum angular momentum $l_\mathrm{max}$, this method performs a bit worse than the original method, which is why we recommend to use $l_\mathrm{max}=8$ for production runs. Still this method should be faster also with this higher accuracy in the multipole expansion. \\[1.0ex]
+  \option{logical} \\[1.0ex]
+  Default: \texttt{.false.} \\[1.0ex]
+  Remark: Using this flag will automatically set \texttt{MERM\_in\_SPE\_solver = .True.}.
+}
+
+\subkeydefinition{solvent mpb}{set\_nonelstat\_params}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{solvent mpb}{set\_nonelstat\_params} \option{value} \option{value} \\[1.0ex]
+  Purpose: Set the parameters for the nonelectrostatic solvent-solute interactions. \\[1.0ex]
+  \option{value value} two real numbers, $\alpha+\gamma$ (dyn/cm) and $\beta$ (GPa), separated by space. \\[1.0ex]
+  Default: $\alpha+\gamma = 50$~dyn/cm, $\beta = -0.35$~GPa
+}
+
+
+
+
+

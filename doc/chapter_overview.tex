@@ -1,0 +1,165 @@
+\addcontentsline{toc}{chapter}{How to use this manual} 
+\chapter*{How to use this manual}
+
+If you are reading this introduction, you are likely reading the
+manual for the first time. In that case, please read on. There is,
+however, a strategy to use this manual most effectively to find
+keywords used in the input files to FHI-aims. This is it:
+\begin{itemize}
+  \item Open the manual (pdf)
+  \item Go to the table of contents
+  \item At the bottom of the table of contents, click on ``Index''
+  \item Find the keyword you are looking for in the index
+  \item Click on it.
+\end{itemize}
+Using the manual in this way may greatly reduce the barrier to looking up
+what a keyword actually does.
+
+To first build FHI-aims, please also read this manual. You cannot simply type 'make'.
+Chapter \ref{Ch:quickstart}, particularly sections \ref{Sec:installation}--\ref{Sec:build-cmake},
+are what you need to read.
+
+And now, for the actual ...
+
+\chapter*{Introduction}
+\addcontentsline{toc}{chapter}{Introduction} 
+
+FHI-aims (``Fritz Haber Institute \emph{ab initio} molecular simulations'') is
+a computer program package for computational materials science based only on
+quantum-mechanical first principles. The main production method is density
+functional theory (DFT) \cite{Hohenberg64,Kohn65,Dreizler90} to compute the total energy and
+derived quantities of molecular or solid condensed matter in its electronic
+ground state. In addition, FHI-aims allows to describe electronic
+single-quasiparticle excitations in molecules using different self-energy
+formalisms (e.g., $GW$ and MP2), and wave-function based molecular total energy
+calculation based on Hartree-Fock and many-body perturbation theory (e.g., MP2,
+RPA, SOSEX, or the more encompassing renormalized second-order
+perturbation theory, RPT2). 
+
+The basic physical algorithms in FHI-aims concerning ground state DFT and
+applications are described in
+
+\begin{center}
+\parbox[c]{0.8\textwidth}
+{\small
+Volker Blum, Ralf Gehrke, Felix Hanke, Paula Havu, Ville Havu, Xinguo Ren,
+Karsten Reuter, and Matthias Scheffler, Computer Physics Communications
+\textbf{180}, 2175-2196 (2009). 
+}
+\end{center}
+
+A copy of this paper can also be obtained from our web site: \\
+\url{http://www.fhi-berlin.mpg.de/aims/} . \\ Please cite this reference if you use
+FHI-aims. 
+
+However, FHI-aims is not just a product of this basic reference.
+Many more developments make this code a reality. For each individual
+FHI-aims  run, a list of references describing the specific methods
+used is given at the end of the FHI-aims standard output. Please give
+credit in your publications if you can. FHI-aims is
+a scientific code, written by and for scientists. The primary
+recognition for their work is credit in the form of appropriate
+reference to their work. 
+
+Some particularly important papers (also worth reading!) follow
+below. When making use of / reference to scalability, please refer to
+and cite 
+
+\begin{center}
+\parbox[c]{0.8\textwidth}
+{\small
+Ville Havu, Volker Blum, Paula Havu, and Matthias Scheffler, Journal of
+Computational Physics \textbf{228}, 8367-8379 (2009).
+}
+\end{center}
+
+and also to the large-scale eigenvalue solver ELPA:
+
+\begin{center}
+\parbox[c]{0.8\textwidth}
+{\small
+A. Marek, V. Blum, R. Johanni, V. Havu, B. Lang, T. Auckenthaler, 
+A. Heinecke, H.-J. Bungartz, and H. Lederer, 
+The Journal of Physics: Condensed Matter \textbf{26}, 213201 (2014). 
+}
+\end{center}
+
+Any application making use of functionality beyond LDA, GGA, or mGGA
+-- i.e., Hartree-Fock, hybrid functionals, MP2, RPA, $GW$, etc. --
+should please refer to and cite
+
+\begin{center}
+\parbox[c]{0.8\textwidth}
+{\small
+Xinguo Ren, Patrick Rinke, Volker Blum, J\"urgen Wieferink, Alex
+Tkatchenko, Andrea Sanfilippo, Karsten Reuter, and Matthias Scheffler,
+New Journal of Physics 14, 053020 (2012).
+}
+\end{center}
+
+Further methodological publications for specific methods 
+in FHI-aims can also be found at
+
+\url{https://aimsclub.fhi-berlin.mpg.de/aims_publications.php}
+
+Finally, we're quite proud that FHI-aims performed extremely well in the 
+precision benchmark of 15 leading electronic structure codes known as
+the ``Delta Project'', https://molmod.ugent.be/deltacodesdft -- see 
+Reference \cite{Lejaeghereaad3000} in Science Magazine for
+details.  
+Numerical reliability -- high precision -- in everyday applications,
+applicable up to very large production problems -- continues to be a top
+priority and is, in fact, one of the key reasons why FHI-aims was
+written in the first place. 
+
+In the present documentation, we do not repeat the basic physical
+algorithms; rather, the focus is on the actual \emph{use} of the methods in
+FHI-aims for a given task, including a full description of all input and
+output possibilities.  
+
+The rest of this document is organized as follows:
+\begin{itemize}
+  \item In Chapter \ref{Ch:quickstart}, a ``quickstart'' 
+    description attempts to give you all the necessary
+    (but not more) information to get FHI-aims up and running on your own
+    computer system, up to the first test run.
+  \item Chapter \ref{Ch:basic} explains the basic input files and input
+    philosophy very briefly. Some important remarks on choosing the numerical
+    accuracy are summarized here.
+  \item Chapter \ref{Ch:full} gets into the gory details, summarizing
+    \emph{all} available input keywords and their meaning, sorted roughly by
+    their expected use. 
+  \item A large chapter \ref{CH:running} is dedicated to some frequently required
+    ``meta-tasks'' of electronic structure theory: Not just setting up a
+    specific set of input files for a given run, but actually extracting some
+    of the frequently required information from those runs. For the more
+    complex tasks (e.g., a transition state search), we attempt to provide
+    scripts that perform a series of well-defined runs automatically, the 
+    use of an external visualization tool, etc.  
+  \item In chapter \ref{Ch:aitranss} we provide a description of the 
+    \textsc{aitranss} ({\it ab initio} transport simulations) package which is
+    a project under continuous development at the Institute of Nanotechnology  
+    of the Karlsruhe Institute of Technology (KIT), Germany, since 2002. 
+    When combined with FHI-aims, \textsc{aitranss} provides a
+    post-processor module that enables calculation of the electron
+    transport characteristics of molecular junctions based on a Landauer  
+    formalism in a Green's function formulation.
+  \item In the appendices, we suggest further reading, more on building
+    the code from source, and we also address
+    some issues (``troubleshooting'') that are either beyond
+    our control (operating-system related issues come to mind), or simply
+    require some level of experience to address.  
+\end{itemize}
+    Electronic structure
+    theory (and FHI-aims) is extremely versatile but many of the most
+    interesting applications require complex workflows. We cannot
+    possibly document them all on our own. Please consider sending us
+    hands-on descriptions of any complex workflows that worked for
+    you, and we would gladly include them in this manual (obviously,
+    we'll happily include references to your work).
+
+In any case, we hope that this manual will be helpful for your specific
+purposes. We welcome feedback, in particular regarding issues from
+production settings that we might not yet have thought of / experienced
+ourselves. In any event: Happy computing with FHI-aims! 
+

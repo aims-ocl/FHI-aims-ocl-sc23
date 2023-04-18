@@ -1,0 +1,160 @@
+
+
+ \section{Usability (convenience)}
+\label{section:usability}
+
+This section is only intended for functionality that fits none of the
+other categories (which are all scientifically / technically
+motivated). These files and keywords affect the general user
+convenience / experience for FHI-aims.
+
+As an exception, this section also lists any \emph{files}
+which may be used to interact with a \emph{running} instance of
+FHI-aims. Currently, only two such files exist, but in principle, more
+could be envisioned.
+
+\subsection*{Files that interacting with the running code:}
+
+\keydefinition{abort\_scf}{file}
+{
+  \noindent
+  Usage: At the command line, use the Unix command \texttt{touch
+    abort\_scf} in the current working directory of a running instance
+    of FHI-aims to trigger a controlled stop of the run later. \\[1.0ex] 
+  Purpose: If the file \keyword{abort\_scf} is found in the current
+  working directory of FHI-aims, the present run will be aborted after
+  the next s.c.f. iteration is complete (but importantly without
+  achieving self-consistency). \\
+}
+This functionality allows FHI-aims to stop in a controlled fashion,
+but not instantly. If you are interested in an instant stop, the Unix
+'kill' command (or its equivalent in the queueing system of a
+production machine) is the best way to proceed. See
+Sec. \ref{section:abort} for some further remarks.
+
+\keydefinition{abort\_opt}{file}
+{
+  \noindent
+  Usage: At the command line, use the Unix command \texttt{touch
+    abort\_opt} in the current working directory of a running instance
+    of FHI-aims to trigger a controlled stop of the run later. \\[1.0ex] 
+  Purpose: If the file \keyword{abort\_opt} is found during a geometry
+  relaxation in the current working directory of FHI-aims, the present
+  run will be aborted after the next s.c.f. cycle is complete (i.e.,
+  afer achieving self-consistency for the present geometry, but
+  without fully optimizing the structure). \\
+}
+This functionality allows FHI-aims to stop in a controlled fashion,
+but not instantly. If you are interested in an instant stop, the Unix
+'kill' command (or its equivalent in the queueing system of a
+production machine) is the best way to proceed. See
+Sec. \ref{section:abort} for some further remarks.
+
+\keydefinition{control.update.in}{file}
+{
+  \noindent
+  Usage: Allowed content of this file is a fairly limited subset of what is allowed and parsed in \keyword{control.in}. Details below.\\[1.0ex] 
+  Purpose: FHI-aims checks for presence of this file in the current working directory at the end of each individual iteration of the SCF cycle. If the file is found, it is parsed, and found settings are updated. Note that if you do not remove the file manually, it will be parsed after each iteration. But with the current limited functionality, this should not pose any problems.\\
+}
+This file allows to modify some of the parameters of a calculation during runtime of FHI-aims. At present, this is limited to the settings of the convergence of the SCF cycle, namely: \keyword{sc\_accuracy\_rho}, \keyword{sc\_accuracy\_eev}, \keyword{sc\_accuracy\_etot}, \keyword{sc\_accuracy\_potjump}, \keyword{sc\_accuracy\_forces}, \keyword{sc\_accuracy\_stress}.
+
+\newpage
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{check\_cpu\_consistency}{control.in}
+{
+  \noindent
+  Usage: \keyword{check\_cpu\_consistency} \option{flag} \\[1.0ex]
+  Purpose: In parallel runs, determines whether the consistency of geometry-related
+           arrays is verified explicitly between different MPI tasks. \\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.false.} or
+    \texttt{.true.} Default: \texttt{.true.} \\
+}
+%
+This flag is introduced as default purely to monitor and possibly undo errors
+that should not happen. Theoretically, all MPI tasks of a given FHI-aims run
+should have the same atomic coordinates and lattice vectors. In practice, it 
+appears that certain hardware and/or compilers/libraries introduce bit flips
+between different instances of what is formally the same variable on different
+CPUs. 
+
+If \keyword{check\_cpu\_consistency} is \texttt{.true.}, the code checks
+for deviations. 
+
+If the discrepancy is numerically negligible (below the
+value set by the tolerance parameter \keyword{cpu\_consistency\_threshold}, 
+the code will work based on the assumption that the observed discrepancy is
+a platform-dependent artifact, will set all instances of the geometry to
+that stored on MPI task myid=0, and continue the run. Nonetheless, a warning
+will be printed in the output file and near the end of the output.
+
+If the discrepancy is larger than the tolerance parameter
+\keyword{cpu\_consistency\_threshold}, the code will stop and inform
+the user.
+
+\keydefinition{cpu\_consistency\_threshold}{control.in}
+{
+  \noindent
+  Usage: \keyword{cpu\_consistency\_threshold} \option{tolerance} \\[1.0ex]
+  Purpose: In parallel runs, determines the degree to which
+    inconsistencies of geometry-related arrays will be tolerated
+    between different MPI tasks. \\[1.0ex] 
+  \option{tolerance} : A small real numerical value, positive or zero. Default:
+    10$^{-11}$. 
+}
+%
+See keyword \keyword{check\_cpu\_consistency}. If
+\keyword{check\_cpu\_consistency} is \texttt{.true.}, then keyword
+\keyword{cpu\_consistency\_threshold} determines the maximum value
+to which discrepancies of geometry-related quantities between
+different MPI tasks will be tolerated (they will, however, be
+set to identical values even if the run continues).
+
+\keydefinition{dry\_run}{control.in}
+{
+  \noindent
+  Usage: \keyword{dry\_run} \\[1.0ex]
+  Purpose: If set in \texttt{control.in}, the FHI-aims run will only
+  pass through all preparatory work to ensure the basic consistency of
+  all input files, but will stop before any real work is done.
+ \\[1.0ex]
+}
+%
+This keyword is useful to check the consistency of input files with
+the same exact binary that may later be used in a series of (perhaps
+queued) production runs. If there are trivial errors in the input
+files, no need to wait for the queue. The same effect can be achieved
+by building a 'parser' binary, but this version saves the
+recompilation. The price is that one must not forget to comment out
+the \keyword{dry\_run} option in the actual, queued input files.
+
+\subsubsection*{Subtags for \emph{species} tag in \texttt{control.in}:}
+
+\subkeydefinition{species}{cite\_reference}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{cite\_reference} \option{string} \\[1.0ex]
+  Purpose: Triggers the addition of a specific citation to the end
+           of the FHI-aims standard output for a given run. \\[1.0ex] 
+  \option{string} is a string that identifies the reference in question. \\
+}
+
+This feature is useful, e.g., to make sure that the literature reference for
+a given basis set (encoded in the species\_defaults input file) is available
+at the end of an FHI-aims run. 
+
+Each citation must, however, be coded into the FHI-aims source code
+in module \texttt{applicable\_citations.f90} to ensure that the requested 
+output is actually available. Note that the practical format for such references
+can vary widely -- from a simple string (explanation who did the work)
+all the way to the more usual case of a journal reference.
+
+At the time of writing, species-related legitimate values of \texttt{string} are:
+\begin{itemize}
+  \item \texttt{NAO-VCC-2013} for reference \cite{Zhang2013},
+    describing the NAO-VCC-nZ basis sets for valence-correlated
+    calculations of elements H-Ar (useful for basis set extrapolation
+    for many-body perturbation methods, e.g., MP2, RPA, RPT2, or
+    $GW$). 
+\end{itemize}

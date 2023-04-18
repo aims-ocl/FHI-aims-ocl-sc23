@@ -1,0 +1,404 @@
+\section{Large-scale, massively parallel: Memory
+  use, sparsity, communication, etc.} 
+\label{Sec:Large-scale}
+
+In one way or another, most options available with FHI-aims concern
+physical algorithms or numerical choices, including those affecting
+the accuracy and/or efficiency of a given task. As much as possible,
+FHI-aims attempts to use the exact same code and settings to describe
+any given system, and on any kind of computer hardware. Usually, this
+guarantees efficient code on all ends, and improvements for one class
+of systems immediately benefit all others
+
+However, for very large tasks [meaning here several hundred
+up to thousands of atoms, depending on the system] and/or on parallel
+architectures with possibly (ten)thousands of processors, memory and
+communication constraints may come into play that require specific
+workarounds not needed (or beneficial) in normal systems. On a
+practical level, FHI-aims 
+attempts to be as memory-parallel as possible without loss of
+efficiency. However, if any such modification could affect the
+performance for normal systems and computer architecture adversely, we
+recommend to switch it on separately only when needed.
+
+On massively parallel machines, and for very large problems, the
+following options are particularly important:
+\begin{itemize}
+  \item If ScaLapack is used (\keyword{KS\_method}
+    \texttt{scalapack}), Keyword \keyword{collect\_eigenvectors}
+    (=.false.) allows to switch off the collection of the full 
+    eigenvectors $c_{il}$ on each CPU, saving both communication 
+    time and a significant amount of memory.
+  \item The Kerker \keyword{preconditioner} (part of the density
+    mixing step is switched on by default for all periodic
+    calculations, but does not scale well to large processor counts
+    and with system size. If the density mixing step costs a
+    significant amount of time (see FHI-aims timings, printed at
+    the end of each s.c.f. step in the output), consider switching 
+    off the Kerker preconditioner. For systems with a band gap, it
+    is often not needed and the much cheaper default Pulay mixer 
+    will work as well.
+  \item In the cluster case, keyword \keyword{use\_density\_matrix\_hf} 
+    should be used for system sizes of a few hundred atoms and
+    above. (This is the default for all periodic systems anyway). 
+  \item For the cluster case, and if ScaLapack is used, keyword
+    \keyword{packed\_matrix\_format} may save a significant amount of
+    memory in the construction of the overlap, Hamiltonian, and density
+    matrices. (This is the default for all periodic systems anyway).
+  \item For the cluster case with more than 200 atoms, the non-periodic
+    Ewald method can be used to accelerate the calculation, see
+    section \ref{Sec:Hartree-non-periodic-ewald}.
+  \item Keyword \keyword{use\_local\_index}, which ensures that integration
+    grid batches on the same CPU are always close together, requiring only a
+    subset of the packed Hamiltonian matrix as working space for integrals on
+    each CPU. Use \keyword{load\_balancing} to improve load-balancing in this
+    case to avoid the a negative impact on the efficiency.
+  \item The keyword \keyword{distributed\_spline\_storage} avoids to store the
+    complete multipolar decomposition of the charge density on each processor.
+    Instead, they are only stored for those atoms with local grid points in
+    reach.
+  \item For beyond-GGA: Keyword \keyword{prodbas\_nb} can be used to enhance
+    the distribution of memory intensive arrays, possibly sacrificing
+    performance.
+\end{itemize}
+
+Finally: There is a keyword, \keyword{use\_alltoall}, that allows
+to switch the communication behaviour of FHI-aims for very large runs
+when parallel linear algebra (scalapack / ELPA) is used. The default
+switching point is set at 1024 MPI tasks and affects CPU time (very
+many cores) and memory use. If you see changes around 1024 cores
+(especially lack of memory in ``normal'' LDA/GGA calculations), see
+there. 
+
+\newpage
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{collect\_eigenvectors}{control.in}
+{
+  \noindent
+  Usage: \keyword{collect\_eigenvectors} \option{flag} \\[1.0ex]
+  Purpose: When ScaLapack is used, allows to switch off the collection
+    of all eigenvectors to each CPU, saving memory and computation
+    time.  When .true., this ensures that every CPU has a complete and 
+    up-to-date copy of every eigenvector for the k-point assigned to it,
+    and when .false., this information is communicated only when absolutely
+    necessary (i.e. matrix multiplications).  For compatibility reasons, 
+    the default is set to .true., but for ``standard'' calculations that 
+    do not employ post-processing techniques (or employ the post-processing 
+    techniques that do support this feature), this imposes an unnecessary 
+    overhead.  Thus, one should manually set this variable to .false. 
+    unless he knows that a desired post-processing feature does not support 
+    it, as he will always lessen memory overhead and gain an performance 
+    increase for all system sizes.  \\[1.0ex] 
+  Restriction: Eigenvectors are needed for some post-processing
+    functionality, e.g., in order to obtain a full Mulliken analysis
+    or a partial density of states. \\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.false.} or
+    \texttt{.true.} Default: \texttt{.true.} \\
+}
+
+\keydefinition{distributed\_spline\_storage}{control.in}
+{
+  \noindent
+  Usage: \keyword{distributed\_spline\_storage} \option{flag} \\[1.0ex]
+  Purpose: Request to store the multipolar decomposition of the density only for
+  the atoms needed on a given processor for the corresponding parts of the
+  Hartree potential.
+  \\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.false.} or
+    \texttt{.true.} Default: \texttt{.false.}  \\
+}
+This flag is \texttt{.false.} by default because the complete splined density
+might be needed for some postprocessing or output option.
+
+
+\keydefinition{force\_mpi\_virtual\_topo}{control.in}
+{
+  \noindent
+  Usage: \keyword{force\_mpi\_virtual\_topo} \option{flag} \\[1.0ex]
+  Purpose: Auxiliary option to try to force the MPI library to respect
+    the topology of the nodes used (several tasks within each
+    shared-memory node vs. slower communication between different
+    nodes) \\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.false.} or
+    \texttt{.true.} Default: \texttt{.false.} \\
+}
+If requested, enables to cache the (deduced) topology of the nodes to
+the default communicator. In principle, the communication layer should
+then obtain more information on the network topology and organize the
+communication pattern more efficiently. However, nothing is
+guaranteed. The standard does not force MPI to respect the cached
+information, and in all decent MPI library implementations, this
+information should already be provided by the system. 
+
+In short: Perhaps try this if a truly strange communication pattern is
+observed, but probably, there will be no effect. 
+
+
+\keydefinition{load\_balancing}{control.in}
+{
+  \noindent
+  Usage: \keyword{load\_balancing} \option{flag} \\[1.0ex]
+  Purpose: Using the keyword \keyword{use\_local\_index} has a negative impact
+  on the distribution of work across CPUs for real-space grid operations.  When
+  load balancing is enabled via this keyword, this performance hit can be
+  avoided by explicit reassignment of grid point batches to processors according
+  to timings of test runs.
+  \\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.false.} or
+  \texttt{.true.} (or if\_scalapack, see below). Default: \texttt{.false.} \\
+}
+%
+This feature, which was implemented by Rainer Johanni, eliminates the negative
+impact on performance incurred by the \keyword{use\_local\_index} keyword.  It
+should always be used whenever memory becomes a bottleneck for a calculation.
+For more information about what this keyword does, please see the documentation
+for the \keyword{use\_local\_index} keyword, as the two keywords are closely
+intertwined.
+
+Load balancing requires that ScaLAPACK be used: that is, that there is more
+than one CPU for cluster calculations or more CPUs than k-points for periodic
+calculations.  If the \texttt{if\_scalapack} option is supplied, load balancing
+will be turned on when ScaLAPACK is being used and will be turned off when
+ScaLAPACK is not being used.
+
+When this keyword is set to \texttt{.true.} or \texttt{if\_scalapack}, the
+\keyword{use\_local\_index} keyword will be set to the same value by default.
+This keyword requires that the \keyword{use\_local\_index} keyword be set.
+
+\keydefinition{packed\_matrix\_format}{control.in}
+{
+  \noindent
+  Usage: \keyword{packed\_matrix\_format} \option{type} \\[1.0ex]
+  Purpose: Allows to use a packed-matrix format for the Hamiltonian,
+    overlap, and density matrices of the real-space basis functions. \\[1.0ex]  
+  \option{type} is a string that indicates the type of packing
+    used. Default: \texttt{none} for the cluster case, \texttt{index}
+    for periodic geometries. \\
+}
+The following options exist for \option{type}:
+\begin{itemize}
+  \item \texttt{none} - no packing is used
+  \item \texttt{index} - matrices are packed by
+    strictly eliminating \emph{all} near-zero elements of all three 
+    matrices. Elements $ij$ are eliminated if \emph{both} the overlap
+    matrix element and the initial Hamiltonian matrix element are
+    smaller than a threshold set by keyword \keyword{packed\_matrix\_threshold}.
+\end{itemize}
+Packing the overlap, Hamiltonian and density matrices reduces the size
+of these arrays during matrix integration, at the expense of some
+small effort to correctly sort intermediate results during the
+integration appropriately. 
+
+From a technical point of view,
+packing only makes sense if the full Hamiltonian is not required later
+anyway, during the eigenvalue solution. This is the case:
+\begin{itemize}
+  \item In the cluster case: if ScaLapack is used
+    (\keyword{KS\_method} \texttt{scalapack}).
+  \item In the periodic case: for more than one k-point, and/or if
+    ScaLapack is used. 
+\end{itemize}
+
+\keydefinition{packed\_matrix\_threshold}{control.in}
+{
+  \noindent
+  Usage: \keyword{packed\_matrix\_threshold} \option{tolerance} \\[1.0ex]
+  Purpose: Tolerance value below which the elements of the overlap /
+    Hamiltonian matrices are eliminated from the
+    \keyword{packed\_matrix\_format}. \\[1.0ex] 
+  \option{tolerance} : A small positive real numerical value. Default:
+    10$^{-13}$. 
+}
+
+\keydefinition{prune\_basis\_once}{control.in}
+{
+  \noindent
+  Usage: \keyword{prune\_basis\_once} \option{flag} \\[1.0ex]
+  Purpose: Stores the indices of the non-zero basis functions for
+    each integration batch in memory \\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.false.} or
+  \texttt{.true.} Default: \texttt{.true.} \\
+}
+All operations for the integrations and the electron density update
+are $O(N)$ operations, but verifying which basis functions are
+non-zero for each integration batch requires to check each basis
+function, and is thus an $O(N^2)$ operation with a small
+prefactor. This step can be avoided by checking for the non-zero basis
+functions once, and then storing their indices in memory for each
+batch of integration points. For very large systems and restricted
+memory, it may be worth trying to switch this feature off to save some
+memory, otherwise this should always be done. 
+
+
+\keydefinition{store\_EV\_to\_disk\_in\_relaxation}{control.in}
+{
+  \noindent
+  Usage: \keyword{store\_EV\_to\_disk\_in\_relaxation} \option{flag} \\[1.0ex]
+  Purpose: During relaxation, eigenvectors from a previous geometry
+    can be stored to disk instead of in memory in case the next step
+    is reverted. \\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.false.} or
+    \texttt{.true.} Default: \texttt{.false.} \\  
+}
+During relaxation (see \keyword{relax\_geometry}), geometry steps can
+be rejected if the total energy increased unexpectedly. In order to
+revert to a previous step, it is necessary to access the 
+Kohn-Sham eigenvectors used to initialize that step, which must hence
+be stored for that purpose. In normal calculations, eigenvector
+storage is not a problem, but their size grows as $O(N^2)$ with system
+size. For very large system sizes, their storage in memory can become
+a bottleneck, which is here circumvented by the option to store them
+to disk.
+
+This keyword is \emph{not} related to the restart functionality of the
+\keyword{restart} keyword, since it is an old, not a current, set of
+Kohn-Sham eigenvectors that may be needed when reverting a geometry step.
+
+\keydefinition{use\_2d\_corr}{control.in}
+{
+  \noindent
+  Usage: \keyword{use\_2d\_corr} \option{flag} \\[1.0ex]
+  Purpose: Allows to switch on or off the two-dimensional distribution of data
+  structures for correlated methods.\\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.false.} or
+  \texttt{.true.} Default: \texttt{.true.}.\\
+}
+
+Only relevant for correlated beyond-hybrid methods.
+
+
+\keydefinition{use\_alltoall}{control.in}
+{
+  \noindent
+  Usage: \keyword{use\_alltoall} \option{flag} \\[1.0ex]
+  Purpose: Allows to switch some communication calls in FHI-aims, 
+    depending on the number of tasks. \\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.false.} or
+    \texttt{.true.} Default: \texttt{.false.} below 1024 MPI tasks, true for 1024 and above.\\  
+}
+Only relevant for parallel linear algebra (use of scalapack or ELPA).
+
+When running on a system with many CPUs, it can be much faster to use
+``all-to-all'' communcation (mpi\_alltoallv) than doing n\_tasks times
+a sendrecv call; this is, for example, noticeable on the BlueGene/P
+with $\approx$10$^5$ MPI tasks at at time. For much fewer tasks, the
+effect is not usually relevant.
+
+On the other hand, ``all-to-all'' costs a significant amount of
+memory, and this memory pressure will be felt for much fewer MPI tasks 
+(e.g., Intel architecture with hundreds of CPU cores at a time. 
+
+Thus we use ``sendrcv'' (individual communication) to using
+mpi\_alltoallv when using 1024 CPUs or more. \keyword{use\_alltoall}
+can be employed to enforce one or the other type of call
+throughout. If you see too much MPI-related memory use at 1024 tasks
+or above, try it---and let us know.
+
+\keydefinition{use\_mpi\_in\_place}{control.in}
+{
+  \noindent
+  Usage: \keyword{use\_mpi\_in\_place} \option{flag} \\[1.0ex]
+  Purpose: Allows some collective communication calls to be handled
+  using the ``MPI\_IN\_PLACE'' flag of the MPI specification. \\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.false.} or
+    \texttt{.true.} Default: \texttt{.true.} \\  
+}
+Only relevant for parallel runs.
+
+When running on a system with many CPUs, it can be a bit more memory
+efficient to use ``MPI\_IN\_PLACE'' communication. Then, instead of 
+separate send- and receive buffers, a single buffer is used and information 
+is updated ``in place''.
+
+However, not all MPI implementations seem to implement this feature
+correctly. Thus, this choice can sometimes lead to problems or even
+errors in the results, depending on the MPI library and version that
+was used.
+
+The code checks for specific problems related to ``MPI\_IN\_PLACE'' and switches to
+\keyword{use\_mpi\_in\_place} \texttt{.false.} if problems are encountered.
+
+If anyone identifies further problems related to the use of ``MPI\_IN\_PLACE'',
+please let us know. 
+
+\keydefinition{use\_local\_index}{control.in}
+{
+  \noindent
+  Usage: \keyword{use\_local\_index} \option{flag} \\[1.0ex]
+  Purpose: Reduces work space size for Hamiltonian / overlap matrix
+    during integrals by storing only those parts that are touched by
+    any grid points assigned to the present CPU. \\[1.0ex]
+  Restriction: Supported for standard LDA , GGA, and hybrid functionals using
+    ScaLAPACK and packed matrices, but not for some non-standard options.
+    \\[1.0ex]
+  \option{flag} is a logical string, either \texttt{.false.} or
+    \texttt{.true.} (or \texttt{if\_scalapack}, see below). Default: \texttt{.false.} \\
+}
+Originally, FHI-aims stored its real-space Hamiltonian/overlap matrices in a
+non-distributed fashion, i.e. every CPU has the full copies of the real-space
+Hamiltonian/overlap matrices.  While this makes the math easier internally, it
+will lead to a memory bottleneck for large calculations:  as the number of atoms
+in a calculation increases, the sizes of the real-space matrices increase, and
+eventually the real-space matrices are too large to fit in memory.  Adding more
+CPUs to a calculation does not fix this problem, since each CPU has the full
+copies of the matrices.
+
+For very large systems with many CPUs, it thus becomes necessary to spread the
+real-space matrices across CPUs.  This is done using a method known as
+``domain decomposition'' (or, informally, local indexing), where we
+assign batches of integration grid points close to one another to the same CPU.
+Each CPU then stores only the portions of the real-space Hamiltonian/overlap
+matrices which have non-zero support on the integration points which it possesses.
+The real-space matrices are thus distributed across CPUs, considerably
+decreasing their sizes.  Should a calculation still suffer from memory issues
+associated with the sizes of the real-space matrices, we can increase the
+number of CPUs to reduce the memory overhead on each individual CPU.
+
+While the domain decomposition method will spread the real-space matrices across
+CPUs and eliminates the memory bottleneck previously mentioned, eventually we
+will need to solve the Kohn-Sham eigenvalue problem.  To solve the Kohn-Sham
+eienvalue problem, we need to generate the Hamiltonian entering into the
+eigensolver from the real-space Hamiltonian, which is now distributed across
+CPUs.  The subsequent merge of all results into the BLACS infrastructure used by
+the eigensolvers supported by FHI-aims then becomes more difficult, and some
+performance overhead results from the altered load on each CPU.  This option is
+therefore not used by a standard call to FHI-aims, but must be switched on
+explicitly if needed.
+
+To overcome the performance overhead associated with \keyword{use\_local\_index}
+keyword, it is *strongly* recommended that the user also try using the
+\keyword{load\_balancing} keyword, which enables load balancing.  Load
+balancing will eliminate the overhead associated with the
+\keyword{use\_local\_index} keyword, but it is not enabled for all
+non-standard functionality in FHI-aims, hence why we do not enable it by
+default.
+
+Domain decomposition requires that ScaLAPACK be used: that is, that there is
+more than one CPU for cluster calculations or more CPUs than k-points for
+periodic calculations.  If the \texttt{if\_scalapack} option is supplied, domain
+decomposition will be turned on when ScaLAPACK is being used and will be turned
+off when ScaLAPACK is not being used.
+
+Domain composition also requires \keyword{prune\_basis\_once} and a parallel \\
+\keyword{grid\_partitioning\_method}.  These are enabled by default for FHI-aims
+calculations, so you shouldn't worry about setting them yourself.
+
+\keydefinition{walltime}{control.in}
+{
+  \noindent
+  Usage: \keyword{walltime} \option{seconds} \\[1.0ex]
+  Purpose: Can limit the wall clock time spent by FHI-aims explicitly,
+    e.g., to obtain the correct final output before a queuing system 
+    shuts down a calculation. \\[1.0ex]
+  \option{seconds} is the integer requested wall clock time in
+    seconds. Default: no limit. \\
+}
+In order to reach the postprocessing phase and write information
+required at the end of a calculation in an organized manner,
+FHI-aims can force a stop before a certain amount of real time (wall
+clock time) is exceeded. In order to achieve this safely, FHI-aims
+uses an internal estimate of the duration of a single s.c.f. iteration
+within the calculation, and stops if it estimates that the next
+iteration will take more time than what remains available.

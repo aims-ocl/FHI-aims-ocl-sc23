@@ -1,0 +1,392 @@
+\section{Magnetic Response}
+
+FHI-aims is capable of perturbatively calculating the response of the system to a magnetic field. The magnetic field can be either external or that associated with the magnetic moments of atomic nuclei. Currenty functionality includes:
+\begin{itemize}
+\item Nuclear magnetic shielding tensors and the spin-spin coupling tensors, which are the central parameters in nuclear magnetic resonance (NMR) spectroscopy;
+\item The magnetizability tensor, which is the proportionality between the induced magnetic moment and the magnetic field. It can be thought of as the magnetic analogue of the polarizability;
+\item Electric field gradient (experimental).
+\end{itemize}
+References:
+\begin{itemize}
+\item Martin~Kaupp, Michael~B\"uhl, and Vladimir~G.~Malkin, editors, \textit{Calculation of NMR and EPR Parameters: Theory and Applications}, Wiley-VCH, Weinheim, Germany, 2004 --- A comprehensive treatment of general theory and applications.
+\item V.~Sychrovsky \textit{et al.}, \textit{Nuclear magnetic resonance spin-spin coupling constants from coupled perturbed density functional theory}, J. Chem. Phys. \textbf{113}, 3530 (2000) --- Nonrelativistic J-couplings in DFT.
+\item G.~Schreckenbach and T.~Ziegler, \textit{Calculation of NMR Shielding Tensors Using Gauge-Including Atomic Orbitals and Modern Density Functional Theory}, J. Phys. Chem. \textbf{99}, 606 (1995) --- Standard theory of GIAO shieldings in DFT.
+\item T.~Helgaker \textit{et al.}, \textit{Nuclear shielding constants by density functional theory with gauge including atomic orbitals}, J. Chem. Phys. \textbf{113}, 2983 (2000) --- GIAO GGA correction (shieldings only).
+\end{itemize}
+
+The basic parameters of a magnetic response experiment are a collection of electron spins, $\bm S = \sum_i \bm S_i$, nuclear spins, $\bm I = \sum_i \bm I_i$, and an external magnetic field $\bm B$. Considering all possible couplings between these parameters, the fully general effective Hamiltonian has the form
+\begin{equation}
+  \label{eq:general_spin_Hamiltonian}
+  H_S = H(\bm S,\bm S) + H(\bm S,\bm I) + H(\bm S,\bm B) + H(\bm I,\bm I) + H(\bm I,\bm B) + H(\bm B,\bm B).
+\end{equation}
+We have not explicitly considered coupling to the electron orbital angular momentum, $\bm L = \sum_i \bm L_i$, whose effects are assumed to be incorporated into the electronic wavefunction. Based on which terms are dominant in a given spectroscopy, we can partition the Hamiltonian \eqref{eq:general_spin_Hamiltonian} as follows:
+\begin{itemize}
+\item The NMR nuclear spin Hamiltonian:
+  \begin{equation}
+    \label{eq:NMR_H}
+    \begin{split}
+      H^{\text{NMR}} =& H(\bm I,\bm B) + H(\bm I,\bm I) \\
+      =& -\sum_A \bm B (\overleftrightarrow 1-\overleftrightarrow{\sigma_A}) \bm\mu_A + \sum_{A>B} h\bm I_A (\overleftrightarrow{D_{AB}}+\overleftrightarrow{J_{AB}}) \bm I_B, \\
+    \end{split}
+  \end{equation}
+  where $\overleftrightarrow{\sigma}_A$ are the nuclear shielding tensors, $\overleftrightarrow{D_{AB}}$ and $\overleftrightarrow{J_{AB}}$ are the direct and indirect spin-spin coupling tensors, $\bm I_A$ is the nuclear spin of atom $A$, and $\bm\mu_A=\hbar\gamma_A\bm I_A$ is the corresponding nuclear magnetic dipole moment.
+\item The EPR spin Hamiltonian:
+  \begin{equation}
+    \label{eq:EPR_H}
+    \begin{split}
+      H^{\text{EPR}} =& H(\bm S,\bm S) + H(\bm S,\bm I) + H(\bm S,\bm B).
+    \end{split}
+  \end{equation}
+\item The effective Hamiltonian describing the second order response to an external magnetic field:
+  \begin{equation}
+    \label{eq:chi_H}
+    H^{\text{Mag}} = -\frac{1}{2} \bm B \overleftrightarrow\xi \bm B,
+  \end{equation}
+  where $\overleftrightarrow\xi$ is the magnetizability tensor. For a closed shell molecule, it describes the lowest order response of the energy to an external magnetic field.
+\end{itemize}
+
+The magnetic response parameters can be expressed as mixed second derivatives of the total electronic energy with respect to the external magnetic field and the magnetic moments,
+\begin{equation}
+  \label{eq:derivs}
+  \begin{split}
+    \overleftrightarrow{\sigma_A} =& \left. \frac{\partial^2 E(\bm B, \bm\mu)}{\partial\bm B\partial\bm\mu_A} \right|_{\bm B = 0; \bm\mu = 0}, \\
+    \overleftrightarrow{J_{AB}} =& \frac{\gamma_A\gamma_B}{2\pi} \left. \frac{\partial^2 E(\bm B, \bm\mu)}{\partial\bm\mu_A\partial\bm\mu_B} \right|_{\bm B = 0; \bm\mu = 0}, \\
+    \overleftrightarrow\xi_{AB} =& -\left. \frac{\partial^2 E(\bm B, \bm\mu)}{\partial^2\bm B} \right|_{\bm B = 0; \bm\mu = 0},
+  \end{split}
+\end{equation}
+where $\bm\mu$ denotes the collection of all magnetic moments. In the first of Eqs.~\eqref{eq:derivs}, the total energy should not contain the classical nuclear Zeeman term. The derivatives are, to a very good approximation, taken at zero values of $\bm B$ and $\bm\mu$, which allows us to consider only the linear response of the system.
+
+In time-independent second-order perturbation theory, the general expression for a property $\overleftrightarrow X$ is
+\begin{equation}
+  \label{eq:X_general}
+  \overleftrightarrow X = \sum_i^{\text{occ}} \left[ \braket{\psi_i | H^{MN} | \psi_i} + 2 \mathrm{Re} \braket{\psi_i^M | H^N | \psi_i} \right],
+\end{equation}
+where $\ket{\psi_i}$ are the unperturbed wavefunctions, $\ket{\psi^M}$ are the first-order wavefunctions with respect to the perturbation $M$, and $H^M$ and $H^{MN}$ are the first and second derivatives of the Hamiltonian. The derivatives are calculated at zero values of the perturbation ($\bm B$ and/or $\bm\mu$). The total number of terms depends on the type of perturbation. For instance, in case of J-couplings, the paramagnetic part is a sum of three separate terms, $H^N = H^{\text{FC}\bm\mu_A} + H^{\text{PSO}\bm\mu_A} + H^{\text{SD}\bm\mu_A}$, which are listed below.
+
+\subsection*{Density functional perturbation theory}
+
+The first-order wavefunctions are calculated according to density functional perturbation theory (DFPT) (also called coupled-perturbed Kohn-Sham or coupled-perturbed Hartree-Fock). The DFPT steps are the following:
+\begin{subequations}
+  \begin{itemize}
+  \item Update the self-consistent first-order Hamiltonian:
+    \begin{equation}
+      \label{eq:dfpt_update_H}
+      H_\sigma^{(1)}(\bm r) = H_{\text{NSC},\sigma}^{(1)}(\bm r) + \left[ \frac{\partial v_{xc,\sigma}[n]}{\partial n_\sigma}n_\sigma^{(1)}(\bm r) + \frac{\partial v_{xc,\sigma}[n]}{\partial n_{\sigma'}}n_{\sigma'}^{(1)}(\bm r) \right]_{n=n(\bm r)} + H_{\text{Ha}}^{(1)}n_\sigma(\bm r),
+    \end{equation}
+where $H_{\text{NSC}}^{(1)}$ is the non-self-consistent part of the first-order Hamiltonian, $v_{xc,\sigma}$ is the xc-potential, $H_{\text{Ha}}^{(1)}$ is the first-order Hartree potential, and $n_\sigma^{(1)}$ is the first-order density. First-order Hartree potential is computed only for an open-shell system and vanishes otherwise. For a closed shell system, only $n_\sigma^{(1)}$ in Eq.~\eqref{eq:dfpt_update_H} is updated, the rest need not be calculated more than once. In fact, the xc-kernel, which depends only on the unperturbed density, is the same for any perturbation and is calculated only once during the entire calculation. In Eq.~\eqref{eq:dfpt_update_H}, only the LDA contribution is shown, but GGA and hybrids are also available. Note that for purely imaginary operators the perturbed density vanishes, which means that in LDA and GGA there is no contribution from the xc-kernel and it is sufficient to perform only a single DFPT step (this is the sum-over-states approach). With hybrids or Hartree-Fock, this does not hold because while the first-order density vanishes, the first-order density matrix does not.
+\item Compute the first-order wavefunctions:
+  \begin{equation}
+    \psi_n^{(1)}(\bm r) = \sum_i^{\text{occ}} C_{in}^{(1)} \phi_i(\bm r) = \sum_i^{\text{occ}}\phi_i(\bm r) \sum_k C_{ik}U_{kn},
+  \end{equation}
+    where $\phi_i(\bm r)$ are the basis functions, $\bm C$ are the unperturbed wavefunction coefficients, $\bm C^{(1)}$ are the first-order coefficients, and
+    \begin{equation}
+      U_{mn} = -\frac{1}{2} \sum_{ij} C_{im} S_{ij}^{(1)} C_{jn}
+    \end{equation}
+    if $mn$ is an occupied-occupied or virtual-virtual pair, and
+    \begin{equation}
+      U_{mn} = \sum_{ij} \frac{C_{im} H_{ij}^{(1)} C_{jn} -  C_{im} S_{ij}^{(1)} C_{jn} \epsilon_n}{\epsilon_n - \epsilon_m}
+    \end{equation}
+    otherwise. $S^{(1)}$ is the first-order overlap matrix.
+  \item Construct a new density matrix from the first-order changes in wavefunctions:
+    \begin{equation}
+      \label{eq:n1}
+      n_{ij\sigma}^{(1)} = \sum_{m\sigma}^{\text{occ}} \braket{\phi_i|\psi_{m\sigma}}\braket{\psi_{m\sigma}^{(1)}|\phi_j} + \braket{\phi_i|\psi_{m\sigma}^{(1)}}\braket{\psi_{m\sigma}|\phi_j} = \sum_{m\sigma}^{\text{occ}} c_{im}c_{jm}^{(1)*} + c_{im}^{(1)} c_{jm}.
+    \end{equation}
+    The unperturbed coefficients are always real.
+  \item Check convergence and, if necessary, perform density matrix mixing (default is to do Pulay mixing):
+    \begin{equation}
+      n_{ij\sigma}^{(1)} \rightarrow n_{ij\sigma}^{X,\text{next}}.
+    \end{equation}
+  \item Construct a new density from the density matrix:
+    \begin{equation}
+      n_\sigma^{(1)}(\bm r) = \sum_{ij}^{\text{occ}} \phi_i(\bm r)n_{ij\sigma}^{(1)}\phi_j(\bm r).
+    \end{equation}
+  \end{itemize}
+\end{subequations}
+
+\subsection*{Integrals.}
+
+In the presence of an external magnetic field and NMR active nuclei (those with a nonzero magnetic moment) in the system, the magnetic vector potential takes the form
+\begin{equation}
+  \label{eq:A}
+  \bm A = \frac{1}{2} \bm B \times \bm r + \alpha^2\sum_A \frac{\bm\mu_A \times \bm r_A}{r_A^3},
+\end{equation}
+where $\bm r_A = \bm r - \bm R_A$ is the position relative to atom $A$. Inserting this into the nonrelativistic Hamiltonian and taking the first and second derivatives with respect to the magnetic field and/or the nuclear magnetic moments, we arrive at the following terms:
+\begin{subequations}
+  \label{eq:NMR_terms}
+  \begin{itemize}
+  \item Orbital Zeeman:
+    \begin{equation}
+      H^{\bm B} = -\frac{i}{2} (\bm r \times \bm\nabla),
+    \end{equation}
+  \item Spin Zeeman:
+    \begin{equation}
+      H^{\text{SZ}\bm B} = \bm S,
+    \end{equation}
+  \item Paramagnetic spin-orbit (PSO):
+    \begin{equation}
+      H^{\text{PSO}\bm\mu_A} = -i\alpha^2 \frac{\bm r_A\times\bm\nabla}{r_A^3},
+    \end{equation}
+  \item Fermi contact (FC):
+    \begin{equation}
+      H^{\text{FC}\bm\mu_A} = \frac{8\pi\alpha^2}{3} \delta(\bm r_A) \bm S,
+    \end{equation}
+  \item Spin-dipole (SD):
+    \begin{equation}
+      H^{\text{SD}\bm\mu_A} = \alpha^2 \left[ \frac{3(\bm S\bm r_A) \bm r_A}{r_A^5} - \frac{\bm S}{r_A^3} \right],
+    \end{equation}
+  \item Diamagnetic shielding (DS):
+    \begin{equation}
+      H^{\bm B\bm\mu_A} = \frac{\alpha^2}{2} \frac{\bm r \bm r_A - \bm r_A\bm r^T}{r_A^3},
+    \end{equation}
+  \item Diamagnetic spin-orbit (DSO):
+    \begin{equation}
+      H^{\bm\mu_A\bm\mu_B} = \frac{\alpha^4}{2} \frac{\bm r_A\bm r_B - \bm r_B\bm r_A^T}{r_A^3r_B^3},
+    \end{equation}
+  \item Diamagnetic magnetizability:
+    \begin{equation}
+      H^{\bm B\bm B} = \frac{1}{4} (r^2 - \bm r\bm r^T).
+    \end{equation}
+  \end{itemize}
+\end{subequations}
+In case of shieldings and magnetizability, the GIAO formalism is used to overcome the slow convergence related to the nonuniqueness of the gauge origin. Each basis function $\phi_n$ is equipped with a phase factor of the form
+\begin{equation}
+  \label{eq:giao}
+  \phi_n(\bm r) \rightarrow e^{-i\bm A_n\bm r} \phi_n(\bm r) = e^{-\frac{i}{2} (\bm R_n\times\bm r)\bm B} \phi_n(\bm r),
+\end{equation}
+where $\bm A_n = \frac{1}{2} \bm B\times (\bm r - \bm R_n)$ is the vector potential with the gauge origin shifted to the origin of basis function $n$, $\bm R_n$. This modifies some of the integrals \eqref{eq:NMR_terms} and leads to a few new ones:
+\begin{subequations}
+  \label{eq:GIAO_terms}
+  \begin{itemize}
+  \item GIAO orbital Zeeman:
+    \begin{equation}
+      H_{mn}^{\text{GIAO}\bm B} = \frac{i}{2} \Braket{\phi_m | (\bm R_{mn}\times\bm r) H_0 - \bm r_n\times\bm\nabla | \phi_n} + \braket{\phi_m | V_{\text{GGA},\alpha}^{\bm B} | \phi_n}.
+    \end{equation}
+  \item GIAO diamagnetic shielding:
+    \begin{equation}
+      H_{mn}^{\text{GIAO}\bm B\bm\mu_A} = \frac{\alpha^2}{2} \Braket{\phi_m | \frac{(\bm R_{mn}\times\bm r)(\bm r_A\times\bm\nabla)^T}{r_A^3} | \phi_n}.
+    \end{equation}
+  \item GIAO diamagnetic magnetizability:
+    \begin{equation}
+      \begin{split}
+        H_{mn}^{\text{GIAO}\bm B\bm B} =& \frac{1}{4} \Braket{\phi_m | 2(\bm R_{mn}\times\bm r) (\bm r_n \times \bm\nabla)^T | \phi_n} + \frac{1}{4} \Braket{\phi_m | r_n^2 - \bm r_n\bm r_n^T | \phi_n} \\
+        &- \frac{1}{4} \Braket{\phi_m | (\bm R_{mn}\times\bm r)(\bm R_{mn}\times\bm r)^T H_{\text{LDA}} | \phi_n} + \Braket{\phi_m | V_{\text{GGA}}^{\bm B\bm B} | \phi_n}.
+      \end{split}
+    \end{equation}
+  \item First-order overlap matrix:
+    \begin{equation}
+      S_{mn}^{\text{GIAO}\bm B} = \frac{i}{2} \braket{\phi_m| \bm R_{mn}\times\bm r |\phi_n}.
+    \end{equation}
+  \item Second-order overlap matrix:
+    \begin{equation}
+      S_{mn}^{\text{GIAO}\bm B\bm B} = -\frac{1}{4} \braket{\phi_m| (\bm R_{mn}\times\bm r)(\bm R_{mn}\times\bm r)^T |\phi_n}.
+    \end{equation}
+  \end{itemize}
+\end{subequations}
+In Eqs.~\eqref{eq:GIAO_terms}, $H_0$ is the unperturbed DFT Hamiltonian, $V_{\text{GGA}}^{\bm B}$ and $V_{\text{GGA}}^{\bm B\bm B}$ are the first and second $\bm B$ derivatives of the xc-potential. In LDA, the latter terms vanish.
+
+Table~\ref{tab:magnetic_terms} illustrates which terms are required for calculating which properties.
+\begin{table}[h]
+  \caption{The number of different types of integrals required for J-couplings, shieldings, and magnetizabilities is 4. Without GIAOs, the number is 3 for shieldings and 2 for magnetizabilities.}
+  \label{tab:magnetic_terms}
+  \centering
+  \begin{tabular}{r|rrrr|rr|rr}
+    & \multicolumn{4}{c}{$\overleftrightarrow{J_{AB}}$} & \multicolumn{2}{c}{$\overleftrightarrow{\sigma_A}$ (no GIAO)} & \multicolumn{2}{c}{$\overleftrightarrow\xi$ (no GIAO)} \\
+    \hline
+    $\ket{\psi^M}$ & $H^{\text{FC}\bm\mu_A}$ & $H^{\text{PSO}\bm\mu_A}$ & $H^{\text{SD}\bm\mu_A}$ & & $H^{\bm B}$ & & $H^{\bm B}$ \\
+    $H^M$ & $H^{\text{FC}\bm\mu_A}$ & $H^{\text{PSO}\bm\mu_A}$ & $H^{\text{SD}\bm\mu_A}$ & & $H^{\text{PSO}\bm\mu_A}$ & & $H^{\bm B}$\\
+    $H^{MN}$ & & & & $H^{\bm\mu_A\bm\mu_B}$ & & $H^{\bm B\bm\mu_B}$ & & $H^{\bm B\bm B}$
+  \end{tabular}
+  \begin{tabular}{r|rr|rr}
+    & \multicolumn{2}{c}{$\overleftrightarrow{\sigma_A}$ (GIAO)} & \multicolumn{2}{c}{$\overleftrightarrow\xi$ (GIAO)} \\
+    \hline
+    $\ket{\psi^M}$ & $H^{\text{GIAO}\bm B},S^{\text{GIAO}\bm B}$ & & $H^{\text{GIAO}\bm B},S^{\text{GIAO}\bm B}$ \\
+    $H^M$ & $H^{\text{PSO}\bm\mu_A}$ & & $H^{\text{GIAO}\bm B}$ \\
+    $H^{MN}$ & & $H^{\text{GIAO}\bm B\bm\mu_A}$ & & $H^{\text{GIAO}\bm B\bm B},S^{\text{GIAO}\bm B\bm B}$
+  \end{tabular}
+\end{table}
+
+\subsection*{Dipolar couplings}
+
+The direct spin-spin coupling tensor, $\overleftrightarrow{D_{AB}}$, also called the dipolar coupling tensor, is expressed as
+\begin{equation}
+   \overleftrightarrow{D_{AB}} = \frac{\hbar \alpha^2}{2\pi} \gamma_A\gamma_B \left( \frac{1}{R_{AB}^3} - \frac{3\bm R_{AB}\bm R_{AB}^T}{R_{AB}^5} \right),
+\end{equation}
+where $\bm R_{AB}$ is the vector connecting atoms $A$ and $B$. Because it does not depend on the electronic structure, its computation takes no time and it is always automatically included whenever a J-coupling calculation is requested
+
+\subsection*{Current limitations}
+
+\begin{itemize}
+\item Periodic systems not supported;
+\item Only the nonrelativistic formalism has been implemented (scalarrelativistic under development);
+\item Hybrid functionals not supported for shieldings and magnetizability;
+\item Meta functionals not supported.
+\end{itemize}
+
+\subsection*{For developers}
+
+Most of the magnetic response (MR) related source code resides in the directory \\ \verb+MagneticResponse+. The parent subroutine for doing MR calculations is \verb+MR_main+. It sets up the environment depending on user input, calls \verb+MR_core+ which performs the actual calculations, and prints various information including the results of the calculation. \verb+MR_core+ is called separately for every type term that needs to be computed. If the first-order wavefunctions are required, a DFPT cycle is performed first. If a diamagnetic property is calculated, the DFPT part is skipped.
+
+The module \verb+integration+ provides a subroutine that is used for all integrations. The only exception is the nonrelativistic FC term, which needs a completely separate subroutine because of the delta function. The bodies of most functions that are integrated over real space are found in \texttt{integrands.f90}. The result of each integration is written into a 2D block cyclic matrix (the \verb+matrix_BC_out+ argument of the \texttt{integrate}). Outside the integration subroutine, all linear algebra involving large arrays is done with Scalapack routines.
+
+\subsection*{Example input}
+
+The following is a minimal example for running a magnetic response calculation.
+\paragraph{\texttt{control.in}:}
+\begin{verbatim}
+  # H2O
+  xc                 pw-lda
+  magnetic_response  # Default is to calculate all magnetic
+                     # response quantities
+  # Basis sets
+  ...
+\end{verbatim}
+\paragraph{\texttt{geometry.in}:}
+\begin{verbatim}
+  atom  0.00  0.00  0.00  O
+  magnetic_response
+  atom -0.96  0.00  0.00  H
+  magnetic_response
+  atom  0.32 -0.90  0.00  H
+  magnetic_response
+\end{verbatim}
+
+\subsection*{Notes on performance}
+
+For best performance, it is recommended to always include the following flags in \texttt{control.in}:
+\begin{verbatim}
+  load_balancing          .true.
+  use_local_index         .true.
+  collect_eigenvectors    .false.
+\end{verbatim}
+In the timings section, the following terms are shown:
+\begin{itemize}
+\item ``Fermi contact'', ``paramagnetic spin-orbit'', ``spin-dipole'', ``paramagnetic shielding'', ``paramagnetic magnetizability'' --- these are the integration times of the non-self-consistent parts of the Hamiltonian [$H_{\text{NSC}}^{(1)}$ in Eq.~\eqref{eq:dfpt_update_H}].
+\item ``diamagnetic spin-orbit'', ``diamagnetic shielding'', ``diamagnetic magnetizability'' --- integration of a diamagnetic magnetic property.
+\item ``First-order xc'' --- integration of the first-order response of the xc-potential.
+\item ``First-order density'' --- constructing the first-order electron density from the first-order density matrix (this is an integral over real space).
+\item ``First-order Hartree'' --- integration of the first-order response of the Hartree potential.
+\item ``First-order Ha update'' --- constructing the first-order Hartree potential from the first-order density. It mainly times calls to \verb+update_hartree_potential_p1+ and \verb+sum_up_whole_potential_p1+.
+\item ``Mat-mat multiplications'' --- total wall time spent on \texttt{pdgemm} and \texttt{pzgemm}.
+\item ``packed \verb+<->+ block cyclic'' --- total wall time spent on subroutines that do conversion from one matrix type to another. These are \verb+packed_to_block_cyclic+ and \verb+block_cyclic_to_packed+.
+\item ``Total'' --- total wall time spent on the magnetic response calculation. This is higher than the sum of the above, because it contains additional overhead from stuff that is in between the subroutines that are timed.
+\item ``Total minus individual terms'' --- Difference between the total wall time and the sum of individual terms. If the total time is much higher than the sum of the individual terms then there is an unexpected bottleneck somewhere in the code that does not scale. Note that the difference is between the total time of the slowest task and a sum where each term individually corresponds to that of the slowest task. Thus, do not be alarmed if this number becomes slightly negative (unlikely, but possible depending on how the load is balanced).
+\end{itemize}
+Maximum and minimum cpu times are shown where possible. In case the subroutine to be timed contains and explicit or implicit MPI barrier (e.g., \texttt{pdgemm}), individual cpu times are not meaningful and only the maximum wall time is shown.
+
+\newpage
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+\keydefinition{magnetic\_response}{control.in}
+{
+  \noindent
+  Usage: \keyword{magnetic\_response} \option{options}\\[1.0ex]
+  Purpose: Primary keyword for doing magnetic response calculations. This is the minimum that is required in \texttt{control.in} and by default leads to the full calculation of J-couplings, shieldings, and the magnetizability.\\[1.0ex]
+  This keyword can be followed by a number of options:
+  \begin{itemize}
+  \item \option{J\_coupling} \textit{or} \option{J} \textit{or} \option{j} --- Calculate J-couplings only.
+  \item \option{shielding} \textit{or} \option{s} --- Calculate the shieldings only.
+  \item \option{magnet} \textit{or} \option{m} --- Calculate the magnetizability only.
+  \item \option{fc} --- Calculate the FC contribution to J-couplings only.
+  \item \option{po} --- Calculate the PSO contribution to J-couplings only.
+  \item \option{sd} --- Calculate the SD contribution to J-couplings only.
+  \item \option{do} --- Calculate the DSO contribution to J-couplings only.
+  \item \option{shielding\_p} \textit{or} \option{s\_p} --- Calculate the paramagnetic contribution to the shieldings only.
+  \item \option{shield\_d} \textit{or} \option{s\_d} --- Calculate the diamagnetic contribution to the shieldings only.
+  \item \option{magnet\_p} \textit{or} \option{m\_p} --- Calculate the paramagnetic contribution to the magnetizability only.
+  \item \option{magnet\_d} \textit{or} \option{m\_d} --- Calculate the diamagnetic contribution to the magnetizability only.
+  \item \option{no\_giao} --- Calculate the shieldings and magnetizability using the standard formalism without GIAOs (default: false, i.e., with GIAOs).
+  \item \option{full} --- Calculate the full tensors (default: only diagonal elements).
+  \end{itemize}
+  \textit{Comment: any combination of options works. For example,} \\ \texttt{magnetic\_response fc s po full} \\
+  \textit{calculates the FC and PSO terms of J-couplings and the shielding tensors including off-diagonal elements. The default is equivalent to} \\
+  \texttt{magnetic\_response J\_coupling shielding magnet}
+}
+
+\keydefinition{dfpt\_accuracy\_n1}{control.in}
+{
+  \noindent
+  Usage: \keyword{dfpt\_accuracy\_n1} \option{value}\\[1.0ex]
+  Purpose: Convergence criterion for the DFPT self-consistency cycle, based on the RMS change in the first-order density matrix. Specifically, the unmixed output density matrix is checked against the input density matrix corresponding to the same iteration. The RMS value is calculated over all directions and spins that are being processed.\\[1.0ex]
+  \option{value} is a real positive number (in electrons). Default: 1d-9.
+}
+
+\keydefinition{dfpt\_iter\_limit}{control.in}
+{
+  \noindent
+  Usage: \keyword{dfpt\_iter\_limit} \option{number}\\[1.0ex]
+  Purpose: Maximum number of DFPT cycles.\\[1.0ex]
+  \option{number} is an integer number. Default: 40.
+}
+
+\keydefinition{dfpt\_linear\_mix\_param}{control.in}
+{
+  \noindent
+  Usage: \keyword{dfpt\_linear\_mix\_param} \option{value}\\[1.0ex]
+  Purpose: Parameter for linear mixing of first-order electron density. Used in Pulay and simple linear mixing.\\[1.0ex]
+  \option{value} is a real number between 0 and 1. Default: 1.0
+}
+
+\keydefinition{dfpt\_pulay\_steps}{control.in}
+{
+  \noindent
+  Usage: \keyword{dfpt\_pulay\_steps} \option{number}\\[1.0ex]
+  Purpose: Number of steps kept in memory for Pulay mixing. Value of 1 corresponds to simple linear mixing. \\[1.0ex]
+  \option{number} is a positive integer number. Default: 8
+}
+
+\keydefinition{mr\_gauge\_origin}{control.in}
+{
+  \noindent
+  Usage: \keyword{mr\_gauge\_origin} \option{x y z}\\[1.0ex]
+  Purpose: Gauge origin for the calculation of the shieldings or the magnetizability. This has no effect with GIAOs.\\[1.0ex]
+  \option{x y z} are real numbers (in \AA) that specify the position of the gauge origin. Default: the center of mass.\\[1.0ex]
+  \textit{Comment: The center of mass is based on the natural abundance of elements. If this is not desirable, the user can set the gauge origin manually.}
+}
+
+\keydefinition{output\_sxml}{control.in}
+{
+  \noindent
+  Usage: \keyword{output\_sxml} [\option{name}]\\[1.0ex]
+  Purpose: If present, the spin system and the results of calculations are printed into an sxml file [Biternas \textit{et al.}, J. Mag. Res. \textbf{240}, 124 (2014)], which can serve as input to other software, e.g., Spinach [spindynamics.org].\\[1.0ex]
+  The name of the output file is \option{name} if present. Otherwise, the default name is \texttt{aims.xsml}.
+}
+
+\keydefinition{mr\_experimental}{control.in}
+{
+  \noindent
+  Usage: \keyword{mr\_experimental}\\[1.0ex]
+  Purpose: Overrides any safety checks that would cause the run to stop. This allows the user to test features that are still in development and even avoid simple sanity checks such calculating the shieldings without specifying any atoms in geometry.in.
+}
+
+\subsection*{Tags for \texttt{geometry.in}:}
+\keydefinition{magnetic\_response}{geometry.in}
+{
+  \noindent
+  Usage: \keyword{magnetic\_response} \\[1.0ex]
+  Purpose: Includes the current atom in the magnetic response calculations. If only the magnetizability is required, this keyword need not be used in \texttt{geometry.in}. Otherwise, the calculation of the shieldings or J-couplings is aborted if no atoms are flagged for MR calculations in \texttt{geometry.in}\\[1.0ex]
+}
+
+\keydefinition{magnetic\_moment}{geometry.in}
+{
+  \noindent
+  Usage: \keyword{magnetic\_moment} \option{value}\\[1.0ex]
+  Purpose: Overrides the default magnetic moment for the given atom. The default values (in units of the nuclear magneton $\mu_N$) can be found in \texttt{MagneticResponse/MR\_nuclear\_data.f90}. In case of J-couplings, the isotopes used are also printed in the output.\\[1.0ex]
+  \option{value}, a real number, is the magnetic moment in atomic units (-5.157d-4 for O-17).
+}
+
+\keydefinition{nuclear\_spin}{geometry.in}
+{
+  \noindent
+  Usage: \keyword{nuclear\_spin} \option{value}\\[1.0ex]
+  Purpose: Overrides the default nuclear spin for the given atom. The default values can be found in \texttt{MagneticResponse/MR\_nuclear\_data.f90} and are also printed in the output for J-coupling calculations.\\[1.0ex]
+  \option{value}, a real number, is the nuclear spin (2.5 for O-17).
+}
+
+\keydefinition{isotope}{geometry.in}
+{
+  \noindent
+  Usage: \keyword{isotope} \option{number}\\[1.0ex]
+  Purpose: Overrides the default isotope mass number for the given atom. For more flexibility, the magnetic moment and spin can be specified separately with the above keywords. The default isotopes numbers can be found in \texttt{MagneticResponse/MR\_nuclear\_data.f90}.\\[1.0ex]
+  \option{number}, a positive integer, is the mass of the given atom (17 for O-17).
+}

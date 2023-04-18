@@ -1,0 +1,130 @@
+#  Volker Blum, FHI 2008 : Input file for FHI-aims
+#
+#  WARNING - spd basis used, DO NOT use for production!!
+#
+  xc                	   pbe0
+#    use_logsbt .false.
+  relativistic      	   none
+    override_relativity    .true.    # this becomes a testcase for said flag. 
+  spin              	   collinear
+  charge                   1.0
+#  RI_method                LVL
+#
+#  KS_method         	   lapack
+    empty_states      	   10
+    basis_threshold   	   0.e-5
+  sc_accuracy_rho  	   1E-6
+  sc_accuracy_eev          1E-4
+  sc_accuracy_etot         1E-6
+#
+  occupation_type   	   gaussian 0.01
+  mixer             	   pulay
+    n_max_pulay       	   12
+    charge_mix_param  	   0.6
+    spin_mix_param    	   1.0
+  sc_iter_limit    3
+  #  preconditioner kerker  3.0
+  #  preconditioner turnoff charge 1.e-4
+  #  precondition_max_l     4
+
+  postprocess_anyway 1
+
+#
+#  * Next, specify output options:
+   output       dipole
+   output       quadrupole
+   output       mulliken
+   output	hirshfeld
+   output cube total_density
+        cube filename total_density.cube
+   	cube origin 0.666 0.0 1.026 
+        cube edge 64 0.2 0.0 0.0
+        cube edge 64 0.0 0.2 0.0
+        cube edge 64 0.0 0.0 0.2
+   output cube spin_density 
+          cube filename  spin_density.cube
+
+postprocess_anyway 1
+
+#
+################################################################################
+#
+#  FHI-aims code project
+#  VB, Fritz-Haber Institut, 2007
+#
+#  Suggested "safe" defaults for V atom (to be pasted into control.in file)
+#  All values have been tested for a non-relativistic, non-spinpolarized V2
+#  molecule using the PW-LDA functional. Validity for PBE is expected.
+#
+#  Constructed for dimers: 1.45 A, 1.65 A, 2.25 A, 3.00 A, 4.00 A
+#
+################################################################################
+  species        V
+#     global species definitions
+    nucleus             23
+    cut_pot             4.0          2.0  1.0
+    cut_free_atom       finite 8.0
+    logarithmic         0.000100 100.00  1.0123
+    radial_base         49 7.0
+    radial_multiplier   2
+#   here is a suggested (too dense!) specified angular grid, just in case.
+    angular_grids       specified
+      division   0.1184  110
+      division   0.5683  302
+#      division   0.7154  590
+#      division   0.8163  770
+#      division   2.5319  974
+#      outer_grid  974
+      outer_grid  434
+    l_hartree           6
+################################################################################
+#
+#  Definition of "minimal" basis
+#
+################################################################################
+#     valence basis states
+    valence      4  s   2.
+    valence      3  p   6.
+    valence      3  d   3.
+#     ion occupancy
+    ion_occ      4  s   1.
+    ion_occ      3  p   6.
+    ion_occ      3  d   2.
+################################################################################
+#
+#  Suggested additional basis functions. For production calculations, 
+#  uncomment them one after another (the most important basis functions are
+#  listed first).
+#
+#  VB: Comments on the basis set generation
+#      Tier 1: Had to add in the s function by hand - too strongly correlated
+#              with high-l basis functions
+#      Tier 2: This tier is unusual; it does seem to require two f and two d
+#              functions. Thus, this tier is unpleasantly large!
+#      Tier 3: as is
+#      Basis set generation could be continued thereafter if needed.
+#
+################################################################################
+#  "First tier" - improvements: -573.19 meV to -17.48 meV (hydro 4 f would
+#                 have yielded -26.60 meV instead)
+#     hydro 4 f 9
+     hydro 3 d 3
+     ionic 4 p auto
+#     hydro 5 g 12.8
+     ionic 4 s auto
+#  "Second tier" - improvements: -21.58 meV to -1.18 meV
+#     hydro 3 d 5.4
+#     hydro 5 f 11.2
+#     hydro 6 h 18.4
+#     hydro 4 d 7
+#     hydro 4 f 11.2
+#     hydro 4 p 5.6
+#     hydro 5 g 14
+#     hydro 1 s 0.6
+#  "Third tier" - improvements: -0.56 meV to -0.32 meV
+#     hydro 3 d 8.8
+#     hydro 4 p 7.8
+#     hydro 6 h 18.8
+#     hydro 4 f 20
+#     hydro 4 s 4
+

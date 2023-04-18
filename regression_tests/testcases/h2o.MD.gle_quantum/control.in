@@ -1,0 +1,203 @@
+#########################################################################################
+#
+#  Volker Blum, FHI 2008 : Test run input file control.in for simple H2O
+#
+#########################################################################################
+#
+#  Physical model
+#
+  xc                 pbe 
+  spin               none 
+  relativistic       none
+  charge             0.
+#
+#  SCF convergence
+# 
+  occupation_type    gaussian 0.01
+  mixer              pulay
+    n_max_pulay        10
+    charge_mix_param   0.5   
+  sc_accuracy_rho    1E-3
+  sc_accuracy_eev    1E-2
+  sc_accuracy_etot   1E-4
+  sc_accuracy_forces 1E-3
+  sc_iter_limit      100
+#
+#  Eigenvalue solution
+#
+#  KS_method	     lapack
+#  compute_kinetic
+#
+#  Relaxation
+#
+#relax_geometry   bfgs 1.e-2
+#
+#
+#  Outputs
+#
+# output cube total_density
+#   cube origin 0.0  0.0  0.0   
+#   cube edge 29  0.15 0.0  0.0
+#   cube edge 29  0.0  0.15 0.0
+#   cube edge 29  0.0  0.0  0.15
+# output cube eigenstate 5
+# output cube eigenstate 6
+  MD_run        0.01 GLE_thermostat 300 6 
+#  MD_run        0.015 NVT_parrinello 300 0.1
+#  MD_run        0.1 NVE
+ MD_gle_A    3.904138445158e-1     4.681059722010e+1     3.079778738058e+1     4.428079381336e+1     5.057825203477e+1     2.591193419597e+1     1.513907125942e+1  
+ MD_gle_A   -4.789343294190e+1     2.037551040972e+1     6.597801861779e+1    -8.528273506602e+0    -2.230839572773e+0     6.593086307870e+0    -6.653653981891e+1  
+ MD_gle_A   -2.905096373618e+1    -6.597801861779e+1     2.086885297843e+1     1.145471984072e+1     3.111465343867e+1     1.101562087523e+1    -3.264959166486e+1  
+ MD_gle_A   -4.435072214164e+1     8.528273506602e+0    -1.145471984072e+1     2.386233403354e+1     8.792083035892e-1     2.994937741424e+1     1.530348823334e+1  
+ MD_gle_A   -4.916924816292e+1     2.230839572773e+0    -3.111465343867e+1    -8.792083035892e-1     2.606519350778e+1    -3.458690409590e+1     9.744362519913e+1  
+ MD_gle_A   -1.301834364438e+1    -6.593086307870e+0    -1.101562087523e+1    -2.994937741424e+1     3.458690409590e+1     2.365664840227e+2    -3.253589816948e+2  
+ MD_gle_A   -3.003491620426e+1     6.653653981891e+1     3.264959166486e+1    -1.530348823334e+1    -9.744362519913e+1     3.253589816948e+2     3.833684611452e+2  
+ MD_gle_C    2.999985914100e+2     5.937593337000e+0     2.144376751500e+2     5.883055908000e+1    -1.119803766000e+2    -6.793381764000e+1     1.379789732400e+1  
+ MD_gle_C    5.937593337000e+0     3.781851303000e+2    -5.794518522000e+1    -2.178772681500e+2    -1.649310659100e+2    -6.557113452000e+1     3.833830743000e+1  
+ MD_gle_C    2.144376751500e+2    -5.794518522000e+1     7.325759985000e+2     2.188507713000e+2    -3.704586531000e+2    -3.385193865000e+1    -4.827706758000e+0  
+ MD_gle_C    5.883055908000e+1    -2.178772681500e+2     2.188507713000e+2     6.960431520000e+2    -3.630171093000e+2     1.702940985000e+2    -6.073265904000e+1  
+ MD_gle_C   -1.119803766000e+2    -1.649310659100e+2    -3.704586531000e+2    -3.630171093000e+2     1.437872295000e+3     1.124747403900e+2     3.533754279000e+0  
+ MD_gle_C   -6.793381764000e+1    -6.557113452000e+1    -3.385193865000e+1     1.702940985000e+2     1.124747403900e+2     1.489339230300e+3    -1.607601813300e+2  
+ MD_gle_C    1.379789732400e+1     3.833830743000e+1    -4.827706758000e+0    -6.073265904000e+1     3.533754279000e+0    -1.607601813300e+2     4.445083650000e+2  
+  MD_time_step  0.001
+  MD_MB_init    300
+  MD_clean_rotations  .false.
+  MD_RNG_seed 18
+#  output_level MD_light
+  MD_restart     .false.
+ 
+################################################################################
+#
+#  FHI-aims code project
+#  VB, Fritz-Haber Institut, 2007
+#
+#  Settings for O atom (to be pasted into control.in file).
+#
+#  Tier 1, l_hartree=4, sparse grids (302 max.) For tightly converged calculations,
+#  check the convergence of these parameters.
+#
+################################################################################
+  species        O
+    mass                15.9994    
+    nucleus             8
+    l_hartree         4
+    cut_pot             3.5  2.0  1.0
+    logarithmic         0.00010000 100.00  1.0123
+    radial_base         36 7.0
+    radial_multiplier   2
+    angular_grids specified
+      division   0.4087  110
+      division   0.5181  194
+#      division   0.6184  302
+#      division   0.7315  434
+#      division   0.7934  590
+#      division   0.9656  770
+#      division   1.4041  974
+#      outer_grid 974
+      outer_grid 194
+################################################################################
+#
+#  Definition of "minimal" basis
+#
+################################################################################
+#     valence basis states
+    valence      2  s   2.
+    valence      2  p   4.
+#     ion occupancy
+    ion_occ      2  s   1.
+    ion_occ      2  p   3.
+################################################################################
+#
+#  Suggested additional basis functions. For production calculations,
+#  uncomment them one after another (the most important basis functions are
+#  listed first).
+#
+#  Many basis functions are listed, but it is likely that the functions
+#  after the "third tier" reflect small numerical adjustments only for a very
+#  specific structure.
+#
+################################################################################
+#  "First tier" - improvements: -699.05 meV to -49.91 meV
+     hydro 2 p 1.8
+     hydro 3 d 7.6
+     hydro 3 s 6.4
+#  "Second tier" - improvements: -30.97 meV to -5.39 meV
+#     hydro 4 f 11.6
+#     hydro 3 p 6.2
+#     hydro 3 d 5.6
+#     hydro 5 g 17.6
+#     hydro 1 s 0.75
+#  "Third tier" - improvements: -2.83 meV to -0.50 meV
+#     ionic 2 p 9.4486
+#     hydro 4 f 10.8
+#     hydro 4 d 4.7
+#     hydro 2 s 6.8
+#  "Fourth tier" - improvements: -0.40 meV to -0.12 meV
+#     hydro 3 p 5
+#     hydro 3 s 3.3
+#     hydro 5 g 15.6
+#     hydro 4 f 17.6
+#     hydro 4 d 14
+# Further basis functions - -0.08 meV and below
+#     hydro 3 s 2.1
+#     hydro 4 d 11.6
+#     hydro 3 p 16
+#     hydro 2 s 17.2
+
+################################################################################
+#
+#  VB, Fritz-Haber Institut, 2007
+#
+#  Settings for H atom (to be pasted into control.in file)
+#
+#  Tier 1, l_hartree=4, sparse grids (302 max.) For tightly converged calculations,
+#  check the convergence of these parameters.
+#
+################################################################################
+  species        H
+    mass                1.00794
+    nucleus             1
+    l_hartree         4
+    cut_pot             3.5  2.0  1.0
+    logarithmic         0.00010000 100.00  1.0123
+    radial_base         24 7.0
+    radial_multiplier   2
+    angular_grids       specified
+      division   0.2783  110
+      division   0.3822  194
+#      division   0.5626  302
+#      division   0.5922  434
+#      division   0.6227  590
+#      division   0.7206  770
+#      outer_grid  770
+      outer_grid  194
+################################################################################
+#
+#  Definition of "minimal" basis
+#
+################################################################################
+#     valence basis states
+    valence      1  s   1.
+#     ion occupancy
+    ion_occ      1  s   0.5
+################################################################################
+#
+#  Suggested additional basis functions. For production calculations,
+#  uncomment them one after another (the most important basis functions are
+#  listed first).
+#
+################################################################################
+#  "First tier" - improvements: -1014.90 meV to -62.69 meV
+     hydro 2 s 2.1
+     hydro 2 p 3.5
+#  "Second tier" - improvements: -12.89 meV to -1.83 meV
+#     hydro 1 s 0.85
+#     hydro 2 p 3.7
+#     hydro 2 s 1.2
+#     hydro 3 d 7
+#  "Third tier" - improvements: -0.25 meV to -0.12 meV
+#     hydro 4 f 11.2
+#     hydro 3 p 4.8
+#     hydro 4 d 9
+#     hydro 3 s 3.2
+

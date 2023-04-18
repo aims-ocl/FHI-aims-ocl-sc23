@@ -1,0 +1,137 @@
+\section{$C_6$/$R^6$ corrections for long-range van der Waals interactions}
+The correction improves the description of van der Waals (vdW) interactions in DFT.
+It is based on the leading-order $C_6$/$R^6$ term for the interaction energy
+between two atoms. Both energy and analytic forces are implemented.
+
+Two flavors of the correction are implemented:       
+
+(1) The $C_6$ coefficients and vdW radii are obtained directly
+from Hirshfeld partitioning of the DFT electron density. This scheme
+only requires a single damping parameter, which is fitted to binding
+energies of small organic molecules and hardwired in the code for 
+PBE, PBE0, revPBE, AM05, BLYP and B3LYP functionals. For more information
+and citation see Ref.~\cite{TS-vdw}. Both cluster and periodic cases are implemented.
+
+(2) The empirical $C_6$ coefficients and vdW radii must be 
+specified directly. This scheme is coded for maintaining
+compatibility with empirical $C_6$ approaches. In actual
+applications, the usage of scheme (1) is advised, since
+it is significantly more accurate and less empirical.   
+
+\newpage
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{vdw\_convergence\_threshold}{control.in}
+{
+  \noindent
+  Usage: \keyword{vdw\_convergence\_threshold} \texttt{value}\\[1.0ex]  
+  Purpose: When using the vdW correction based on Hirshfeld partitioning
+  of the electron density (as described in Tkatchenko and Scheffler
+  2009, Ref. \cite{TS-vdw}) in a periodic system, this sets the 
+  energy convergence threshold for the supercell sum over the 
+  TS components. \\ 
+  \texttt{value}: A small positive number (in eV). Default: 
+    For unit cells with less than 100 atoms: 10$^{-6}$ eV. For structures
+    with unit cell sizes above 100 atoms, the default is adjusted to
+    $n_\text{atoms}\cdot10^{-8}$ eV. \\[1.0ex] 
+}
+Note that the vdw part of the forces may be separately converged 
+to (if set) \texttt{sc\_accuracy\_forces}. 
+
+\keydefinition{vdw\_correction\_hirshfeld}{control.in}
+{
+  \noindent
+  Usage: \keyword{vdw\_correction\_hirshfeld} \\[1.0ex]  
+  Purpose: Enables the vdW correction based on Hirshfeld partitioning
+  of the electron density (as described in Tkatchenko and Scheffler
+  2009, Ref. \cite{TS-vdw}). If this keyword is set in a periodic
+  calculation, the sum over atom pairs is done over successively
+  larger supercells, until the energy is converged to the level set by
+  \keyword{sc\_accuracy\_etot} or \keyword{vdw\_convergence\_threshold} 
+  and the forces (if requested) are 
+  converged to within \keyword{sc\_accuracy\_forces}. \\ 
+  No other
+  input required. \\[1.0ex] 
+}
+This method is commonly referred to as the Tkatchenko-Scheffler
+method. The procedure is as follows. \emph{First}, the normal
+self-consistency cycle is completed for a semilocal or hybrid density
+functional, most commonly PBE or PBE0. \emph{Second}, the resulting
+self-consistent electron density is used to create interatomic
+(pairwise) $C_6$  
+coefficients. A simple pairwise van der Waals term is then added once
+to the self-consistent total energy from the preceding semilocal or
+hybrid functional. In other words, the Tkatchenko-Scheffler method is
+normally employed as a post-processing term in a non-self-consistent
+way, not during the self-consistency cycle. Since it needs to be
+combined with a different density functional, you would normally use
+it like this (example for ``PBE+vdW''):
+\begin{verbatim}
+  xc pbe
+  vdw_correction_hirshfeld
+\end{verbatim}
+Three more caveats: (1) Do not use this method together with the
+local-density approximation (LDA) unless you know exactly what you are
+doing. The LDA already contains a spurious interaction term that will
+lead to very strange results if added to a pairwise van der Waals
+term. (2) Do not simply apply this method to a metallic system unless
+you know what you are doing. (3) This is also not the (very different)
+functional commonly known as the Langreth-Lundqvist or vdw-DF
+functional.~\cite{Dion04} FHI-aims contains at least two
+implementations of vdw-DF for those who are interested, but either
+implementation is much slower than the Tkatchenko-Scheffler
+pairwise interatomic sum. 
+
+\keydefinition{vdw\_correction\_hirshfeld\_sc}{control.in}
+{	
+  \noindent
+  Usage: \keyword{vdw\_correction\_hirshfeld\_sc} \\[1.0ex]
+  Purpose: Enables the self-consistent version of the vdW correction based on Hirshfeld partitioning
+  of the electron density (see Tkatchenko and Scheffler
+  2009, Ref. \cite{TS-vdw}). In a periodic calculation, the energy is converged with the same criteria of the \textit{a posteriori} approach: \keyword{vdw\_correction\_hirshfeld}. \\[1.0ex]
+}
+This flag adds the Tkatchenko-Scheffler vdW functional as a part of the given exchange-correlation (XC) functional.
+In a self-consistent scheme, the contribution of the vdW potential, $v_{\rm vdW}[n({\bf r})]=\delta E_{\rm vdW}[n({\bf r})]/\delta n({\bf r})$, is added to the XC potential to form the total effective potential in the Kohn-Sham equations.
+As a result, the van der Waals interatomic contributions affect the total electron density and are computed at each self-consistent cycle, until convergence is reached.
+In this way, it is possible to evaluate the effects of vdW interactions on the electron density and electronic properties, going beyond the vdW \textit{a posteriori} correction of the total DFT energy.
+
+Note: Do not use this self-consistent flag during a relaxation. The self-consistent forces are not implemented (yet) for the Tkatchenko-Scheffler vdW functional and this will lead to inconsistency errors.
+
+\keydefinition{vdw\_correction}{control.in}
+{
+  \noindent
+  Usage: \keyword{vdw\_correction} \\[1.0ex]
+  Purpose: Enables the empirical $C_6$/$R^6$ correction with the $C_6$ coefficients
+and vdW radii specified by the user. \\[1.0ex]
+}
+
+The user needs to specify the interaction parameters for \emph{all} atomic pairs in the system
+(i.e. for CNOH, there are 10 atomic pairs). This is done by putting ``vdw\_pairs $N$'', where
+$N$ is the number of pairs. This should be followed by $N$ lines 
+of ``vdw\_coeff atom$_i$ atom$_j$ $C_{6ij}$ $R^0_{ij}$ $d$'', where 
+$C_{6ij}$ is the $C_6$ coefficient for the interaction between atom$_i$ and atom$_j$,
+$R^0_{ij}$ is the corresponding vdW radius and $d$ is the damping function parameter.
+A choice $d$=20 is suggested for all atomic pairs. An example for C-C interaction
+is: ``vdw\_coeff C C 30.00 5.59 20.0''.
+
+\keydefinition{vdw\_pair\_ignore}{control.in}
+{
+  \noindent
+  Usage: \keyword{vdw\_pair\_ignore} \option{species1} \option{species2} \\[1.0ex]
+  Purpose: excludes the interaction between \option{species1} and \option{species2} from any C6-correction, eg. such that metallic slabs 
+  are not affected internally by introducing C6-interactions. \\[1.0ex]
+}
+
+
+\newpage
+
+\subsection*{Subtags for \emph{species} tag in \texttt{control.in}:}
+
+\subkeydefinition{species}{hirshfeld\_param}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{hirshfeld\_param} \option{C6} \option{alpha} \option{R0} \\[1.0ex]
+  Default: the values outlined in Ref.~\cite{TS-vdw} \\
+  Purpose: To explicitly allow setting the parameters for the Tkatchenko-Scheffler van der Waals correction.
+}

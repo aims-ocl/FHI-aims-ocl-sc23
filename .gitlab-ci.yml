@@ -1,0 +1,336 @@
+variables:
+  MPIEXE: "mpirun"
+  N_TASKS_BUILD: "4"
+  N_TASKS_TEST: "4"
+  TERMSIZE: "200"
+
+# The baseline build on timewarp: Intel compilers, Intel MPI, Intel MKL,
+# and all internally compiled libraries
+intel:
+  tags:
+    - timewarp
+  script:
+    - source ci_build/load_node17_defaults.sh
+    - module list
+    - export JOB_HOME=${PWD}
+    - export AIMS_HOME=$JOB_HOME/install
+    - export CMAKE_TOOLCHAIN_DIR=${PWD}/cmake/toolchains
+    - cd ci_build
+    - ./build_aims.sh $CMAKE_TOOLCHAIN_DIR/intel.cmake $JOB_HOME $N_TASKS_BUILD
+    - ./test_aims.sh $AIMS_HOME $JOB_HOME $MPIEXE $N_TASKS_TEST
+  artifacts:
+    when: always
+    paths:
+    - regression_tests/workspace/
+    expire_in: 3 days
+
+# Baseline build, but with GNU compilers
+gnu:
+  tags:
+    - timewarp
+  script:
+    - source ci_build/load_node17_defaults.sh
+    - module switch intel-compilers-14.0 gcc-4.9.0
+    - export MPICH_FC=gfortran
+    - echo "MPICH_FC = $MPICH_FC"
+    - module list
+    - export JOB_HOME=${PWD}
+    - export AIMS_HOME=$JOB_HOME/install
+    - export CMAKE_TOOLCHAIN_DIR=${PWD}/cmake/toolchains
+    - cd ci_build
+    - ./build_aims.sh $CMAKE_TOOLCHAIN_DIR/gnu.cmake $JOB_HOME $N_TASKS_BUILD
+    - ./test_aims_no_spglib.sh $AIMS_HOME $JOB_HOME $MPIEXE $N_TASKS_TEST
+  artifacts:
+    when: always
+    paths:
+    - regression_tests/workspace/
+    expire_in: 3 days
+
+# Baseline build, but with PGI compilers
+pgi:
+  tags:
+    - timewarp
+  script:
+    - source ci_build/load_node17_defaults.sh
+    - module switch intel-compilers-14.0 pgi-19.4
+    - export MPICH_FC=pgfortran
+    - echo "MPICH_FC = $MPICH_FC"
+    - module list
+    - export JOB_HOME=${PWD}
+    - export AIMS_HOME=$JOB_HOME/install
+    - export CMAKE_TOOLCHAIN_DIR=${PWD}/cmake/toolchains
+    - cd ci_build
+    - ./build_aims.sh $CMAKE_TOOLCHAIN_DIR/pgi.cmake $JOB_HOME $N_TASKS_BUILD
+    - ./test_aims.sh $AIMS_HOME $JOB_HOME $MPIEXE $N_TASKS_TEST
+  artifacts:
+    when: always
+    paths:
+    - regression_tests/workspace/
+    expire_in: 3 days
+
+# Serial (no MPI, no ScaLAPACK)
+serial.intel:
+  only:
+    - merge_requests
+    - schedules
+  tags:
+    - timewarp
+  script:
+    - source ci_build/load_node17_defaults.sh
+    - module switch intel-compilers-14.0 intel-compilers-18.0
+    - module list
+    - export JOB_HOME=${PWD}
+    - export AIMS_HOME=$JOB_HOME/install
+    - export CMAKE_TOOLCHAIN_DIR=${PWD}/cmake/toolchains
+    - cd ci_build
+    - ./build_aims.sh $CMAKE_TOOLCHAIN_DIR/serial.intel.cmake $JOB_HOME $N_TASKS_BUILD
+    - ./test_aims_no_scalapack.sh $AIMS_HOME $JOB_HOME $MPIEXE 1
+  artifacts:
+    when: always
+    paths:
+    - regression_tests/workspace/
+    expire_in: 3 days
+
+# The baseline build, but using the 2018 version of the Intel compiler suite with debug flags
+debug.intel-2018:
+  only:
+    - merge_requests
+    - schedules
+  tags:
+    - timewarp
+  script:
+    - source ci_build/load_node17_defaults.sh
+    - module switch intel-compilers-14.0 intel-compilers-18.0
+    - module switch intel-mkl-11.1.1 intel-mkl-2018.2
+    - module switch mpich-3.1.4 intel-mpi-2018.2
+    - module list
+    - export JOB_HOME=${PWD}
+    - export AIMS_HOME=$JOB_HOME/install
+    - export CMAKE_TOOLCHAIN_DIR=${PWD}/cmake/toolchains
+    - cd ci_build
+    - ./build_aims.sh $CMAKE_TOOLCHAIN_DIR/debug.intel_2018.cmake $JOB_HOME $N_TASKS_BUILD
+    - ./test_aims.sh $AIMS_HOME $JOB_HOME $MPIEXE $N_TASKS_TEST
+  artifacts:
+    when: always
+    paths:
+    - regression_tests/workspace/
+    expire_in: 3 days
+
+# The baseline build, but using the 2018 version of the Intel compiler suite
+intel-2018:
+  only:
+    - schedules
+  tags:
+    - timewarp
+  script:
+    - source ci_build/load_node17_defaults.sh
+    - module switch intel-compilers-14.0 intel-compilers-18.0
+    - module switch intel-mkl-11.1.1 intel-mkl-2018.2
+    - module switch mpich-3.1.4 intel-mpi-2018.2
+    - module list
+    - export JOB_HOME=${PWD}
+    - export AIMS_HOME=$JOB_HOME/install
+    - export CMAKE_TOOLCHAIN_DIR=${PWD}/cmake/toolchains
+    - cd ci_build
+    - ./build_aims.sh $CMAKE_TOOLCHAIN_DIR/intel_2018.cmake $JOB_HOME $N_TASKS_BUILD
+    - ./test_aims.sh $AIMS_HOME $JOB_HOME $MPIEXE $N_TASKS_TEST
+  artifacts:
+    when: always
+    paths:
+    - regression_tests/workspace/
+    expire_in: 3 days
+
+# Baseline build, but with GCC 7.1
+gnu-7.1:
+  only:
+    - schedules
+  tags:
+    - timewarp
+  script:
+    - source ci_build/load_node17_defaults.sh
+    - module switch intel-compilers-14.0 gcc-7.1
+    - export MPICH_FC=gfortran
+    - echo "MPICH_FC = $MPICH_FC"
+    - module list
+    - export JOB_HOME=${PWD}
+    - export AIMS_HOME=$JOB_HOME/install
+    - export CMAKE_TOOLCHAIN_DIR=${PWD}/cmake/toolchains
+    - cd ci_build
+    - ./build_aims.sh $CMAKE_TOOLCHAIN_DIR/gnu.cmake $JOB_HOME $N_TASKS_BUILD
+    - ./test_aims_no_spglib.sh $AIMS_HOME $JOB_HOME $MPIEXE $N_TASKS_TEST
+  artifacts:
+    when: always
+    paths:
+    - regression_tests/workspace/
+    expire_in: 3 days
+
+# External ELSI
+ext-elsi.intel:
+  only:
+    - schedules
+  tags:
+    - timewarp
+  script:
+    - source ci_build/load_node17_defaults.sh
+    - module switch intel-compilers-14.0 intel-compilers-18.0
+    - module switch intel-mkl-11.1.1 intel-mkl-2018.2
+    - module switch mpich-3.1.4 intel-mpi-2018.2
+    - module load gcc-4.9.0
+    - module list
+    - export JOB_HOME=${PWD}
+    - export AIMS_HOME=$JOB_HOME/install
+    - export ELSI_HOME=$JOB_HOME/ext_elsi/install
+    - pushd . > /dev/null
+    - mkdir -p $JOB_HOME
+    - cd $JOB_HOME
+    - echo "Building ELSI from git repo..."
+    - rm -rf ext_elsi
+    - git clone http://www.elsi-interchange.org:81/elsi-devel/elsi-interface.git ext_elsi
+    - cd ext_elsi
+    - cat ./toolchains/intel.cmake
+    - rm -rf build install && mkdir build && cd build
+    - cmake -DCMAKE_TOOLCHAIN_FILE=../toolchains/intel.cmake -DCMAKE_INSTALL_PREFIX=$ELSI_HOME ..
+    - make -j $N_TASKS_BUILD
+    - make install
+    - popd > /dev/null
+    - echo "Finished building ELSI from git repo."
+    - export CMAKE_TOOLCHAIN_DIR=${PWD}/cmake/toolchains
+    - cd ci_build
+    - ./build_aims.sh $CMAKE_TOOLCHAIN_DIR/ext_elsi.intel.cmake $JOB_HOME $N_TASKS_BUILD
+    - ./test_aims.sh $AIMS_HOME $JOB_HOME $MPIEXE $N_TASKS_TEST
+  artifacts:
+    when: always
+    paths:
+    - regression_tests/workspace/
+    expire_in: 3 days
+
+# Open MPI library
+open-mpi.intel:
+  only:
+    - schedules
+  tags:
+    - timewarp
+  script:
+    - source ci_build/load_node17_defaults.sh
+    - module switch intel-mkl-11.1.1 intel-mkl-2018.2
+    - module switch mpich-3.1.4 openmpi-1.7.5
+    - export OMPI_FC=ifort
+    - module list
+    - export JOB_HOME=${PWD}
+    - export AIMS_HOME=$JOB_HOME/install
+    - export CMAKE_TOOLCHAIN_DIR=${PWD}/cmake/toolchains
+    - cd ci_build
+    - ./build_aims.sh $CMAKE_TOOLCHAIN_DIR/open_mpi.intel.cmake $JOB_HOME $N_TASKS_BUILD
+    - ./test_aims.sh $AIMS_HOME $JOB_HOME $MPIEXE $N_TASKS_TEST
+  artifacts:
+    when: always
+    paths:
+    - regression_tests/workspace/
+    expire_in: 3 days
+
+# MPI, but no ScaLAPACK
+no-scalapack.intel:
+  only:
+    - merge_requests
+    - schedules
+  tags:
+    - timewarp
+  script:
+    - source ci_build/load_node17_defaults.sh
+    - module switch intel-compilers-14.0 intel-compilers-18.0
+    - module list
+    - export JOB_HOME=${PWD}
+    - export AIMS_HOME=$JOB_HOME/install
+    - export CMAKE_TOOLCHAIN_DIR=${PWD}/cmake/toolchains
+    - cd ci_build
+    - ./build_aims.sh $CMAKE_TOOLCHAIN_DIR/no_scalapack.intel.cmake $JOB_HOME $N_TASKS_BUILD
+    - ./test_aims_no_scalapack.sh $AIMS_HOME $JOB_HOME $MPIEXE $N_TASKS_TEST
+  artifacts:
+    when: always
+    paths:
+    - regression_tests/workspace/
+    expire_in: 3 days
+
+# No C libraries
+no-c-libraries.intel:
+  only:
+    - schedules
+  tags:
+    - timewarp
+  script:
+    - source ci_build/load_node17_defaults.sh
+    - module list
+    - export JOB_HOME=${PWD}
+    - export AIMS_HOME=$JOB_HOME/install
+    - export CMAKE_TOOLCHAIN_DIR=${PWD}/cmake/toolchains
+    - cd ci_build
+    - ./build_aims.sh $CMAKE_TOOLCHAIN_DIR/no_c_libraries.intel.cmake $JOB_HOME $N_TASKS_BUILD
+    - ./test_aims_no_spglib.sh $AIMS_HOME $JOB_HOME $MPIEXE $N_TASKS_TEST
+  artifacts:
+    when: always
+    paths:
+    - regression_tests/workspace/
+    expire_in: 3 days
+
+# HDF5 Support
+hdf5.intel:
+  only:
+    - schedules
+  tags:
+    - timewarp
+  script:
+    - source ci_build/load_node17_defaults.sh
+    - module switch mpich-3.1.4 intel-mpi-2018.2
+    - module load hdf5
+    - module list
+    - export JOB_HOME=${PWD}
+    - export AIMS_HOME=$JOB_HOME/install
+    - export HDF5_HOME=/opt/hdf5
+    - export CMAKE_TOOLCHAIN_DIR=${PWD}/cmake/toolchains
+    - cd ci_build
+    - ./build_aims.sh $CMAKE_TOOLCHAIN_DIR/hdf5.intel.cmake $JOB_HOME $N_TASKS_BUILD
+    - ./test_aims.sh $AIMS_HOME $JOB_HOME $MPIEXE $N_TASKS_TEST
+  artifacts:
+    when: always
+    paths:
+    - regression_tests/workspace/
+    expire_in: 3 days
+
+# GPU Acceleration
+gpu.intel:
+  only:
+    - merge_requests
+    - schedules
+  tags:
+    - node17.timewarp # GPU node needed
+  script:
+    - source ci_build/load_node17_defaults.sh
+    - module load cuda-8.0
+    - module list
+    - export JOB_HOME=${PWD}
+    - export AIMS_HOME=$JOB_HOME/install
+    - export CMAKE_TOOLCHAIN_DIR=${PWD}/cmake/toolchains
+    - cd ci_build
+    - ./build_aims.sh $CMAKE_TOOLCHAIN_DIR/gpu.intel.cmake $JOB_HOME $N_TASKS_BUILD
+    - ./test_aims.sh $AIMS_HOME $JOB_HOME $MPIEXE $N_TASKS_TEST
+  artifacts:
+    when: always
+    paths:
+    - regression_tests/workspace/
+    expire_in: 3 days
+
+# aims as (shared) library
+libaims.intel:
+  only:
+    - merge_requests
+    - schedules
+  tags:
+    - timewarp
+  script:
+    - source ci_build/load_node17_defaults.sh
+    - module list
+    - export JOB_HOME=${PWD}
+    - export AIMS_HOME=$JOB_HOME/install
+    - export CMAKE_TOOLCHAIN_DIR=${PWD}/cmake/toolchains
+    - cd ci_build
+    - ./build_aims.sh $CMAKE_TOOLCHAIN_DIR/libaims.intel.cmake $JOB_HOME $N_TASKS_BUILD

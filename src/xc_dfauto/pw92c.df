@@ -1,0 +1,31 @@
+# vim: set syntax=maple:
+
+read "basics.mpl";
+
+epsilon[Cunif] := proc(rs, zeta)
+    epsilon[c0](rs)
+    +alpha[c](rs)*ff(zeta)/ff0*(1-zeta^4)
+    +(epsilon[c1](rs)-epsilon[c0](rs))*ff(zeta)*zeta^4
+end;
+
+ff := proc(zeta)
+    ((1+zeta)^(4/3)+(1-zeta)^(4/3)-2)/(2^(4/3)-2)
+end;
+ff0 := 1.709921;
+epsilon[c0] := proc(rs)
+    Gamma(rs, 0.0310907, 0.21370, 7.5957, 3.5876, 1.6382, 0.49294, 1)
+end;
+epsilon[c1] := proc(rs)
+    Gamma(rs, 0.01554535, 0.20548, 14.1189, 6.1977, 3.3662, 0.62517, 1)
+end;
+alpha[c] := proc(rs)
+    -Gamma(rs, 0.0168869, 0.11125, 10.357, 3.6231, 0.88026, 0.49671, 1)
+end;
+Gamma := proc(rs, A, a1, b1, b2, b3, b4, p)
+    -2*A*(1+a1*rs)*ln(1+1/(2*A*(b1*rs^(1/2)+b2*rs+b3*rs^(3/2)+b4*rs^(p+1))))
+end;
+
+f := rho*epsilon[Cunif](r[s](rho), (rho(a)-rho(b))/rho);
+g := 0;
+
+title := "Perdew--Wang 1992 parametrization of LDA";

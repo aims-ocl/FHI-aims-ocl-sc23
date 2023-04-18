@@ -1,0 +1,32 @@
+<simulation verbosity="high">
+  <output prefix="ex1">
+      <properties stride='2' filename='out'>
+       [ step, time{picosecond}, conserved, temperature{kelvin}, potential{electronvolt}  ]
+      </properties>
+     <trajectory format='xyz' filename='pos' stride='2' cell_units='angstrom'>x_centroid{angstrom}</trajectory>
+     <checkpoint filename="chk" stride="1000" overwrite="true"></checkpoint>
+  </output>
+  <prng><seed> 3924</seed></prng>
+  <total_steps>800000</total_steps>
+  <ffsocket name="FHI-aims" mode="unix">
+    <address> xxxx </address>
+  </ffsocket>  
+  <system>
+    <initialize nbeads="1">
+      <file mode="xyz" > H5O2.xyz </file>
+      <velocities mode="thermal" units="kelvin"> 300  </velocities>
+      <cell mode='abc' units='angstrom'> [   100, 100, 100]  </cell>
+    </initialize>
+    <forces>
+      <force forcefield="FHI-aims"> </force>
+    </forces>
+    <ensemble>
+      <temperature units="kelvin"> 300 </temperature>
+    </ensemble>
+    <motion mode="dynamics">
+      <dynamics mode="nve">
+         <timestep units="femtosecond"> 0.5 </timestep>
+      </dynamics>
+    </motion>
+  </system>
+</simulation>

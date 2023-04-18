@@ -1,0 +1,50 @@
+This folder contains exploratory work into the open sourcing of the basis set 
+infrastructure of FHI-aims.
+ 
+At this stage, we are simply rearranging files within FHI-aims to sort out 
+dependencies.  Every file in this folder is tentative and may move back to the
+"main" aims code base.
+
+I (WPH) have moved most of the basis set files into this folder.  The criterion 
+used was to include the first half of prepare_scf() from the get_grids() call
+to the verify_onsite_integrals() call.  From my personal experience, this should 
+cover a significant portion of the basis set construction.
+ 
+This set of files is not standalone, as they require the core aims modules.  A
+list of the core modules *not* found in this folder, in ascending order of 
+complexity, is:
+- constants
+- mpi_tasks
+- localorb_io
+- runtime_choices
+- dimensions
+These modules are largely self-contained or depend on one another.  The basis, 
+species_data, grids, and free_atoms modules are core aims modules which have 
+been moved to this folder.  Someone has (annoyingly) added an ipc dependency to
+some of these modules.
+
+The following list of modules are also required and external to this set of files;
+however, they are used infrequently, and it is likely that the dependencies could
+be removed by forking functionality:
+- xc
+- xc_library*
+- synchronize_mpi
+- timing
+- geometry
+
+Note to my future self:  xc and xc_library can be moved into this folder.  Induces
+a dependency on octree_routines, but only for one variable.  Can easily be dummy'd 
+out.  We only use one subroutine from synchronize_mpi (sync_atomic_solver_outputs), 
+and it's related specifically to basis set construction, so it can be moved into 
+this folder as a subroutine.  We would still have a dependency on synchronize_mpi_basic, 
+but it is a low-level module that can be safely redistributed alongside mpi_tasks.  
+(Better yet, this subroutine could be eliminated entirely, as newer versions of 
+atom_sphere do not have the non-determinism problem that this hack of a subroutine 
+circumvents.)  We use only two variables from timing; my feeling is that they may 
+better belong in the modules in this folder than in timing, but I haven't looked 
+at it in detail to justify this from a rigorous architectural standpoint.  geometry 
+induces a dependency on bravais, but I can't make an argument that either module 
+belongs in this folder.  It may be the problematic module here.
+
+* There is a dependency on libxc due to this module (as well as atom_sphere), but 
+  libxc has not been moved into this folder as it is used throughout aims

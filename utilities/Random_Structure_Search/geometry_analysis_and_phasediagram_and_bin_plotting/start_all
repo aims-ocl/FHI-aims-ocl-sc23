@@ -1,0 +1,12 @@
+#!/bin/bash
+
+for i in `seq 10`
+ do
+ mkdir $i
+ cp control.in $i/control.in
+ cp gen_geo.py $i/gen_geo.py
+ sed s/"rnd_srch"/"rnd_srch\/$i"/ job_script | sed s/"rnd_name"/"rnd_srch_$i"/ > $i/job_script
+ cp start_search $i/start_search
+ chmod 700 $i/start_search
+ llsubmit $i/job_script
+ done

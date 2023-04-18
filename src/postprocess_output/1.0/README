@@ -1,0 +1,264 @@
+=== a2rg --- a postprocessing tool for FHI-aims data visualization & analysis ===
+    
+    Purpose:
+               * reads binary or ASCII data written by FHI-aims,
+                 e.g. the potential on atom-centered grids
+                 (==> see the format description below)
+               * maps data from the atom-centered grids to a rectilinear grid
+               * writes the data using a VTK file format
+                 compatible with common visualization tools (VisIt, ParaView)
+
+    Requirements:
+               * C/C++ compiler (g++ recommended)
+               * MPI environment
+               * VTK library with MPI enabled (version 5.8 recommended)
+
+    Code status:
+               * experimental (July 2012)
+
+    Authors:
+               * Klaus Reuter, <khr@rzg.mpg.de>
+               * Andreas Marek, <amarek@rzg.mpg.de>
+
+               Contact the authors for a detailed report (PDF file) containing
+               visualization examples.
+
+
+
+
+
+=== Usage information (output of "a2rg --help") ===
+
+Usage: ./a2rg [OPTION]... FHI-aims-data-file[s]
+
+  Options
+    --help     print this help message
+    --ascii    read data files in ascii mode, default: binary
+    --verbose  print information on what is being done
+    --debug    print debug information
+    --timing   print timing output
+
+  Options with arguments
+    --nx       <number of grid points in x direction, default: 128>
+    --ny       <number of grid points in y direction, default: 128>
+    --nz       <number of grid points in z direction, default: 128>
+    --xmin     <coordinate minimum in x direction, default: auto>
+    --xmax     <coordinate maximum in x direction, default: auto>
+    --ymin     <coordinate minimum in y direction, default: auto>
+    --ymax     <coordinate maximum in y direction, default: auto>
+    --zmin     <coordinate minimum in z direction, default: auto>
+    --zmax     <coordinate maximum in z direction, default: auto>
+    --vtrout   <VTK rectilinear grid output file name (.vtr), default: disabled>
+    --vtiout   <VTK 3D image data output file name (.vti), default: disabled.
+                (.vti files are required only to perform volume rendering.)>
+    --vtpout   <VTK atom coordinates output file name (.vtp), default: disabled>
+
+
+
+
+
+=== File format description ===
+
+To create as little overhead as possible, each MPI process of FHI-aims shall
+write only the portion of the data it has in memory anyway in order to avoid
+unnecessary communication and computation.
+
+*** ASCII file format ***
+
+ASCII files are suitable for small data sets, and during code development and
+debugging.  We propose the following ASCII file format, where the hash symbol
+marks the beginning of a comment in the context of the present report.  Real
+world data should not have comments.
+
+
+ATOMS N            # N = number of atoms in the data set
+FIELDS id1 id2 ... # label for each of the M arrays in the data set
+ATOM 1             # ATOM, followed by the numerical ID of the atom
+SPECIES X          # SPECIES, followed by the chemical symbol
+CENTER X1 Y1 Z1    # CENTER, followed by the coordinates of the nucleus
+P1_X P1_Y P1_Z P1_F1 P1_F2 ... P1_FM   # coordinate triple of a grid point
+#                              followed by M values of the M scalar fields
+...                # same as above for all the other grid points of atom 1
+ATOM 2             # proceed analogously for all the other atoms
+SPECIES X
+CENTER X2 Y2 Z2
+Q1_X Q1_Y Q1_Z Q1_F1 Q1_F2 ... Q1_FM
+...
+ATOM N
+SPECIES X
+CENTER XN YN ZN
+R1_X R1_Y R1_Z R1_F1 R1_F2 ... R1_FM
+...
+
+
+Each MPI process of FHI-aims writes to a separate file.  Each file starts with
+a header specifying the number of atoms in the dataset (ATOMS), and the labels
+and numbers (implicitly) of the data variables (FIELDS).  Further information
+such as TIME can be added easily, if necessary.
+
+Following the header, the data is organized in sections atom-by-atom.  A
+section starts with the identifier ATOM followed by its FHI-aims-internal
+identification index.  The following lines allow to specify the chemical
+element (SPECIES) and the coordinates of the nucleus (CENTER), which can be
+used later e.g. to enrich a contour plot with a 3D sticks-and-balls model.
+
+Next, the grid points and the associated fields are specified.
+
+A grid point is given by a triple of coordinates followed by the field values
+in a single line.  An arbitrary number of similar lines for other grid points
+may follow.  Note that no identifier is used.  A section ends implicitly when a
+new ATOM is specified.
+
+Note that for simplicity no information on the connectivity of the (Lebedev)
+computational grids is included.  Instead, an unstructured grid is constructed
+for each atom during the post-processing step by a 3D Delaunay triangulation
+algorithm which is identical to the atom-centered FHI-aims computational grid.
+
+
+*** Binary file format ***
+
+For production runs and especially for large datasets the binary file format is
+strongly recommended.  The format we propose is basically identical to the
+ASCII format with the following exceptions:
+
+   * Records of a fixed size are used instead of lines.
+   * The file starts with the string RECL followed by an integer value
+     specifying the record length used by the data set.
+   * Whitespace is omitted.
+
+Note that there are no Fortran array boundary markers present in the binary
+files.
+
+The record length should be equal to the number of bytes needed for the largest
+entry ( line in the ASCII context) in the file.  This is typically the data for
+a single point, i.e. three doubles for the coordinates followed by doubles for
+the field values at that point.  Note that -- in contrast to ASCII files --
+binary files depend on the endianness of the machine used for the FHI-aims
+runs.
+
+NOTE: It is important to exactly stick to the format definition, especially
+when binary files are used.  Otherwise, the read-in and post-processing of the
+data is likely to fail.
+
+
+
+
+
+=== Code examples ===
+
+*** Write a binary data set using Fortran
+    (to be implemented analogously in FHI-aims for the data under consideration)
+***
+
+! writeExample.f90 
+program writeExample
+
+   implicit none
+
+   ! set up lengths of the data types
+   integer :: i
+   character :: c
+   real*8 :: x, y, z, r
+   integer :: iolengthInt, iolengthChar, iolengthReal8, reclen, recbytes, ndoubles
+
+   ! number of doubles per line/record
+   ndoubles = 4
+
+   ! ### determination of the record length based on actual data type sizes ###
+   inquire(iolength=iolengthInt) i
+   inquire(iolength=iolengthChar) c
+   inquire(iolength=iolengthReal8) r
+   !
+   ! units are bytes for the GNU compiler, and others for the Intel Compiler!
+   ! write(*,*) iolengthInt, iolengthChar, iolengthReal8
+   !
+   ! ==> the following should be portable
+   reclen = iolengthReal8*ndoubles
+   recbytes = 8*ndoubles
+
+   ! arbitrary initialization
+   x = -1.0
+   y =  2.0
+   z =  3.0
+   r = -4.5
+
+   ! write-out of an example data set
+   open(21, file='aimstest.dat', status='replace', form='unformatted', access='direct', recl=reclen)
+   i=1    ! first record contains the record length in bytes
+   write(21, rec=i) "RECL", recbytes
+   i=i+1  ! all data which follows is written in the same way as it is done using ASCII files
+   write(21, rec=i) "ATOMS", 4711
+   ! ...
+   i=i+1
+   write(21, rec=i) x, y, z, r
+   close(21)
+
+end program
+! EOF
+
+
+*** Read a binary data set using C (==> as implemented in a2rg) ***
+
+//readExample.c 
+#include <stdio.h>
+#include <string.h>
+
+int main()
+{
+  FILE *fp;
+  char line[32];
+
+  int n;
+  double data[4];
+  data[0] = data[1] = data[2] = data[3] = 0.0;
+  int reclen;
+  reclen = 32;
+
+  fp = fopen("aimstest.dat", "rb");
+
+  // (1) detect record length used by the present data set
+  if (fread(line, reclen, 1, fp))
+  {
+    if (strncmp(line, "RECL", 4)==0)
+    {
+        memcpy(&reclen, &(line[4]), sizeof(reclen));
+        printf("reclen = %d\n", reclen);
+        rewind(fp);
+    }
+    else
+    {
+      fclose(fp);
+    }
+  }
+  else
+  {
+    fclose(fp);
+  }
+
+  // (2) read data
+  if (fp)
+  {
+    while(fread(line, reclen, 1, fp))
+    { 
+      if (strncmp(line, "ATOMS", 5)==0)
+      {
+        memcpy(&n, &(line[5]), sizeof(n));
+        printf("n = %d\n", n);
+      }
+      else if (strncmp(line, "RECL", 4)==0)
+      {
+        // do nothing
+      }
+      // implement else if's
+      else
+      {
+        memcpy(&(data[0]), &(line[0]), reclen);
+        printf("(x, y, z, r) = (%f, %f, %f, %f)\n", data[0], data[1], data[2], data[3]);
+      }
+    }
+    fclose(fp);
+  }
+
+  return 0;
+}
+// EOF

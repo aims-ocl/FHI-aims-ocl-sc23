@@ -1,0 +1,67 @@
+This is an example of how to run aims within a custodian.
+Instead of running aims directly from the submit script, run
+
+   python aims_custodian.py
+
+instead (NOT mpirun python ...). It contains:
+
+A) Error handlers:
+
+  1) AimsRelaxHandler: Monitors progress and in case of force_energy_inconsistency (currently
+     the only MPI ABORT I do encounter, but let me know if you have others to cover) will
+     copy geometry.in.next_step to geometry.in and continue the aims run. Initial moments
+     for spin polarized computations are not handled at this point but will be implemented 
+     in the future. Generally the idea is to take them from the original geometry.in and reapply
+     after geometry.in.next_step has been moved. 
+  2) FrozenJobErrorHandler: Monitors for a frozen job, inactivity timeout = 1hr, easily adjustable
+  3) ConvergenceEnhancer: EXPERIMENTAL: Will try to help convergence by adjusting the parameters to lower 
+     values to get an electronic guess and after SCF convergence is achieved will restore the original
+     settings from control.in. Currently requires sc_accuracy_rho AND sc_accuracy_eev AND sc_accuracy_etot to be set.
+     Uses control.update.in for in-computational changes to the settings.
+   
+B) Validators:
+
+Always use the AimsConvergedValidator and additional ones for specific tasks if required.
+
+  1) AimsConvergedValidator: Will check whether the job has actually converged when finished. Will return 
+     a non-zero exit code from the queue script if not converged. This checks only if aims did converge, i.e.
+     we do "Have a nice day."
+  2) AimsTDDFTValidator: Checks for the presence of the output files produced from the TDDFT routine, NOT for 
+     any convergence.
+
+Validators can be easily adopted for specific purposes for aims tasks. If you need one and don't know what to do,
+write me and I will help. 
+
+This is part of a larger project and usually embedded within the atomate+fireworks framework.
+Within this embedding workflows will then be able to do (FOR EXAMPLE)
+  1) generate a structure from user-defined limits
+  2) do a light and then a tight relaxation
+  3) do a i.e. TDDFT run
+  4) do a XYZ run
+When this workflow runs, at each step the respective validator will ensure that the step has actually
+converged and produced what is expected before continuing with the next step. This way the waste of computational
+time is minimized and the production of scientific data is ensured. 
+The most important part is that the user does not have to do any copy/paste of files or any data along the way. 
+The user feeds a structure into the workflow and will at the end get a tight relaxed structure with TDDFT
+excitation energies and the output of XYZ. So you can focus on writing the papers, not moving data and modifying
+input files and putting in typos ;)
+
+There are workflows available in the atomate package for aims, too.
+
+REPOSITORIES:
+These are currently development versions and not available in the code mainlines. However, forks of 
+the mainline code with the above modifications are available at my github:
+
+    https://github.com/janklinux?tab=repositories
+
+I do keep these up-to-date with the mainlines so there is no concern you are missing features 
+from the mainlines of these codes. I recommend cloning pymatgen, custodian and atomate and installing 
+in that order because of requirements/dependencies. My pymatgen fork can read and write fhi-aims geometries 
+and you can use the whole available pymatgen infrastructure on your structure files. The custodian is described 
+above. The atomate fork contains workflow definitions that currently are relaxation and TDDFT runs. More can easily be
+implemented and if you want to do it you are welcome to. And again, if you don't know where to start, write 
+me and I will help.
+
+A fireworks+atomate example will follow here.
+
+Jan

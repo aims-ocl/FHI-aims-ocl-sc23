@@ -1,0 +1,140 @@
+Test run that demonstrates the use of FHI-aims for molecular vibration
+calculations using finite differences.
+
+
+!! Attention. This example and the scripts described here are strictly
+   meant for non-periodic systems. For phonon calculations in periodic
+   systems, please consult the manual. !!!
+
+
+This README file is NOT the complete documentation of the test
+case. There is a short section in the manual that is dedicated to
+vibrations, which contains additional information not found in this
+README file.
+
+We use a simple H2O molecule, beginning from the relaxed geometry
+obtained with "light" settings. 
+
+For reliable vibrational frequencies, we employ more converged "tight"
+settings for the species, as well as:
+
+  sc_accuracy_forces 1E-5
+  relax_geometry   bfgs 1.e-4
+
+ WARNING: Be sure to test these convergence settings for your own test
+  case. If the force convergence criterion is set too tightly, you will
+  spend MANY s.c.f. cycles doing extra force calculations, which are
+  VERY expensive. Do NOT use settings that spend ten or twenty
+  s.c.f. cycles converging the forces - rather, make sure that the
+  remaining electronic s.c.f. criteria are set tight enough
+  (sc_accuracy_eev etc.). Please take the time to read your output file,
+  it tells you what it is doing in each s.c.f. iteration, and ESPECIALLY
+  the timings per iteration. You want to minimize the number of force
+  evaluations. 
+
+***
+
+The actual vibrational calculations are run entirely by a script,
+obtained with "make vibrations", "make vibrations.mpi", or "make
+vibrations.scalapack.mpi" in the src directory, and then placed in the
+"bin" directory of FHI-aims. 
+
+The example runs provided here were obtained in the following way,
+using two different subdirectories. Obviously, you should adjust path
+names, binary names etc. to your own environment.
+
+
+- Default settings:
+
+  > mkdir test_default
+  > cd test_default
+  > cp ../control.in .
+  > cp ../geometry.in .
+  > ../../../bin/aims.vibrations.<version>.scalapack.mpi.pl
+
+  *** This produces frequencies using the default finite-difference
+      spacing of 0.0025 AA. 
+
+- delta = 0.001 AA
+
+  > mkdir test_delta_0.001
+  > cd test_delta_0.001/
+  > cp ../control.in .
+  > cp ../geometry.in .
+  > ../../../bin/aims.vibrations.<version>.scalapack.mpi.pl test_0.001 0.001
+
+  *** This produces frequencies using the modified finite-difference
+      spacing of 0.001 AA. All files associated with this run are
+      archived with a label "test_0.001". You can rerun in the same
+      directory with different default spacings and different labels.
+
+
+After each run is complete, the actual FHI-aims output files for the
+entire run are archived and should be looked at in basic.tar.gz (in
+the default case) and test_0.001.tar.gz (in the delta = 0.001 AA
+case). 
+
+
+The output frequencies (final result) are:
+
+Default case:
+
+ List of all frequencies found:
+  Mode number      Frequency [cm^(-1)]   Zero point energy [eV]   IR-intensity [D^2/Ang^2]
+            1             -12.66229334              -0.00078496                 1.89406355
+            2              -0.15569837              -0.00000965                 0.00267412
+            3              -0.00053757              -0.00000003                 0.00000000
+            4               0.04884390               0.00000303                 0.00002821
+            5               6.58644282               0.00040831                 0.00000000
+            6               7.00721420               0.00043439                 5.41559801
+            7            1592.96291600               0.09875110                 1.63341395
+            8            3708.86733556               0.22992045                 0.04298854
+            9            3813.74444262               0.23642200                 1.07616238
+
+Modified run, delta=0.001 AA
+
+  Mode number      Frequency [cm^(-1)]   Zero point energy [eV]   IR-intensity [D^2/Ang^2]
+            1              -5.13719038              -0.00031847                 1.89407621
+            2              -0.06616895              -0.00000410                 0.00323346
+            3              -0.00073155              -0.00000005                 0.00000000
+            4               0.01938144               0.00000120                 0.00002697
+            5               2.47172391               0.00015323                 0.00000000
+            6               2.70760068               0.00016785                 5.41498492
+            7            1593.00852915               0.09875393                 1.63340808
+            8            3708.82166272               0.22991761                 0.04299176
+            9            3813.70936996               0.23641982                 1.07615430
+
+
+*** In each case, there are six frequencies that _should_ be zero due
+    to simple theoretical considerations - they are just translations
+    and rotations of the system as a whole. However, we choose to
+    _not_ clean them beforehand, as the diagonalization of the
+    mass-weighted Hessian does this for us.
+
+    It is evident that the delta=0.001 AA calculation, in this case,
+    produces smaller (i.e., more accurate) "near-zero frequencies than
+    the default. However, this need not always be so -- for heavier
+    elements, for example, a larger delta may be in order. Explicit
+    testing is advised. 
+
+    What is also clear is that, in this case, the residual noise
+    documented by the translations and rotations does not affect the
+    true vibrational frequencies at much higher wave numbers at
+    all. The "physical" results of this test case are numerically
+    stable against changes of delta, which is what we want.
+
+
+*** Some free energy output (T dependent) is also given at the end of the file.
+    Please be sure that you understand the meaning of each contribution before
+    using it. The harmonic vibrational part and the rotational piece are the
+    standard (quantum) expressions. 
+
+    We can also add a translational free energy piece for an ideal gas.
+    This can be done using BOTH the
+
+      vibrations free_energy [Tstart] [Tend] [Tpoints]
+      vibrations trans_free_energy [pstart] [pend] [ppoints]
+
+    keywords to control.in. See the manual for more information. Obviously,
+    one should think about the pressure value(s) for which the translational
+    free energy is required, which is why we do not simply use a default.

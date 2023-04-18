@@ -1,0 +1,31 @@
+ ######################################################################
+
+ This example serves to output a ballistic transmission function of the
+ molecular junction comprising an alkyl-wire linked to Au electrodes.
+
+ ######################################################################
+
+ HOW RESULTS HAVE BEEN GENERATED:
+
+ (i)   control.in file (with a line "output aitranss") & geometry.in 
+       files have been used for the FHI-aims run. Output of FHI-aims has 
+       been redirected to a file "aims.dft.out".
+
+       After a job has been executed, files "omat.aims", "mos.aims"
+       and "basis-indices.out" have been written to the current 
+       directrory by FHI-aims (because of large size, these files are
+       not present in the directory).
+
+ (ii)  A script "tcontrol.aims.x" has been exploited as
+
+       tcontrol.aims.x -lsurc 40 -lsurx 39 -lsury 35 -rsurc 38 -rsurx 37 -rsury 33 -nlayers 2 -ener -0.4000 -estep 0.0001 -eend 0.0000
+
+       to create a mandatory file "tcontrol" for the "aitranss" module
+
+ (iii) "aitranss" module ("aitranss.x") has been executed with an output 
+       redirected to a file "aitranss.out". After calculation is finished, 
+       ballistic transmission function is found in a file "TE.dat".
+
+ (iv)  A 'gnuplot' (with a line: plot 'TE.dat' u 2:3 w l) has been used
+       to visualize results and generate a postscript file "TE.ps"
+

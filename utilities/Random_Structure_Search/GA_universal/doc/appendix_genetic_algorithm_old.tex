@@ -1,0 +1,469 @@
+
+\chapter[Genetic Algorithm]{Parallel Genetic Algorithm Search}
+\label{appendix_ga}
+
+Comments and suggestions to: \\newhouse@fhi-berlin.mpg.de \\huynh@fhi-berlin.mpg.de \\ghiringhelli@fhi-aims.berlin.mpg.de \\levchenko@fhi-berlin.mpg.de.
+
+A script based GA implementation is available. Part of the script is dependent on the particular batch-queuing system in use; with the distribution, we provide a solution that has been tested on linux machines with SGE batch-queuing system. Whereas the overall structure of the batch script would not change by changing the batch-queuing, few crucial lines might need intervention.\\
+
+The script is available at ``\texttt{/mnt/lxfs1/home/huynh/Free\_Energy-GA}.'' Copy the entire folder into your working directory.
+
+\subsection{GA for atomic and periodic structures: the strategy}
+The theory and mechanics of Genetic Algorthims have been previously discussed at length by Johnston$^{[1]}$. Here, we discuss how this Free Energy Genetic Algorithm compares to this discussion. %Uncite later, write up complete description
+
+The goal of this Free Energy Genetic Algorithm is to find both the global configurational minimum and the global stoichiometric minimum, for given chemical potentials. That is, at some chemical potential, we determine the co-ordinates and composition of the most stable structure. We use parallized replicas to search this space, whose only interaction is accessing the common pool of accepted structures.
+
+Instead of comparisons by total energy, we use an approximation for the free energy, that is:\\
+$$\Delta F \sim E_f - E_{ref} -\displaystyle\sum_{a=atoms}^{}\Delta n_a * \mu_{a}$$
+$\Delta n_a:$ change in number of atoms {\em a} in each structure\\
+$\mu_{a}:$ chemical potential for atom {\em a}\\
+$E_f:$ total energy for final structure\\
+$E_{ref}:$ total energy for initial (reference) structure\\
+
+As a result of this approximation for free energy, the package includes a way to insert Temperatures and Pressures to obtain the full Gibbs Free Energy expression. This is done via the cascade method, which is explained more in the '\texttt{cascade}' section of the manual.
+
+Fitness is a value assigned to each accepted structure, and correlates with the quality of the structure with respect to finding global minimums. A higher fitness corresponds to a higher quality structure. In this case, we are interested in finding the Global Minimum in Free Energy, which varies as chemical potential varies. Thus we split the search in chemical potential space amongst the replicas. As a result, each replica separately determines the quality of each structure.
+
+Crossover is an operation between two structures selected by fitness. Higher structures have a higher probability to be selected for crossover. We use these two parent structures to form a child structure, with the hopes that positive genes and attributes from the parents are passed down to the children.
+
+Mutation is used for two purposes here. The first is an attempt to avoid being trapped in a local minimum. As a result of continual crossover, the same genetic material is mixed and so it is possible that the pool becomes stale as no new structures are being added. Cue mutation which introduces structures with new attributes. This is done by switching atom species, or rotating a set of atoms within the structure.
+
+The other use for mutation is to increase the pool of stoichiometry that we may search, by allowing mutation to change the number of atoms available to be searched. We do not let crossover change the stoichiometry so we can keep its role strictly to searching for configurational minima.
+
+\subsection{How to run}
+
+Here is a list of instructions once the user determines the molecules in the environment, and the conditions of pressure for each molecule and temperature of the system. The instructions denoted with a * are for users who wish to use the cascade function. Each instruction will have more detail in the corresponding \texttt{user\_input.in} settings section.
+
+\begin{itemize}
+
+\item 1*: Determine T and p range for each molecule in the environment and edit the \\'\texttt{Generate Environment Settings}' section. Create a data file called\\ '\texttt{environment\_conditions.in}' with these values using the command,\\ ``\texttt{perl ./run/generate\_conditions.plx}.''
+
+\item 2*: Add the desired cascade functionals in '\texttt{./control/}'. Please note that in order for chemical potentials to be calculated, at least one of the cascading steps must be the vibration calculation, in order to obtain vibration frequencies of the molecule. Change the relavant sections in '{\texttt Cascade Settings}.' In order to get an accurate value for the Gibbs Free Energy of Formation, these functionals and settings should be kept the same when calculating for chemical potential of the environment and calculating Gibbs Free Energies for structures the GA produces.
+
+\item 3*: Once the user is satisfied with the generated temperatures and pressures, put environment geometries in the '\texttt{./higher\_structures\_copy/}' directory in the geometry.in format. The file names should read as '\texttt{./higher\_structures\_copy/{\em {name}}}'' where name is the same used in \texttt{mu\_header} under the \texttt{Generate Environment Settings}' section.\\
+e.g., if one has '\texttt{mu\_H2O}' listed as a mu\_header, then one should enter create a geometry file containing a water molecule called '\texttt{./higher\_structures\_copy/H2O}.' Do not add any '\_' to the atom names here.\\ \\ Then, submit jobs\_higher via '\texttt{qsub jobs\_higher}' to put the environment molecules through the cascade process. 
+
+\item 4*: Once all the environment geometries are completed the cascade process, then run the script ``\texttt{perl ./run/chemical\_potential.plx}'' to create a file '\texttt{environment\_conditions\_chemical.in}' with the filled in chemical potentials.
+
+\item 5: Using the chemical potentials from step 4* or using the user's own chemical potentials, edit the '\texttt{Replicant Settings}' section for each molecule in the environment.
+
+\item 6: Edit the settings in '\texttt{General Settings}', '\texttt{Cluster/Surface Specific Settings}', '\texttt{General Mutation Settings}', and '\texttt{User Specific Settings}'. The guide for each section is below.
+
+\item 7: Add the environment geometries according to the '\texttt{./environment\_geometry/}' section of the form '\texttt{./environment\_geometry/H2O/geometry.in} (for a water molecule.) If no '\texttt{./control/settings\_environment.dat}' file is provided, the geometries will not be relaxed. These environment geometries are used to add into structures via the mutation method.
+
+\item 8: Add initial structures into '\texttt{initial\_pool}' in the geometry.in format. Add control.in settings for the GA as per the '\texttt{./control/}' section below.
+
+\item 9: To change the number of processors used by each replicant, please modify '\texttt{./jobs}' file.
+
+\item 10: To run, type ``\texttt{perl ./master.plx}'' or the command ``\texttt{perl ./master.plx reset}'' to delete files created by previous runs and start a new run. May add more replicants by submitting the ``\texttt{./jobs}'' file. If the cascade option is enabled, the cascading will start automatically.
+
+\item 11: During operation of the GA, one can view the progress of the structure creations with the files listed in the '\texttt{./progress/}' section. Once the GA has run for sufficient time, or the goal number of structures has been created, ensure all files in the '\texttt{./progress/}' directory are up to date. (They may not be because a replicant could have stopped running due to limit in run time and other replicants may have created more structures.) To update them, run ``\texttt{./run/update.plx}.'' It will provide a list of the best structures in each stoichiometry existent in the system in the file '\texttt{master\_geometry.in}.' Phase diagrams can now be plot according to the formula:
+$$\Delta F \sim E_f - E_{ref} -\displaystyle\sum_{a=atoms}^{}\Delta n_a * \mu_{a}$$
+
+\item 12*: Once all structures in '\texttt{higher\_structures\_copy}' have undergone the cascade, one can run ``\texttt{perl ./run/Gibbs\_Formation\_Energy.plx {\em {reference-structure}}},'' where {\em {reference-structure}} is the reference structure. This will use the existing file '\texttt{environment\_conditions\_chemical.in},' and calculate the Gibbs Energy of Formation, according to the formula:
+$$\Delta G(T,\mu_i) = G_{\mathrm {new}}(T) - G_{\mathrm {ref}}(T) - x\mu_{i}(T,p_{i})$$
+One can use gnuplot or other plotting software to plot a phase diagram using the created files '\texttt{./higher\_structures/structure\_$k$/Gibbs\_Energy\_Formation.dat}.'
+
+\end{itemize}
+
+\subsection{User input options}
+
+\texttt{user\_input.in}: contains options available to the user. They are listed below:
+\newline
+\newline
+\textbf{General Settings:}
+\begin{itemize}
+\item surface/cluster: determines whether the system is periodic or is a cluster
+
+\item minimum\_bond\_length: the bond lengths in each structure must be at least this far apart (in \AA).
+
+\item number\_of\_children: how many replicas to send to the cluster. Can submit more replicas during run by submitting the ``\texttt{./jobs}'' file.
+
+\item number\_of\_structures: how many structures to be accepted before termination of program.
+
+\item control.in\_species:default/custom\newline Controls which basis sets for atom species are used in control.in files.
+\begin{itemize}
+ \item basic: uses default light/tight/really\_tight settings as specified by user.
+ \item custom: for each atom in system, create files called \texttt{./control/{\em atomname}\_main}, where {\em atomname} is the atom species.\newline
+ e.g. for a Hydrogen atom, create a file called \texttt{./control/H\_main}
+\end{itemize}
+
+\item light/tight/really\_tight: if control.in\_species setting is basic, determines which basis set to use.
+
+\item aims.out:keep/delete\newline determine whether to keep or delete the aims.out files after energy is calculated.
+ 
+\item existence\_minimum: to check if a structure already exists in the pool, first, all atom-atom distances are calculated for the current structure and stored as array.  We compare with all structures with the same number of atoms by sorting the array and comparing it with the arrays from found structures, by subtracting one array from the other. With this new subtraction array, we sum up the elements and if this sum is greater than existence\_minimum * length\_of\_array (the latter equal to the number of pairs), we have two unique structures.
+
+\item crossover\_stoic:default/selective/parent \newline Determine which stoichiometries the crossover process may accept.
+\begin{itemize}
+ \item default: stoichiometries already existent in the pool are accepted.
+ \item selective: stoichiometries in the top {\em leading\_number} (see replicant settings) according to the replicant are accepted. Rankings are determined using fitnesses based on the free energy. This option promotes focused searches.
+ \item parent: stoichiometries shared by one of the two parent structures are accepted. This option promotes passing of genes.
+\end{itemize}
+
+\item initial\_moment:hund/custom\newline Determine whether the moments of atoms will obey hund's rule, or are user-specified. Ensure this decision is reflected in the control.in settings.
+\begin{itemize}
+ \item hund: atoms will obey hund's rule
+ \item custom: the initial moment of atoms for structures in \texttt{initial\_pool} must be specified by adding the line ``initial\_moment {\em moment}'' after each atom, where {\em moment} is the moment of the atom, e.g.,\\
+\texttt{atom \hspace{7 mm} 0.0 \hspace{7 mm} 0.0 \hspace{7 mm} 0.0 \hspace{7 mm} H}\\
+\texttt{initial\_moment \hspace{7 mm} 0.0} 
+\end{itemize}
+
+\end{itemize}
+
+\textbf{Cluster-Specific Settings:}
+\begin{itemize}
+
+\item crossover:default/percentage\newline Determine the method of crossover
+\begin{itemize}
+ \item default: $z = 0$ plane is used to cut
+ \item percentage: the parent structure with higher fitness has a higher probability to have more atoms taken
+\end{itemize}
+
+\item add\_percent\_box: lengths for box to add atoms will be add\_percent\_box times the distance of farthest atom from origin.
+
+\item prob\_mutation1: if we do mutate, the probability that we remove at most remove\_rate atoms.
+
+\item prob\_mutation2: if we do mutate, the probability that we add at most adding\_rate atoms from environment.
+
+\item prob\_mutation3: if we do mutate, the probability that we exchange atom species within the system.
+
+\item prob\_mutation4: if we do mutate, the probability that we exchange a pair atoms of different species.
+
+\end{itemize}
+
+\textbf{Surface-Specific Settings:}
+\begin{itemize}
+
+\item fixed\_z-max: the maximum z value for which the atoms are fixed. Ensure that each atom below this z-value has the keyword \texttt{constrain\_relaxation \hspace{7 mm}    .true.}
+
+\item prob\_mutation5: if we do mutate, the probability that we remove at most max\_remove\_rate atoms.
+
+\item prob\_mutation6: if we do mutate, the probability that we add at most max\_adding\_rate atoms.
+
+\item prob\_mutation7: if we do mutate, the probability that we exchange a pair atoms of different species, both of which have $z >$ fixed\_z-max.
+
+\item add\_percentage\_below: to add atoms, minimum height is add\_below times the distance (maxz - fixedz) below the maximum z
+
+\item add\_percentage\_above: to add atoms, maximum height is add\_above times the distance (maxz - fixedz) above the maximum z
+
+\end{itemize}
+
+\textbf{General Mutation Settings:}
+\begin{itemize}
+
+\item probability\_of\_mutation: after a crossover structure is created, the probability that we mutate a structure in the pool.
+
+\item forbidden\_elements: elements which may not be removed by removal mutation.
+
+\item max\_adding\_rate: when adding atoms, will add up to this many.
+
+\item max\_removal\_rate: when removing atoms, will remove up to this many.
+
+\item environment\_components: the chemical potentials atoms/molecule\\
+e.g. to have a chemical potential in terms of H$_{2}$O, add H\_2:O\_1\\
+and a chemical potential in terms of H$_{2}$, add H\_2
+
+\item environment\_elements: the elements that may be exchanged with the environment
+e.g. in the above example, the line should read \texttt{enviroment\_elements \hspace{5 mm} O\hspace{5 mm}H}
+
+\end{itemize}
+
+\textbf{User Specific Settings:}
+
+\begin{itemize}
+
+\item BIN\_DIRECTORY: specify the bin directory
+
+\item aims\_file: specify the aims file you wish to execute
+
+\end {itemize}
+
+\textbf{Generating Environment Settings:}
+
+For users who wish to explore the relationship between values of (T,p) and their corresponding chemical potentials. These options do not affect the GA directly, but instead provides chemical potentials for regions of temperature and pressure that the user may want to explore. These chemical potentials can be entered in the section \texttt{Replicant Settings}.\\
+Instructions: \\
+\\
+1: After configuring the settings for this section below, run the perl script ``\texttt{perl ./run/generate\_conditions.plx}.'' This will create a file '\texttt{environment\_conditions.in}' containing the values of (T,p) for the chemical potential to be calculated. Review this file to ensure your settings below produced temperatures and pressure that you want to explore.
+
+\begin{itemize}
+
+\item constant\_conditions:none/T/p\_{\em atomname}\\
+Insert conditions to remain constant.
+\item constant\_values: In the same order as above, insert values for each constant value in [K] or [atm] where applicable. If none was selected, enter '\texttt{n/a}'.
+\item variable\_conditions:none/T/p\_{\em atomname}\\
+Insert 1 or 2 conditions which one would like to examine the behaviour of the system over a range.
+
+\item scale\_1:linear/log\\
+For the first variable condition, decide whether the range is over a linear or a logarithmic scale.
+\item minimum\_1: Provide the lower bound for the range to be explored. [K/atm]
+\item maximum\_1: Provide the upper bound for the range to be explored. [K/atm]
+\item divisions\_1: If log scale is chosen, determines how many ticks of equal spacing will exist inbetween \texttt{VALUE} and \texttt{VALUE*log\_base\_1}.
+\item log\_base\_1: If log scale is chosen, determines the logarithmic base.
+\item delta\_1: If linear scale is chosen, determines the number of ticks will exist, which will be of the form \texttt{(VALUE, VALUE + delta\_1, VALUE + 2*delta\_1, ..., maximum\_1)}
+
+\item If one has a second variable condition, fill in the appropriate values for *\_2.
+
+\end{itemize}
+
+2: Adjust the settings below and run the script ``\texttt{perl ./run/chemical\_potential.plx}'' to fill in the chemical potentials for each element specified in \texttt{mu\_header} option. These will be in the file '\texttt{environment\_conditions\_chemical.in}.' The user should note that the formula used to calculate these chemical potentials is:
+
+\begin{align*}
+\mu(T,p) = &-\frac{3}{2}k_{B}T\ln\left(\frac{2{\pi}mk_{B}T}{h^{2}}\right) + k_{B}T\ln p
+-k_{B}T\ln\left(\frac{8{\pi^{2}}I_{A}k_{B}T}{h^{2}}\right) + k_{B}T\ln\sigma\\
+&+ \sum_{i}^{} \left[\frac{hv_{i}}{2} + k_{B}T\ln\left(1 - e^{-\frac{hv_{i}}{k_{B}T}}\right)\right]
++ E^{DFT} - k_{B}T\ln v_{0}\\
+\end{align*}
+
+If the user wishes to use their own values for chemical potentials, they will have to write a script to enter their own values in.
+
+\begin{itemize}
+
+\item mu\_header: Determines which atoms or molecules chemical potentials are to be calculated with the formula above. They should be of the form mu\_{\em atomname}. The {\em atomname} must be the same as that of \texttt{./higher\_structures\_copy/{\em ATOMNAME}/} and should not contain any '\_'.
+
+\item percentage\_mu: Determines the percentage of the calculated chemical potential to that reported in '\texttt {environment\_conditions\_chemical.in}' in the same order as mu\_{\em atomname} above. I.e., if the molecule O$_2$ has been cascaded to calculate the chemical potential, and the user would like to express his chemical potential as $\mu_O = \frac{1}{2}\mu_{O2}$, then one would enter 0.5 here.
+
+\end{itemize}
+
+3: Input a subset of the chemical potentials found into the \texttt{Replicant Settings} section, corresponding to the user's desired (T,p) values\\
+
+\textbf{Replicant Settings:}
+
+Note: {\em atomname} is referring to the section \texttt{environment\_components}. Please ensure these match when naming chemical potentials.
+
+\begin{itemize}
+
+\item reference\_{\em atomname}: specify chemical potential reference, $\mu_{{\mathrm {ref}}}$, for {\em atomname} (in eV). One can set absolute chemical potentials below by setting this value to 0.\\
+e.g., specify ``\texttt{reference\_O\_1 \hspace{7 mm} -2044.605302877255}'' to set the chemical potential reference of oxygen to half the energy of an oxygen moleucle.
+
+\item chemical\_potential\_value:basic/custom\newline Represents the change in chemical potential, $\Delta \mu$ from the reference (in eV)
+\begin{itemize}
+ \item basic: value set at basic\_chemical\_potential\_{\em atomname} will be $\Delta \mu_{atomname}$ for all replicants\newline
+ e.g. if one wanted to set $\Delta \mu_{\mathrm {H_{2}O}} = -1.0$eV for all replicants, one would enter ``\texttt{basic\_chemical\_potential\_He\_1 \hspace{7 mm} -1.0}"
+ \item custom: value set at {\em child}\_chemical\_potential\_{\em atomname} will be $\Delta \mu_{atomname}$ for {\em child}$^{th}$ replicant\newline
+ e.g. if one has an 8th replicant and wanted to set $\Delta \mu_{\mathrm {H_{2}O}} = -1.0$eV for this replicant, one would enter ``\texttt{8\_chemical\_potential\_H\_2:O\_1 \hspace{7 mm} -1.0}"
+\end{itemize}
+
+\item leading\_number:basic/custom\newline Only applicable when using the selective crossover method
+\begin{itemize}
+ \item basic: value set at basic\_leading\_number will be value for all children
+ \item custom: value set at {\em child}\_leading\_number will be value for the {\em child}$^{th}$ replicant
+\end{itemize}
+
+\item basic\_chemical\_potential\_{\em atomname}: change in chemical potential for {\em atomname}, for all replicants.
+(Only applies if chemical\_potential\_value option is basic)
+
+\item basic\_leading\_number: selective crossover will take accept the top this number of stoichiometries. Applies to all replicants. (Only applies if leading\_number option is basic)
+
+\item {\em child}\_chemical\_potential\_{\em atomname}: change in chemical potential for {\em atomname}, for the {\em child}$^{th}$ replicant.
+(Only applies if chemical\_potential\_value option is custom)
+
+\item {\em child}\_leading\_number: selective crossover will take accept the top this number of stoichiometries. Applies to the {\em child}$^{th}$ replicant. (Only applies if leading\_number option is custom)
+
+\end{itemize}
+
+\textbf{Cascade Settings:}
+
+If the user wishes to obtain more accurate comparisons between structures, they may choose to use the cascade function. With this, the GA selects the most stable structures and optimizes their geometries and calculates their energies, using functionals specified by the user. The structures chosen for this cascade treatment are the more stable structures for each stoichiometry, as well as the structures in the top \texttt{higher\_threshold} [eV] for each GA-replicant. Only structures that have undergone cascade with the vibration option can have their Gibbs Formation Energy calculated according to:\\
+\begin{align*}
+G^{\mathrm {(linear)}}(T) = &-\frac{3}{2}k_{B}T \ln\left(\frac{2{\pi}mk_{B}T}{h^{2}}\right)
+-k_{B}T\ln\left(\frac{8{\pi^{2}}I_{A}k_{B}T}{h^{2}}\right) + k_{B}T\ln\sigma\\
+&+ \sum_{i}^{} \left[\frac{hv_{i}}{2} + k_{B}T\ln\left(1 - e^{-\frac{hv_{i}}{k_{B}T}}\right)\right]
++ E^{DFT} - k_{B}T\ln v_{0}\\
+G^{\mathrm {(non-linear)}}(T) = &-\frac{3}{2}k_{B}T\ln\left(\frac{2{\pi}mk_{B}T}{h^{2}}\right)
+ - k_{B}T\ln\left[8{\pi}^{2}\left(\frac{2{\pi}k_{B}T}{h^{2}}\right)^{\frac{3}{2}}\right]
+ - \frac{1}{2}k_{B}T\ln(I_{A}I_{B}I_{C})\\
+ &+ k_{B}T\ln\sigma
++ \sum_{i}^{} \left[\frac{hv_{i}}{2} + k_{B}T\ln\left(1 - e^{-\frac{hv_{i}}{k_{B}T}}\right)\right]
++ E^{DFT}
+- k_{B}T\ln v_{0}
+\end{align*}
+\newline
+\newline
+Specific Instructions for Cascade: For each step in the cascade, one has to provide settings files, as well as basis sets for each atom in the system. The settings files must be of the form '\texttt{./control/settings\_{\em functional}}' and the species files are to be of the form '\texttt{./control/Mg\_{\em functional}}.' \\
+Please refer to the sample template which is for systems of Mg, O and H found in the \texttt{./control/} directory:\\
+First, it optimizes the geometry further with the PBE functional and tight settings, then calculates the vibration modes of the structure with PBE and tight settings and finally calculates the energy with PBE0 and tight settings.\\
+To submit additional jobs, (i.e., if the GA is not running, but user would like to cascade more structures), use the command '\texttt{qsub jobs\_higher}'.
+
+\begin{itemize}
+
+\item cascade\_start: determines the number of structures that are created before structures are considered for the cascade process. Set to 0 for no cascade
+
+\item cascade\_replicants: specifies the number of jobs to submit dedicated to cascading the structures.
+
+\item higher\_threshold: for each GA-replicant, structures with a free energy value in the top \texttt{higher\_threshold} eV will be selected.
+
+\item control\_order: determines the order of settings files in the folder \texttt{./control/} with which to run aims. For example, if one has control settings \\'\texttt{settings\_PBE.dat \hspace{3 mm} settings\_vibration.dat \hspace{3 mm} settings\_PBE0.dat},' one would enter '\texttt{PBE\hspace{3 mm}vibration\hspace{3 mm}PBE0}.''
+
+\item relaxation\_structure: specify which functional(s) where the calculated relaxed geometry should be updated in geometry.in.
+
+\item energy\_structure: specify which functional from which the total energy value should be taken.
+
+\end{itemize}
+
+\subsection{./control/}
+
+Directory containing control.in settings.
+
+\texttt{settings\_main.dat}: the control.in settings which AIMS will use for system structures
+
+\texttt{settings\_environment.dat}: the control.in settings which AIMS will use to relax environment atoms and molecules
+
+\texttt{settings\_{\em functional}}: the control.in settings which AIMS will use for the {\em functional} stage of the cascade, if enabled
+
+\texttt{{\em atomname}\_{\em functional}}: if using custom control.in species option (see general settings), contains the basis set for the species {\em atomname} to be used in control.in files\\
+e.g., \texttt{./control/H\_main} contains the basis set for the Hydrogen atom for the GA (only if using custom control.in species option).\\
+e.g., \texttt{./control/O\_PBE} contains the basis set for the Oxygen atom for the cascade portion using the settings '\texttt{./control/settings\_PBE.dat}.'
+
+\subsection{./environment\_geometry/}
+
+If system exchanges atoms with environment, add geometry files here containing environment atoms or molecules.\\
+e.g., for a system whose environment contains Hydrogen, create a file\\ \texttt{./environment\_geometry/H/geometry.in} containing \\``\texttt{atom \hspace{7 mm} 0.0 \hspace{7 mm} 0.0 \hspace{7 mm} 0.0 \hspace{7 mm} H}''\\
+The geometries will be relaxed according to the control.in settings in \\ '\texttt{./control/settings\_environment.dat}.'
+
+\subsection{./progress/}
+
+Contains information about comparisons between structures.
+
+\texttt{etot.dat}: lists each structure with its total energy in eV and stoichiometry
+
+\texttt{fitness.dat{\em child}}: lists each structure with its fitness and stoichiometry for the {\em child}$^{th}$ replicant.\\
+ Fitness is calculated by scaling the free energy from $[0,1]$, and using the function $f = \exp(-3*F)$ where $F$ is the scaled free energy. %In future versions, there will be more options in the fitness function.
+
+\texttt{getot.dat{\em child}}: lists each structure with its difference in free energy and stoichiometry for {\em child}$^{th}$ replicant.\\
+ Difference in free energy's reference is always the first initial\_pool structure to have its energy converged
+
+\texttt{leading\_structures.dat{\em child}}: lists the leading structure for all stoichiometries present in the pool for {\em child}$^{th}$ replicant, only meaningful with non-constant stoics.\\
+
+\subsection{Important Files/Directories}
+
+\texttt{result.out \& jobs.o*}: print statements to show the progress of the program's operation.
+
+\texttt{./structures/}: directory with all structures.
+
+\texttt{./structures/structure\_i/}: contains \texttt{aims.out}, \texttt{geometry.in} and \texttt{control.in} files. Total energy is also in \texttt{energy.dat}.
+
+\texttt{./higher\_structures/structure\_i/}: contains vibration calculations, energy values and optimized geometry from cascade treatment (if enabled).
+
+\texttt{./user\_structures/}: directory to add new structures and hence (optionally) new stoichiometries. Files must be in \texttt{geometry.in} format. It appears only during operation of program
+
+\subsection{Reference}
+
+$[1]$ Johnston, Roy L. "Evolving Better Nanoparticles: Genetic Algorithms for Optimising Cluster Geometries." Dalton Transactions 22 (2003): 4193-207. Print.
+ 
+%  \vspace*{24pt}
+%  {\tiny The GA script has been implemented by Eric Huynh and Prashi Badkur, under the supervision of Luca M. Ghiringhelli and Sergey Levchenko.}
+%  
+% 
+% 
+% \begin{enumerate}
+%  \item creates a subdirectory ``rex\_??'' for each replica, 
+%  \item copies the files needed for the FHI-aims run and runs them
+%  \item manages the swaps between replicas.
+%  \item prints outputs
+% \end{enumerate}
+% 
+% The files that have to be present in the working directory are:\\
+% \texttt{control.in.basic\\
+% control.in.rex\\
+% geometry.in.basic\\}
+% optional: \texttt{list\_of\_geometries\\
+% rex.AIMS.pl\\
+% submit.rex\\}
+% The last two files are provided with the distribution and are contained in the subdirectory \texttt{utilities/REX}.
+% 
+% \begin{itemize}
+% 
+% \item \texttt{control.in.rex}, it must contain the following lines:\\
+%  \texttt{n\_rex}  number of replicas\\
+%  \texttt{temps} list of target T separated by a space; the number of T's must agree with the above line\\
+%  \texttt{freq}  time interval between rex swaps, in ps, as in control.in\\
+%  \texttt{MAX\_steps} maximum number of replica exchange steps (i.e., the whole simulation will contain MAX\_steps*freq ps per replica)\\
+% 
+% 
+%  \item \texttt{control.in.basic}, as in FHI-aims. Note, though, that the script will delete any keywords about geometry relaxation and MD, with the exception of MD\_time\_step, and appends at the end of each control.in in each subdirectory the MD\_settings for the replica exchange. In detail, the following are the lines which are managed by the script:\\
+% \texttt{  MD\_run \$t NVT\_parrinello \$temp[\$i+1] 0.1 \\
+%   MD\_MB\_init \$temp[\$i+1] \\
+%   MD\_restart .true. \\
+%   MD\_clean\_rotations .true. \\
+%   output\_level MD\_light\\} 
+% where \texttt{\$t} is a multiple of the ``\texttt{freq}'' keywords in \texttt{control.in.rex}, updated at each MD substep between swaps, and \texttt{\$temp[\$i+1]} is the target temperature for the particular replica and parallel tempering step.
+% These lines are hard coded in the perl script \texttt{rex.AIMS.pl}.
+% 
+% 
+% \item \texttt{geometry.in.basic}, written in the geometry.in format. It will be copied into each subdirectory, so that each replica would start form the same geometry.
+% 
+% 
+% \item optional: \texttt{list\_of\_geometries}
+% If present, it must contain a list of geometry files (each in the geometry.in format), one line each, that must be present in the working directory. The script will copy the file in the first line into the first subdirectory (i.e. related to the first temperature in \texttt{control.in.rex}), and so on. In case \texttt{list\_of\_geometries} contains less lines than the defined number of replicas, the ``exceeding'' replicas will start with the geometry contained in \texttt{geometry.in.basic}.
+% 
+% 
+% \item \texttt{rex.AIMS.pl}, managing perl script. Nothing to be done here, in principle. If invoked as \\
+% \texttt{perl rex.AIMS.pl stat <log\_file>}\\
+% in a directory that contains a log\_file created by rex.AIMS.pl itself (see next section), it provides useful statistics (even on the fly).
+% 
+% 
+% \item \texttt{submit.rex} is the batch script. Some attention form the user is required here, too.
+% \begin{itemize}
+% \item select the total number of slots with the keyword "\texttt{\# \$ -pe impi}", according to the number of replicas. The total number of slots is given by the desired number of replica times the desired number of slots per replica.
+% 
+% \item give the variable \texttt{type} the value `\texttt{init}' or `\texttt{restart}', according to the kind of run. Note that by running a `\texttt{restart}', the script will complete the possibly interrupted parallel tempering steps (also only in some of the subdirectories) and then will continue with the replica exchange algorithm. 
+% 
+% \item set the proper name and path for the aims binary
+% 
+% \end{itemize}
+% Below, the relevant area for the settings is reported:\\
+% \texttt{\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\# to be taken care of by the user \#\#\#\#\#\#\#\#\#\#\#\#\#\#\# \\
+% binary='<binary path and name>' \\
+% \# put  type='init', if initializing, 'restart' if restarting \\
+% type='init' \\
+% \# type='restart' \\
+% \#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\# \\
+% }
+% 
+% % 
+% % rm -f $hostfile hostlist* rex_*/hostlist EXIT || exit $
+% % 
+%  \end{itemize}
+% % 
+% \subsection{Output}
+% 
+% \begin{itemize}
+% 
+% \item in each of the subdirectories \texttt{rex\_??} there are the files:
+% \begin{itemize}
+%  \item \texttt{temp.out} full FHI-aims output for the parallel tempering tempering step
+%  \item \texttt{control.in} and \texttt{control.in}, the usual FHI-aims input files. They will change at each parallel tempering step, managed by the script.
+%  \item \texttt{energy.trajectory}. Cumulative (i.e. appended after each attempted swap) energy trajectory for the replica.
+%  \item \texttt{out.xyz}. Cumulative geometry trajectory, in \texttt{xyz} format.
+% \end{itemize}
+% 
+%  \item in the working directory: \texttt{log\_rex}. It contains useful information on the swapping process. Below there is a commented example for a four replicas run. \\
+% 
+% \texttt{> Mon Apr  5 03:51:05 CEST 2010}\\
+% The time at the attempeted swap\\
+% \texttt{> Tt        100.0 200.0 150.0 250.0}\\
+% The list of the running target temperatures, first place for \texttt{rex\_00}, and so on\\
+% \texttt{> map       1 3 2 4}\\
+% Map of the temperatures in the ``\texttt{Tt}'' line, into the original list given in \texttt{control.in.rex}\\
+% \texttt{> TE      -6963471.3877  -6963471.2516  -6963471.4951  -6963471.3286  }\\
+% Total Energy (``\texttt{Total energy (el.+nuc.)}'') in each replica (first item in \texttt{rex\_00} and so on)\\
+% \texttt{> swapping        3       1        @T     150.0   100.0   accepted}\\
+% \texttt{> swapping        4       2        @T     250.0   200.0   rejected}\\
+% Detail of attempeted swaps, with outcome\\
+% \texttt{> temp      150.0 200.0 100.0 250.0 }\\
+% List of running target temperatures, after swaps.\\
+% \texttt{> vfact     1.04880884817015 1 0.9534625892455937218 1}\\
+% Rescaling coefficients for the velocities in each replica, for the next step\\
+% \texttt{> \#\#\#\#\#\#\# End of rex step \#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#\#}\\
+%  
+% WARNING: when wall-clock ends in the middle of a prallel tempering step, it will always be printed the message:\\
+% \texttt{ \* WARNING: rex\_??/temp.out Not converged?\\
+%  Please check this problem before continuing.}\\
+% If the reason that any of temp.out's does not reach not the end of the parallel tempering step is the end of the wall-clock time, then the run can be safely restarted by putting `\texttt{type=restart}` in \texttt{submit.rex}
+% 
+% \item in the working directory: \texttt{out.????}, where \texttt{????} is a temperature, in 4 digits. Constructed by appending the \texttt{temp.out} temporary outputs at the same temperature, each \texttt{out.????} contains the full FHI-aims output at the given temperature. 
+% 
+% 
+% \end{itemize}
+% 

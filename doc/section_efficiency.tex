@@ -1,0 +1,145 @@
+\section{Why does my calculation take too long?}
+
+This is, indeed, an excellent question to ask. Understanding what the
+code spends its time on, and why, is often the best first approach to
+understanding what is actually being calculated -- and thus, to learn
+something about the scientific problem to be solved.
+
+Many calculations take as long as they do, simply because getting an
+accurate result for many atoms can take some time.
+
+That said, if calculations that seemed simple start taking
+excessive amounts of time, it may be a very good idea to question your
+input settings. It may also be a very good idea to actually read the
+output of the code. It tells you a lot about what the code
+does. Some suggestions for different scenarios:
+
+\begin{itemize}
+  \item Do invest the time to compile a scalapack enabled binary and
+    actually use scalapack. Most architectures today are parallel, and
+    using those efficiently is perhaps the single biggest technical
+    strength of FHI-aims. Never 
+    ask for the use of a lapack eigenvalue solver (the serial version,
+    i.e., the eigenvalue solver that only uses a single CPU)
+    explicitly unless you are testing. The code sets the correct default
+    automatically if needed. But if you ask for the serial eigenvalue
+    solver explicitly, you may find 999 of your 1000 CPU cores doing
+    nothing. (See the keyword \keyword{KS\_method}. Most importantly,
+    never set this keyword explicitly if there is no reason to do so.)  
+  \item Look at the timing output at the end of each
+    s.c.f. iteration -- not(!) just the final timings. These timings
+    summarize the time spent for each of the physical steps of your
+    calculation, and can tell you a 
+    great deal about what is going on. Here's an example where something went wrong:
+\end{itemize}
+\small
+\begin{verbatim}
+  End self-consistency iteration #     1       :  max(cpu_time)    wall_clock(cpu1)
+  | Time for this iteration                    :      219.302 s         219.900 s
+  | Charge density update                      :       16.121 s          16.162 s
+  | Density mixing & preconditioning           :        1.084 s           1.099 s
+  | Hartree multipole update                   :        0.088 s           0.090 s
+  | Hartree multipole summation                :        4.440 s           4.489 s
+  | Integration                                :        0.980 s           0.986 s
+  | Solution of K.-S. eqns.                    :      196.568 s         197.023 s
+  | Total energy evaluation                    :        0.004 s           0.016 s
+\end{verbatim}
+\normalsize
+
+The key times to look for here are the wall clock times. This is the
+physical time spent by the code on each task. The individual
+sub-timings of each task should roughly add up to the total time,
+which is given first. 
+
+The ``CPU time'', on the
+other hand, is measured internally, without accounting for times when
+the CPU is in fact idle. The CPU time is only given here since large
+deviations between wall clock time and internally measured CPU time
+are a good way to indicate an inefficient computer system setup. In
+case of doubt, however, wall clock time is the relevant measure for
+the real cost of the calculation
+
+Typically, the time for
+the density update should be approximately the same (within a single-digit
+factor) as for the creation of the Hamiltonian integrals. (All these
+numerical steps are explained in the FHI-aims CPC paper,
+Ref. \cite{Blum08}.) The fact that this is not the case indicates some
+kind of a problem.
+
+However, the bulk of the time is spent in what is called ``Solution of
+K.-S. eqns.'', which here means the simple solution of a matrix
+eigenvalue problem. This is simple linear algebra. This step scales
+formally as $O(N^3)$ with system size $N$, while all other steps scale
+roughly as $O(N)$. 
+
+This means that the eigenvalue problem should become the dominant part
+of the calculation time only for rather large systems (100s or 1,000s
+of atoms, depending on whether heavy or light elements are used,
+whether the system is non-periodic or periodic, etc.). The fact that
+the eigenvalue problem takes up so much time above warrants at least a
+question. 
+
+In the case shown above, a periodic calculation was conducted, with a
+total of 64 $k$-points, i.e., a total of 64 independent eigenvalue
+problems to be solved. Asking for many $k$-points is obviously a good
+reason why the solution of eigenvalue problems could dominate. 
+
+In the case considered here, however, the number of basis functions
+(the matrix dimension) was only a few thousand.\footnote{It is truly a
+  system-dependent question what constitutes ``many''
+  $k$-points. For example, a metallic system 
+  with a single atom per unit cell should not have much trouble with,
+  say, 24$^3$ $k$-points. On the other hand, a 1,000 atom supercell
+  should probably not use more than a single-digit number of
+  $k$-points. In the specific case considered above, 64 $k$-points did
+  not happen to be a particularly large number.} 
+As a rule of thumb, this should not have been a problematic matrix
+size yet. (Several ten thousand basis functions or, perhaps, a few
+thousand $k$-points are typically what is needed to make a single
+eigenvalue solution become relevant, even on a large number of CPU
+cores.) 
+
+What happened above is that the calculation was in fact conducted in
+parallel on $\approx$500 CPU cores, but erroneously enforced a serial
+eigenvalue solver in the \texttt{control.in} file. This means that
+about 450 CPU cores idled while the 
+eigenvalue problem was solved on only a few others. 
+
+The point of this example is: It helps to check and question the
+timing output. Another common problem is the fact that the calculation
+of forces costs far more than just the calculation of the electron
+density. Thus, the FHI-aims code by default only computes forces once
+the s.c.f. cycle is otherwise converged. If, however, your
+s.c.f. convergence criteria are set inadequately, you might see ten
+s.c.f. iterations per geometry step computing forces. The code has no
+way to foresee this, but as a user, you may be able to check after the
+fact, and prevent this behavior for the future.
+
+\begin{itemize}
+  \item Mixing factor and occupation broadening. These are again
+    values that decidedly depend on the system type to be computed,
+    which is difficult to foresee from the perspective of the
+    code. The default values for \keyword{charge\_mix\_param} and
+    \keyword{occupation\_type} are set somewhat automatically by the
+    \keyword{adjust\_scf} keyword, according to whether or not the
+    system is estimated to have a HOMO-LUMO gap. However, tweaking
+    these values is possible. For instance, for metals,
+    \keyword{occupation\_type} 0.1 eV is often very reasonable.
+  \item There are (obviously) the numerical convergence parameters of
+    the preceding section that should be heeded. For example,
+    ``tight'' settings can be much more costly than ``light''
+    settings. Obviously, ``tight'' settings are needed for accurately
+    converged final numerical results in many cases. However, this
+    does not mean that, e.g., a long pre-relaxation has to be done
+    with ``tight'' settings -- prerelaxing with ``light'' settings and
+    switching to ``tight'' settings only then is usually the way to
+    go. Also, consider the ``intermediate'' settings where available,
+    especially for hybrid density functionals.
+  \item Exchange-correlation methods beyond LDA and GGA typically take
+    much more time. Here, the key bottleneck is the evaluation of the
+    two-electron Coulomb Operator and its manipulations later. Even
+    then, it pays to spend time learning about the respective
+    settings, for instance, the \keyword{RI\_method} to be used, the
+    internal thresholds that go with it, or whether it is possible to
+    reduce the number of s.c.f. steps in some other way. 
+\end{itemize}

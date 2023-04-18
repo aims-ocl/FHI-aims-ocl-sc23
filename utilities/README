@@ -1,0 +1,274 @@
+################################################################################
+
+  FHI-aims code distribution. 
+
+  This README file describes the simple evaluation scripts contained in the
+  ./utilities subdirectory in the FHI-aims code distribution.
+
+  These scripts are not necessarily high-level evaluation tools. They
+  evolved from some daily tasks while using FHI-aims, and may serve as
+  examples how to use the output of FHI-aims using small scripts in a
+  productive way. They should also serve as a stimulus to actually LOOK at
+  the data contained in such output files, in order to make sure that the
+  calculation went according to the plan.
+
+  Any additional utilities / improvements to the existing ones are greatly
+  appreciated. 
+
+################################################################################
+
+Overview and usage:
+
+- Cluster_structure_prediction (subdirectory) 
+
+  A full-fledged basing hopping tool kit for the prediction of the
+  low-energ structure(s) of small clusters using FHI-aims; written by
+  Ralf Gehrke (formerly FHI). See separate README files.
+
+- REX (subdirectory) 
+
+  Full-fledged set of scripts by Luca Ghiringhelli and others,
+  enabling ab initio Replica Exchange Molecular Dynamics sampling in FHI-aims.
+
+- aims-SCF-convergence.awk
+
+  Extracts s.c.f. convergence criteria step by step from output. Useful to asses
+  the speed of s.c.f. convergence or possible reasons for non-convergence.
+
+- aims_band_plotting.pl
+
+  Plotting utility to post-process band-structure output obtained from
+  FHI-aims into a nicer format. A terse description is provided in the manual.
+  Works but needs some handholding to generate "finished" plots. If
+  you have python and matplotlib installed, consider using aimsplot.py
+  instead (see below).
+
+- aims_MD_eval.pl
+
+  Simple but useful script that collects some relevant parameters from MD runs
+  for montoring and writes them to a column format (temperature, total energy,
+  conserved quantities, etc.) If your thermostat does not keep the "temperature"
+  as it should, this is how you find out.
+
+- aims_NH-BDP.pl
+
+  Same as aims_MD_eval.pl but intended for the Bussi-Donadio-Parrinello (BDP)
+  thermostat. 
+
+- aims_phonon_band_plotting.pl
+
+  perl script that attempts to create a nicer graphical version of the
+  phonon_band_structure.dat file that is the output of a finite-difference
+  calculation of phonons using FHI-aims.
+
+- aimsplot.py
+
+  Script to plot band structure and DOS calculated with FHI-aims. An alternative to
+  aims_band_plotting.pl. For documentation see the short comment and examples in its
+  header.
+
+- auto_correlation
+
+  Subdirectory (see separate README there) that allows to obtain
+  autocorrelation functions and their windowed Fourier transforms, e.g., of
+  the classical dipole moment of a molecule during a molecular dynamics
+  run. The Foruier transform of that quantity along a long MD trajectory (NVE)
+  will give the IR vibrational spectrum in a classical approximation to
+  Fermi's Golden Rule. Used by us, provided here for general use, but please
+  handle with care (and ask us for clarification in case there are any doubts
+  with respect to the correct usage).  Also note fft-correlate.py.
+
+- create_geometry_zip.pl
+
+  Much improved version of create_xyz_movie.pl (see below) to work
+  specifically with the FHI-aims enabled version of jmol (see the FHI-aims web
+  site for information on the status and download of that jmol version). 
+  Usage:
+  > create_geometry_zip.pl <FHI-aims-output-file> 
+
+  All intermediate geometries along a relaxation or molecular dynamics
+  trajectory will be written out into a separate directory "geometries",
+  archived in a .zip file, and are then accessible to jmol using the
+  additional file "geometries.spt" .
+
+- create_large_cell.pl
+
+  No-frills script that takes a small unit cell and multiplies along the 
+  lattice vectors to create a supercell.
+
+  Only atom_frac coordinates are supported, and the basic cell must exist
+  as a file "geometry.in.basic".
+
+  Usage: create_large_cell.pl > geometry.in 
+
+  The cell multipliers must be set inside the script (yes, by editing the
+  script). It would be trivial to make them command line input parameters 
+  if someone wants to take on that job. My suspicion is that most people 
+  simply already have a script of this kind.
+
+- create_xyz.pl
+
+   Based on a single file of "geometry.in" format, creates an xyz-formatted
+   file that can be viewed by standard third-party tools such as jmol 
+   (http://jmol.sourceforge.net), vmd (http://www.ks.uiuc.edu/Research/vmd/),
+   and others. create_xyz.pl also allows to include periodic replica of the
+   unit cell for periodic structures. To that end, the dimensions 
+   $n_per[1]
+   $n_per[2]
+   $n_per[3]
+   near the beginning of the script must be edited to reflect the number of
+   unit cells to be displayed in the direction of unit vectors number 1, 2,
+   and 3, respectively.
+
+   In the directory that contains a standard output file from FHI-aims, type
+   > create_xyz.pl aims_output.out > aims_output.xyz
+
+- create_xyz_movie.pl
+
+   Based on the standard output of a relaxation performed by FHI-aims,
+   compiles a series of xyz-formatted geometries in one file that can be
+   viewed by standard third-party tools such as jmol
+   (http://jmol.sourceforge.net), vmd (http://www.ks.uiuc.edu/Research/vmd/),
+   and others.
+
+   In the directory that contains a standard output file from FHI-aims, type
+   > create_xyz_movie.pl aims_output.out > aims_movie.xyz
+
+   The resulting file should then be visualizable by any of the above tools.
+
+   create_xyz_move.pl currently does NOT account for periodic boundary
+   conditions, i.e., for periodic calculations it will only show the
+   development of the contents of a single unit cell.
+
+- fft-correlate.py
+
+  Potentially faster and simpler but less tested version of the
+  auto_correlation suite, which can make use of the FFT-convolution in scipy
+  (using -f) and give a quick glance on the results using matplotlib (using
+  -p).  See fft-correlate.py -h for help.
+
+- get_relaxation_info.pl
+
+   Short script that allows to monitor the development of total energies and
+   forces during a relaxation run. 
+
+   In the directory that contains a standard output file from FHI-aims, type
+   > get_relaxation_info.pl < aims_output.out > relaxation_info.dat
+
+   The relaxation_info.dat output file then contains the following information
+   in four columns:
+
+   Column 1: Relaxation step number
+   Column 2: Total energy in that relaxation step [in eV]
+   Column 3: Electronic "free energy" in that relaxation step [in eV]
+   Column 4: Energy difference between initial geometry and current relaxation
+             step [in meV!]
+   Column 5: Electronic "free energy" difference between initial geometry and current relaxation
+             step [in meV!]
+   Column 6: Maximum remaining force component on any atom [in eV/AA]
+
+   Note that the electronic "free energy" is given because the energy
+   derivatives ("Forces") used for the relaxation are strictly dervivatives of
+   that quantity, not the total energy itself, in the case of fractional
+   occupation numbers. Otherwise, the physical value of the "free energy" is
+   rather limited! Please rely on the total energy instead.
+
+   The relaxation_info.dat output file can be visualized by standard 2D data
+   visualization tools such as xmgrace
+   (http://plasma-gate.weizmann.ac.il/Grace/) and others.
+
+- intermediate_geometries.pl
+
+   Simple script that takes two different geometry files and an scale factor as input,
+   and linearly interpolates both geometries according to the scale factor. The resulting 
+   intermediate geometry is written to STDOUT. The difference between the starting and
+   ending geometries is written to a file geometry_difference.out . Calling sequence: 
+
+   > intermediate_geometries.pl <file_1> <file_2> <scale>
+
+   where <scale>=0.0 produces the same geometry as <file_1>, and <scale>=1.0 produces
+   the same geometry as <file_2> . This script has few safeguards but can be enormously
+   useful. 
+
+- Lindh.py
+
+  Construct a Lindh model Hessian [see R. Lindh et al., CPL 241, 423 (1995)]
+  from a given geometry.  The output file should be a valid geometry.in.  The
+  input file can be anything babel can read.    See Lindh.py -h for help.
+  *** We still keep this script, but in practice, the same is now done by default
+      directly within FHI-aims (Fortran code). For anyone wanting to play or tweak
+      things on their own, this script may be a quick alternative.
+
+-  murn.FH.v4.f
+
+  Old but working Fortran style fit program for E(V) curves for solids
+  using FHI-aims input and the Murnaghan equation of state. May be
+  superseded by the murn.py script further below. The input (a file
+  murn_fit.in) is documented in the header, and output can be directly
+  viewed using xmgrace. For numerically stable and meaningful fits to
+  Murnaghan's equation of state E(V), we recommend to start with the
+  equilibrium lattice parameter for the functional in question, and 3
+  points with larger (smaller) lattice parameter in steps of 1% of the
+  equilibrium lattice parameter. 
+
+- murn.py
+
+  Alternative tool for Birch-Murnaghan fits.  Please see "murn.py -h"
+  and "murn.py -i" for details.
+
+- plot_bands_in_scf.pl
+
+  Helps plots a band structure that was written out using
+  output bands_during_scf
+  Mainly useful for debugging purposes or when you need clarity on the
+  exact band structure that came out of the s.c.f. cycle along a given
+  k-space direction.
+
+- plot_scf_convergence.pl
+
+  together with scf_convergence_template.agr
+
+  Graphical output of the s.c.f. convergence process of an FHI-aims
+  run. Needs the template copied to the working directory first, and
+  needs xmgrace. However, if you encounter any convergence problems
+  during s.c.f., visualizing the process is enormously helpful to gain
+  a first understanding of what is going on. If you find something to
+  be polished in this script for better usability, please do so and
+  let us know.
+
+- run_aims.sh
+
+  Convenience tool to start FHI-aims in the one-run one-dir paradigma.
+  Copies control.in and geometry.in into a dedicated directory and
+  runs aims on them.
+  *** 
+  This script is provided as a completely optional tool only, it is
+  neither required nor necessarily recommended to start an FHI-aims
+  run. Knowing where the FHI-aims executable is and having a directory
+  with control.in and geometry.in is completely sufficient to start
+  FHI-aims from a command line, as is documented in the manual. 
+  Instead, using a more sophisticated script like this blindly can be
+  a serious learning obstacle about the actual code if you are not an
+  expert in bash scripts and sed. 
+  Why do we keep it, then? Well, if you want to learn about
+  simplifying life by your own scripts, this is a good starting point
+  for a more sophisticated example.
+  *** 
+
+- kvec_visualize.py
+
+  This tool is intended to aid in conceptual analysis of band structures.  
+  It draws the starting and ending k-vectors of bands (i.e. the k-points
+  in an "output band" command in control.in) on top of the geometry.
+
+- kpath_visualize.py
+
+  This tool is used to visualize the k-path for a band structure by 
+  drawing the k-path in the reciprocal unit cell (not the first
+  Brillouin zone!)  The special k-points specified in control.in are
+  labeled, and the k-path trajectory is also given in the legend.
+
+- aimsplot_compare.py
+
+  This is a more general form of aimsplot.py intended for plotting 
+  multiple band structures on top of one another.

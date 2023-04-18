@@ -1,0 +1,782 @@
+\section{Electronic structure: Exchange, correlation (incl. DFT+U), and excited states}
+\label{Sec:xc}
+
+A key choice \emph{required} in every electronic structure calculation is the
+treatment of the required electronic structure: Exchange, correlation,
+and potentially quasiparticle energies, e.g., after a $GW$ correction.
+
+We here summarize the general options available regarding the choice
+of the electronic structure method. In addition, an important question
+is \emph{which} electrons in the structure are treated at which
+level. For most practical purposes, FHI-aims treats all electrons in
+an equivalent way, but for some special cases, frozen-core treatments
+may be useful: at present, one may compute the correlation
+energy of only the \emph{valence} but not the \emph{core} electrons in
+second-order M{\o}ller-Plessett (MP2) perturbation theory.
+
+For any method requiring the
+two-electron Coulomb operator explicitly (these include hybrid
+functionals, Hartree-Fock, MP2 or RPA perturbation theory, $GW$
+corrections, etc.) we note that an auxiliary basis is required to
+expand the Coulomb matrix (four basis functions $\equiv$ $O(N^4)$
+matrix elements) into a two-center Coulomb matrix, leading instead to
+$O(N^3)$ additional overlap matrix elements. The choice of this
+auxiliary basis (``product basis'') is described in more detail in
+Sec. \ref{Sec:auxil} and Ref.~\cite{Ren12a}.
+
+\textbf{A note on ``post-s.c.f'' RPA-based methods }
+
+The algorithms for post-DFT methodologies as implemented in FHI-aims
+are detailed in Ref.~\cite{Ren12a}. Here we only briefly 
+recapitulate the key ingredients behind the increasingly popular 
+``RPA and beyond'' methods as implemented in FHI-aims. The standard RPA
+total energy is computed as follows:
+ \begin{equation}
+   E^\text{RPA}_\text{tot} = E^\text{DFT}_\text{tot} - E^\text{DFT}_\text{xc}
+        + E^\text{EX}_\text{x} + E^\text{RPA}_\text{c} \, .
+  \label{eq:RPA_energy}
+ \end{equation}
+$E^\text{DFT}_\text{tot}$ is a pre-computed self-consistent DFT total energy
+obtained from LDA, GGA, or hybrid functional calculations. $E^\text{DFT}_\text{xc}$
+is the corresponding exchange-correlation contribution. $E^\text{EX}_\text{x}$ and
+$E^\text{RPA}_\text{c}$ are the exact-exchange energy, and the RPA non-local 
+correlation evaluated using the pre-determined Kohn-Sham or generalized Kohn-Sham
+eigenorbitals and eigenenergies.
+
+Recently, several correction schemes to RPA have been proposed. 
+FHI-aims currently provides the (renormalized) single excitation (SE) correction
+\cite{Ren11} and the second-order screened exchange (SOSEX) correction 
+\cite{Grueneis09}. The renormalized SE (rSE) and SOSEX corrections can be combined. The 
+combined scheme is called ``renormalized 2nd-order perturbation theory''
+(rPT2) \cite{Ren12b},
+ \begin{equation}
+    E_\text{tot}^\text{rPT2} = E^\text{RPA}_\text{tot} + E^\text{SOSEX}_\text{c} +
+         E^\text{rSE}_\text{c}\, .
+  \label{eq:rPT2_energy}
+ \end{equation}
+The ``RPA+SE'', ``RPA+rSE'', and ``RPA+SOSEX'' total energies 
+can be computed similarly by combining the corresponding terms.
+
+\textbf{A note on ``DFT plus U''}
+
+In the DFT method with local or semi-local approximations of the
+XC-functional, (LDA, GGA, etc.) strongly correlated systems like transition
+metal oxides are poorly described. The ``DFT plus U'' method offers an ad hoc
+correction for strongly correlated systems at negligible computation 
+cost~\cite{Anisimov2000}.
+
+\emph{The present implementation of ``DFT plus U'' in FHI-aims should be
+considered experimental, and is not complete in some respects. Please keep
+this in mind when using the method. That said, it should give physically
+sensible results. Simply take some care when using it, and please give us
+feedback if the method works for you (obviously, also if it does not for some
+reason).} 
+\begin{itemize}
+  \item DFT+U total energies can be obtained in combination with any functional
+    (typically LDA or GGA), by simply adding appropriate \subkeyword{species}
+    {plus\_u} tags to the corresponding species. 
+  \item Total energy gradients (``forces'') are not provided. 
+  \item The implementation does not yet offer self-consistent determination of
+    the U parameter, so this needs to be supplied by hand.
+  \item Finally, the orbitals on which we project are the somewhat extended
+    free-atom like orbitals, defined with the usual cutoff potential of the
+    remaining calculation. While somewhat arbitrary, it would be useful to be
+    able to project onto more localized orbitals, but this option is not
+    implemented yet.
+\end{itemize}
+
+\subsection*{Tags for general section of \texttt{control.in}:}
+
+\keydefinition{frozen\_core}{control.in}
+{
+  \noindent
+  Usage: \keyword{frozen\_core} \option{first\_orbital} \\[1.0ex]
+  Purpose: Allows to compute the MP2 correlation energy without the
+    contribution arising from low-lying occupied orbitals. \\[1.0ex]
+  \option{first\_orbital} is the integer number of the first molecular
+    orbital that is \emph{included} in the computation of the MP2
+    correlation energy. \\
+}
+\textbf{This keyword applies only to the calculation of the MP2
+  correlation energy (if requested). It does not imply a frozen-core
+  treatment anywhere else.}
+
+In a nutshell, this is a simple way to exclude the large contribution
+from certain core electrons to the MP2 correlation energy. This
+contribution is mostly systematic, and therefore tends to cancel in
+energy differences. However, it is also the hardest to compute unless
+specialized basis sets are invoked that ``know'' about core
+correlation; it may thus be the source of a large systematic error
+that also cancels if excluded from the beginning. For consistency
+between different calculations, the number of excluded ``core''
+orbitals must be readjusted between calculations with different
+numbers of atoms.
+
+\keydefinition{frozen\_core\_postscf}{control.in}
+{
+  \noindent
+  Usage: \keyword{frozen\_core\_postscf} \option{valence\_shell\_number} \\[1.0ex]
+  Purpose: Alternative way to specify the valence shells in the frozen-core algorithm for MP2, RPA and
+  rPT2 methods. \textit{This keyword is valid for elements from H (1) to Rn (86)}.\\[1.0ex]
+  \option{valence\_shell\_number} is the number of valence shells which are taken into account  
+  in the frozen-core MP2, RPA or rPT2 calculations.\\
+}
+
+Compared to the keyword \keyword{frozen\_core}, \keyword{frozen\_core\_postscf} is more friendly, especially for
+large systems, as you don't need to count by hand which is the first valence orbital in the frozen-core algorithm.
+
+For example, \emph{valence\_shell\_number=2} means that at most two outer shells are taken as
+valence shells in the frozen-core calculations:
+
+\begin{center}
+    \begin{tabular}{ccc}
+    	\hline
+    	element & core shells & valence shells \\
+    	\hline
+    	H, He   & --          & 1$s$\\
+    	Li-Ne   & --          & 1$s$2$s$2$p$\\
+    	Na-Ar   & 1$s$        & 2$s$2$p$3$s$3$p$\\
+    	K-Kr    & 1$s$2$s$2$p$& 3$s$3$p$3$d$4$s$4$p$\\
+    	\hline
+    \end{tabular}
+\end{center}
+
+
+\keydefinition{hybrid\_xc\_coeff}{control.in}
+{
+ \noindent
+ Usage: \keyword{hybrid\_xc\_coeff} \option{value} \\[1.0ex]
+ Purpose: If set, will modify the (Hartree-Fock) exact exchange mixing parameter in a given 
+          hybrid XC functional. \emph{No effect} if specified with a
+          simple LDA / GGA type functional.\\[1.0ex]
+ \option{value} is a real number (usually between zero and one) that
+          specifies the degree of exact exchange admixture.\\
+}
+\emph{If} (and only if) a hybrid functional is specified using the \keyword{xc} keyword, 
+\keyword{hybrid\_xc\_coeff} allows to change the Hartree-Fock mixing parameter to 
+a different, given \option{value}. For example, the mixing parameter in \texttt{pbe0}
+could be specified away from its literature value, $\alpha$=0.25. No effect for 
+\keyword{xc} functionals that do not have any Hartree-Fock exchange admixed in the first place.
+
+Obviously, this option
+is only useful for test purposes and does change the definition of any functional
+away from its literature value. Handle with care.
+
+\keydefinition{hse\_unit}{control.in}
+{
+ \noindent
+ Usage: \keyword{hse\_unit} \option{character} \\[1.0ex]
+ Purpose: Required clarification of units for the \texttt{hse06} \keyword{xc} functional.\\[1.0ex]
+ \option{value} is a character, either 'a' or 'A' (for {\AA}$^{-1}$) or 'b' or 'B' (for [bohr radius]$^{-1}$).\\
+}
+The \texttt{hse06} functional comes with a screening parameter $\omega$ which must be specified explicitly
+(see the \keyword{xc} keyword for a detailed explanation). Unfortunately, different codes and authors
+appear to have adopted different conventions for $\omega$ -- either {\AA}$^{-1}$ or [bohr radius]$^{-1}$. 
+To avoid any possible confusion when using HSE06 in FHI-aims, we therefore only run \texttt{hse06} if the
+unit has been explicitly specified, using the above keyword. We apologize for the inconvenience, but
+the risk of an innocent misunderstanding is rather high in the present case.
+
+\keydefinition{lc\_dielectric\_constant}{control.in}
+{
+ \noindent
+ Usage: \keyword{lc\_dielectric\_constant} \option{value} \\[1.0ex]
+ Purpose: If set, will modify the amount of exact exchange in the hybrid XC functional LC-$\omega$PBEh. 
+          
+ \option{value} is a real number (larger or equal to one) that
+          specifies the degree of exact exchange admixture in the long-range part. default=1.0\\
+}
+
+\keydefinition{plus\_u\_petukhov\_mixing}{control.in}
+{
+  \noindent
+  Usage: \keyword{plus\_u\_petukhov\_mixing} \option{mixing\_factor} \\[1.0ex]
+  Purpose: \emph{Experimental---only for DFT+U.} Allows to fix the mixing
+    factor between AMF and FLL contribution of the double counting
+    correction~\cite{Petukhov03}. \\[1.0ex] 
+  \option{mixing\_factor} is a floating point value, specifying the mixing
+    ratio between 0.0 and 1.0. A value of 0.0 selects the Around Mean Field
+    (AMF) contribution. A value of 1.0 selects the Fully Localized Limit
+    (FLL). If unspecified, the value is determined self-consistently according
+    to Ref.~\cite{Petukhov03}. \\ 
+}
+
+There are two common schemes for dealing with the double counting problem in DFT+U: The AMF method
+assumes that the effect of the DFT+U term on the actual occupations remains small, so that the
+occupations can be assumed to be equal within each shell for the purpose of the double counting
+correction. The FLL method, on the other hand, assums a maximal effect of the DFT+U term on the
+occupation numbers, handling double counting correctly in the case that all orbitals with in the
+shell are either fully occupied or empty. The self consistent mixing of both limits improves the
+handling of the intermediate range (see Ref.~\cite{Petukhov03}).
+
+\keydefinition{qpe\_calc}{control.in}
+{
+ \noindent
+ Usage: \keyword{qpe\_calc} \option{selfenergy-type} \\[1.0ex]
+ Purpose: If set, specifies which self-energy should be used for a
+ quasiparticle correction of single-particle eigenvalues. \\[1.0ex]
+ \option{selfenergy-type} is a keyword (string) which specifies the
+   selfenergy approximation used. \\
+}
+\emph{Note} that quasiparticle corrections ($GW$, MP2) are currently possible
+only for cluster geometries (no periodic boundary conditions).
+
+After the normal self-consistency cycle for a given
+exchange-correlation functional (set using the \keyword{xc} keyword)
+is complete, \keyword{qpe\_calc} can be used to specify a perturbative
+quasiparticle correction to be applied as a post-processing
+step. Valid self-energy options \option{selfenergy-type} are:
+\begin{itemize}
+  \item \option{gw} : Perturbative $G_0 W_0$-type self-energy, where both the
+    Green's function $G_0$ and the screened Coulomb interaction $W_0$ are
+    computed only once, based on the self-consistent DFT or Hartree-Fock
+    ground state eigenvalues and eigenfunctions.
+  \item \option{ev\_scgw}  Perturbative $G_0 W_0$-type self-energy, where 
+    self-energy is evaluated with partial self-consistency in the eigenvalues. 
+    Molecular orbitals are kept unchanged from the preliminary
+    calculation. For true self-consistent $GW$, see the
+    \keyword{sc\_self\_energy} 
+    further below.
+  \item \option{mp2} : Perturbative MP2-type self-energy, based on the
+    self-consistent DFT or Hartree-Fock ground state eigenvalues and
+    eigenfunctions.
+\end{itemize}
+
+\keydefinition{sc\_self\_energy}{control.in}
+{
+ \noindent
+ Usage: \keyword{sc\_self\_energy} \option{self-consistent-scheme} \\[1.0ex]
+ Purpose: If set, specifies the scheme adopted for the 
+ self-consistent calculation of the many-body self-energy. \\[1.0ex]
+ \option{selfenergy-type} is a keyword (string) which specified the 
+ self-consistent approach used in the calculation. \\
+}
+\emph{Note} that self-consistent $GW$ calculation (sc-$GW$, sc-$GW_0$) are currently possible
+only for cluster geometries (no periodic boundary conditions).
+
+After the normal self-consistency cycle for a given
+exchange-correlation functional (set using the \keyword{xc} keyword)
+is complete, \keyword{sc\_self\_energy} can be used to specify
+a self-consistent scheme for the calculation of the $GW$ self-energy.
+The output consists of the total energy calculated from the Galitskii-Migdal 
+formula, an output file (\texttt{spectrum\_sc.dat} for spin unpolarized, \texttt{spectrum\_sc\_up.dat} and 
+ \texttt{spectrum\_sc\_do.dat} for spin up and down respectively in the case of spin polarized calculation) 
+containing the spectral function calculated from the self-consistent Green's function.
+At the end of the calculation, the output include the dipole 
+moment evaluated from the self-consistent density.
+
+Currently implemented self-consistent methods are:
+\begin{itemize}
+  \item \option{scgw} : Calculate the Green's function by solving until full self-consistency the 
+  Dyson's equation by using a self-energy in the $GW$ approximation. 
+  \item \option{scgw0} : Solve self-consistently the Dyson's equation with the self-energy in the 
+   $GW_0$ approximation. Differently from fully self-consistent $GW$, in this case the screened Coulomb 
+   interaction is kept fixed at the RPA level.
+\end{itemize}
+
+\keydefinition{scgw\_mix\_param}{control.in}
+{
+ \noindent
+  Usage: \keyword{scgw\_mix\_param} \option{$\alpha$} \\[1.0ex]
+  Purpose: Define the linear mixing coefficient $\alpha$, for the mixing of the Green function 
+  at each iteration of the self-consistent $GW$ calculation.  This keyword only produces an effect if  
+  \keyword{sc\_self\_energy} is set.
+}
+
+\keydefinition{scgw\_it\_limit}{control.in}
+{
+ \noindent
+  Usage: \keyword{scgw\_it\_limit} \option{$N$} \\[1.0ex]
+  Purpose: Set the maximum number $N$ of iteration of the Dyson equation
+  in a self-consistent $GW$ calculation. The default value is set to $N=30$. 
+  This keyword only produces an effect if
+  \keyword{sc\_self\_energy} is set.
+}
+
+
+\keydefinition{scgw\_print\_all\_spectrum}{control.in}
+{
+ \noindent
+  Usage: \keyword{scgw\_print\_all\_spectrum} \\[1.0ex]
+  Purpose: 
+  Enables the print out of the spectral function each iteration of the self-consistent $GW$ calculation. 
+  The spectrum is printed to the file \texttt{sp\_ImG<N>.dat}, where <N> is number of iteration of the Dyson equation. 
+  This keyword only produces an effect if \keyword{sc\_self\_energy} is set.
+}
+
+\keydefinition{rpa\_along\_ac\_path}{control.in}
+{
+ \noindent
+  Usage: \keyword{rpa\_along\_ac\_path} \option{rpa\_along\_ac\_path\_grid} \\[1.0ex]
+  Purpose: Calculate the RPA-approximated potentials along the adiabatic-connection path.\\[1.0ex]
+  \option{rpa\_along\_ac\_path\_grid} is the number of potentials you want to sampling
+  along the adiabatic-connection path.\\
+}
+The standard RPA method is a adiabatic-connection advanced DFT method, which
+integrates the contribution along the adiabatic-connection path analytically.
+This keyword \keyword{rpa\_along\_ac\_path} allows you to unpack the adiabatic-connection
+path in the RPA approximation in detail.
+
+\keydefinition{printout\_dft\_components}{control.in}
+{
+ \noindent
+  Usage: \keyword{printout\_dft\_component} \option{given\_dft\_method} \\[1.0ex]
+  Purpose: Evaluate the XC contributions of a given DFT method based on SCF converged KS (or HF) orbitals.\\[1.0ex]
+  \option{given\_dft\_method} is the name of the DFT method you want to investigate. At present, only two
+  GGA methods (PBE and BLYP) are avaiable.\\
+}
+This keyword \keyword{printout\_dft\_components} is repeatable in the contril.in allowing to inspect several DFT methods
+in one task.
+
+\keydefinition{scs\_mp2\_parameters}{control.in}
+{
+ \noindent
+  Usage: \keyword{scs\_mp2\_parameters} \option{pT} \option{pS} \\[1.0ex]
+  Purpose: For MP2 correlation energies, allows to perform
+    spin-component scaled MP2. \\[1.0ex]
+  \option{pT} is the scaling parameter for the spin-up-spin-up
+    (triplet) contribution. \\
+  \option{pS} is the scaling parameter for the spin-up-spin-down
+    (singlet) contribution. \\
+}
+The MP2 correlation energy (\keyword{total\_energy\_method}
+\texttt{mp2} or \keyword{xc} \texttt{mp2}) can
+be separated into a sum of triplet (spin-up-spin-up) and singlet
+(spin-up-spin-down) two-electron terms:
+\begin{equation}
+  E_\text{corr,MP2} = E_T + E_S \, .
+\end{equation}
+Grimme \cite{Grimme03} pointed out that empirical scaling factors
+$p_T$ and $p_S$ can be introduced and fitted to improve the accuracy
+of MP2 results compared to quantum-chemical benchmark methods:
+\begin{equation}
+  E_\text{SCS,MP2} = p_T E_T + p_S E_S \, .
+\end{equation}
+For example, $p_T$=1/3 and $p_S$=6/5 are employed to obtain the
+reaction energies of Table I in Ref. \cite{Grimme03}.
+
+\keydefinition{total\_energy\_method}{control.in}
+{ \noindent
+ Usage: \keyword{total\_energy\_method} \option{type} \\[1.0ex]
+ Purpose: If set, specifies an exchange-correlation method \emph{for
+   post-processing only}, after the scf cycle is complete. \\[1.0ex]
+ \option{type} is a keyword (string) which specifies the chosen
+   post-processing exchange-correlation method. \\
+}
+After the regular scf cycle is complete for a given exchange-correlation
+method as given by the \keyword{xc} tag, the resulting Kohn-Sham orbitals and
+eigenvalues are used to recalculate \emph{only} the exchange-correlation
+energy, and only once (i.e., perturbative post-processing). Valid
+post-processing options \option{type} are:
+\begin{itemize}
+  \item \option{C6\_coef} : Molecular C$_6$ dispersion coefficients at the
+    MP2 / RPA level will be calculated after the
+    s.c.f. calculation. (This functionality is somewhat experimental,
+    be sure to check for consistency.)
+  \item \option{hf} or \option{HF}: Calculate Hartree-Fock exchange on the
+    given orbitals.
+  \item \option{ll\_vdwdf} : The nonlocal part of correlation energy is calculated
+    using the van der Waals density functional proposed by M.
+    Dion {\it et al.}~\cite{Dion04} and the total correlation
+    energy will be re-evaluated as proposed in their paper. For
+    details about additional Tags needed for the calculation,
+    please visit Sec. \ref{Sec:vdwdf}. Note that an alternative
+    implementation by the Helsinki group is available as well, the
+    present keyword is not your only option.
+  \item \option{m06-l} or \option{M06-L}: Truhlar's optimized local meta-GGA of the ``M06'' suite of
+  functionals. \cite{ZhaoTruhlar06_M06-L}
+  \item \option{m06} or \option{M06}: Truhlar's optimized hybrid meta-GGA of the ``M06'' suite of
+    functionals; with 27\% exact exchange. \cite{ZhaoTruhlar06_M06_M06-2X}
+    Currently supported only for non-hybrid functionals specified through the \keyword{xc} tag.
+  \item \option{m06-2x} or \option{M06-2X}: Truhlar's optimized hybrid meta-GGA of the ``M06'' suite of
+    functionals, with double contribution (54\%) from the hartree-fock exact exchange. \cite{ZhaoTruhlar06_M06_M06-2X}
+    Currently supported only for non-hybrid functionals specified through the \keyword{xc}
+    tag. 
+  \item \option{m06-hf} or \option{M06-HF}: Truhlar's optimized hybrid meta-GGA of the ``M06'' suite of
+    functionals, with 100\% exact exchage contribution. \cite{ZhaoTruhlar06_M06-HF}
+    Currently supported only for non-hybrid functionals specified through the \keyword{xc} tag.
+  \item \option{m08-hx} or \option{M08-HX}: Truhlar's optimized hybrid meta-GGA of the ``M08'' suite of
+    functionals, with 52.23\% contribution from the hartree-fock exact exchange. \cite{ZhaoTruhlar08_M08-HX_M08-SO}
+    Currently supported only for non-hybrid functionals specified through the \keyword{xc} tag.
+  \item \option{m08-so} or \option{M08-SO}: Truhlar's optimized hybrid meta-GGA of the ``M08'' suite of
+    functionals, with 56.79\% contribution from the hartree-fock exact exchange. \cite{ZhaoTruhlar08_M08-HX_M08-SO}
+    Currently supported only for non-hybrid functionals specified through the \keyword{xc} tag.
+  \item \option{m11-l} or \option{M11-L}: Truhlar's optimized range-separated local meta-GGA of the ``M11'' suite of
+  functionals. \cite{PeveratiTruhlar11_M11-L}
+  \item \option{mp2} : The correlation energy is calculated in second-order
+    M{\o}ller-Plesset perturbation theory (MP2), with Hartree-Fock added for
+    the exchange part. \emph{Note added in March 2016: A periodic
+      implementation of MP2 is available but, at the time of writing,
+      computationally extremely expensive. If you decide to use it,
+      please keep in mind that the periodic version is included here
+      as a matter of protocol but is not yet optimized to be fully
+      usable in production calculations.}
+  \item \option{pbe\_vdw} : Evaluates the van der Waals density
+    functional proposed by M. Dion {\it et al.}~\cite{Dion04} with the
+    methodology of Sec. \ref{vdwdf-TKK}. (Uses PBE exchange.) \emph{This is
+    \emph{not} the Tkatchenko-Scheffler correction~\cite{TS-vdw}. If
+    you are looking for Tkatchenko-Scheffler, please use the keyword
+    \keyword{vdw\_correction\_hirshfeld} instead.}
+  \item \option{revpbe\_vdw} : As pbe\_vdw but uses revpbe instead of pbe
+    for the exchange. \emph{This is also
+    \emph{not} the Tkatchenko-Scheffler correction~\cite{TS-vdw}. If
+    you are looking for Tkatchenko-Scheffler, please use the keyword
+    \keyword{vdw\_correction\_hirshfeld} instead.}
+  \item \option{revtpss} : Meta-GGA revTPSS functional, thanks to E. Fabiano
+    and F. Della Sala. \cite{Perdew09_revTPSS, Perdew11_revTPSS}
+  \item \option{nlcorr} : Only the non-local correlation term of the
+    pbe\_vdw or revpbe\_vdw is calculated and added to the total
+    energy. \emph{And this is still 
+    \emph{not} the Tkatchenko-Scheffler correction~\cite{TS-vdw}. If
+    you are looking for Tkatchenko-Scheffler, please use the keyword
+    \keyword{vdw\_correction\_hirshfeld} instead.}
+  \item \option{rpa} : The RPA total energy as defined in Eq.~(\ref{eq:RPA_energy}) will be calculated. 
+    When this option is specified, the SE and rSE corrections to RPA are also
+    evaluated. The total enegies computed with the RPA, RPA+SE, and RPA+rSE schemes 
+    are listed in items \texttt{``RPA total energy''}, \texttt{``PRA+SE total energy''},
+    and \texttt{``RPA+rSE (full) total energy''} respectively in the output file.
+  \item \option{rpa+2ox} : Just RPA plus second-order exchange (not
+    screened). Likely only useful for testing / benchmarking, use rpt2
+    for completeness.
+  \item \option{rpa+sosex} : Just RPA plus second-order screened
+    exchange. Likely only useful for testing / benchmarking, use rpt2
+    for completeness.
+  \item \option{rpt2} : The rPT2 total energy as defined in
+    Eq.~(\ref{eq:rPT2_energy}) will be calculated. When this option is
+    specified, the ``RPA+SOSEX'' total energy without the rSE
+    correction will also be printed out in the output file.
+  \item \option{scan} or \option{SCAN}: ``Strongly Constrained and
+    Appropriately Normed Semilocal Density Functional,'' i.e., the
+    SCAN meta-GGA functional by Sun, Ruzsinszky, and Perdew.\cite{Sun2015} \\
+    \emph{Note: This functionality is very new at the time of the
+      FHI-aims 2016 release in March, 2016. It has been tested, but
+      please treat it with appropriate caution for a while.}
+  \item \option{tpss} : Meta-GGA TPSS functional, thanks to E. Fabiano
+    and F. Della Sala. \cite{Tao03_TPSS}
+  \item \option{tpssloc} : Meta-GGA TPSSloc functional, thanks to E. Fabiano
+    and F. Della Sala. Reference: L.A. Constantin, E. Fabiano, F.Della Sala,
+    Phys. Rev. B. 86, 035130 (2012).
+  \item \option{xyg3} : ``XYG3'' double-hybrid functional\cite{Zhang:2009}, which is
+    defined only for a self-consistent B3LYP reference, i.e.,
+    \keyword{xc} \option{b3lyp} is mandatory. \emph{Note} that double-hybrid
+    functionals include MP2 components. When using the \emph{tier} basis sets,
+    you must use a counterpoise correction of energy differences to get 
+    reliable results.
+  \item \option{xdh-pbe0} : ``xDH-PBE0'' double-hybrid functional\cite{Zhang2012}, which is
+    defined only for a self-consistent PBE0 reference, i.e.,
+    \keyword{xc} \option{pbe0} is mandatory. \emph{Note} that double-hybrid
+    functionals include MP2 components. When using the \emph{tier} basis sets,
+    you must use a counterpoise correction of energy differences to get 
+    reliable results.
+  \item \option{dfauto <name>} : \emph{See the \option{dfauto} section for tag \option{xc}.}
+\end{itemize}
+\emph{Note} that some of the correlation methods available here are only
+supported for cluster geometries at this time. 
+\emph{Note} also that when advanced correlation methods (e.g. rpa, rpt2, xyg3, xdh-pbe0 and mp2) are 
+used for binding energy calculations, a \textbf{counterpoise correction} should always be
+performed with the default NAO basis sets in FHI-aims to get reliable results, 
+since the basis set superposition error (BSSE) for these correlation methods is significant.
+For these advanced correlation methods, the sequence of NAO valence-correlation consistent 
+basis sets (\emph{NAO-VCC-nZ}\cite{Zhang2013}) is a better choice, which reduces the basis set incompleteness error,
+including BSSE, with increasing the basis size, and especially enables to approach the completeness-basis-set
+limit with the aid of extrapolation scheme.
+
+\keydefinition{use\_2d\_corr}{control.in}
+{
+ \noindent
+ Usage: \keyword{use\_2d\_corr} \option{bool} \\[1.0ex]
+ Purpose: Specifies whether to use the efficient 2D distribution of the MO
+ based three index arrays where possible.  Otherwise, stick to the old 1D
+ distribution in all cases.
+ \\[1.0ex]
+ Default: \option{.true.} \\[1.0ex]
+}
+
+\keydefinition{xc}{control.in}
+{
+ \noindent
+ Usage: \keyword{xc} \option{xc-type} [\option{value}] \\[1.0ex]
+ Purpose: Specifies the exchange-correlation approach used for self-consistent
+ DFT / Hartree-Fock. See also \keyword{xc\_pre}. \\[1.0ex]
+ Default: \option{pw-lda} \\[1.0ex]
+ \option{xc-type} is a keyword (string) which specifies the chosen
+    exchange-correlation functional. \\
+ \option{value} is a real parameter needed only for some functionals
+ (e.g., \texttt{hse06}). \
+}
+FHI-aims provides a wide range of current exchange-correlation options,
+ranging from local-density and generalized-gradient approximations (LDAs and
+GGAs) via hybrid functionals and Hartree-Fock to two-electron
+treatments of the correlated many-body system, such as second-order
+M{\o}ller-Plesset (MP2) theory and the random-phase approximation (RPA). The
+following choices for the \option{xc-type} option are currently available:
+\begin{itemize}
+  \item Local-density approximation (different parameterizations):
+    \begin{itemize}
+      \item \option{pw-lda} : Homogeneous electron gas based on Ceperley and
+        Alder \cite{Cep80} as parameterized by Perdew and Wang 1992
+        \cite{Per92}. \emph{Recommended LDA parameterization.}
+      \item \option{pz-lda} : Homogeneous electron gas based on Ceperley and
+         Alder \cite{Cep80}, as parameterized by Perdew and Zunger 1981
+         \cite{Per81}.
+      \item \option{vwn} : LDA of Vosko, Wilk, and Nusair 1980 \cite{Vosko80}.
+      \item \option{vwn-gauss} : LDA of Vosko, Wilk, and Nusair 1980, \emph{but
+        based on the random phase approximation} \cite{Scuseria05}. Do
+        not use this LDA unless for one specific reason: In the B3LYP
+        implementation of the Gaussian code, this functional is allegedly
+        used instead of the correct VWN functional. It is therefore now
+        present in many reference results in the literature, and also
+        available here for comparison.
+    \end{itemize}
+  \item Generalized-gradient approximations:
+    \begin{itemize}
+      \item \option{am05} : GGA functional designed to include surface effects
+    in self-consistent density functional theory, according to Armiento
+    and Mattsson \cite{AM05}
+      \item \option{blyp} : The BLYP functional: Becke (1988) exchange
+      \cite{Becke88b} and Lee-Yang-Parr correlation \cite{Lee88}.
+      \item \option{pbe} : GGA of Perdew, Burke and Ernzerhof 1997 \cite{Per97}.
+      \item \option{pbeint} : PBEint functional of Ref. \cite{Fabiano10}
+      \item \option{pbesol} : Modified PBE GGA according to Ref. \cite{Perdew08}.
+      \item \option{rpbe} : The RPBE modified PBE functional according to
+        Ref. \cite{Hammer99}.
+      \item \option{revpbe} : The revPBE modified PBE GGA suggested in Ref. \cite{Zhang98}.
+      \item \option{r48pbe} : The mixed functional containing 0.52*pbe and 0.48*rpbe according to Ref. \cite{Nattino2012}
+      \item \option{pw91\_gga} : GGA according to Perdew and Wang,
+        usually referred to as  
+        ``Perdew-Wang 1991 GGA''. This GGA is most accessibly
+        described in References 26 and 27 of Ref. \cite{Perdew92}. Note
+        that the often mis-quoted reference \cite{Per92} does
+        \emph{not}(!) describe the Perdew-Wang GGA but instead only the
+        correlation part of the local-density approximation described above.
+    \end{itemize}
+  \item Meta-generalized gradient approximations:
+    \begin{itemize}
+      \item \option{m06-l} : Truhlar's optimized meta-GGA of the ``M06'' suite of
+        functionals. \cite{ZhaoTruhlar06_M06-L}
+      \item \option{m11-l} : Truhlar's optimized range-separated local meta-GGA of the ``M11'' suite of
+         functionals. \cite{PeveratiTruhlar11_M11-L}
+      \item \option{revtpss} : Meta-GGA revTPSS functional of Ref. \cite{Perdew09_revTPSS, Perdew11_revTPSS}.
+      \item \option{tpss} : Meta-GGA TPSS functional of Ref. \cite{Tao03_TPSS}
+      \item \option{tpssloc} : Meta-GGA TPSSloc functional, thanks to E. Fabiano
+         and F. Della Sala. L.A. Constantin, E. Fabiano, F.Della Sala,
+         Ref. \cite{Constantin2012}.
+      \item \option{scan} or \option{SCAN}: \emph{At present, there are
+      substantial concerns about the accuracy of the potential of the canonical
+      SCAN implementation. For self-consistent SCAN calculations, use the \texttt{dfauto} implementation of SCAN. See the \option{dfauto} option below.}
+      % \item \option{scan} or \option{SCAN}: ``Strongly Constrained and
+      %    Appropriately Normed Semilocal Density Functional,'' i.e., the
+      %    SCAN meta-GGA functional by Sun, Ruzsinszky, and
+      %    Perdew.\cite{Sun2015} \\
+      %    \emph{Note: This functionality is very new at the time of the
+      %    FHI-aims 2016 release in March, 2016. It has been tested, but
+      %    please treat it with appropriate caution for a while.}
+    \end{itemize}
+  \item Hartree-Fock and hybrid functionals (including non-local exchange): 
+     \emph{Please also see Secs. \ref{Sec:auxil} and \ref{Sec:periodic_hf} for related keywords and technical hints.}
+    \begin{itemize}
+      \item \option{b3lyp} : ``B3LYP'' hybrid functional as allegedly
+        implemented in the Gaussian code (i.e., using the RPA version of the
+        Vosk-Wilk-Nusair local-density approximation, see Refs. \cite{Vosko80,Scuseria05}
+        for details). Note that this is therefore \emph{not} exactly
+        the same B3LYP as originally described by Becke in 1993. 
+      \item \option{hf} : Hartree-Fock exchange only.
+      \item \option{hse03} : Hybrid functional as used in Heyd, Scuseria and
+        Ernzerhof \cite{Heyd03,Heyd06}. In this functional, 25 \% of the exchange energy is
+        split into a short-ranged, screened Hartree-Fock part, and a PBE
+        GGA-like functional for the long-range part of exchange. The remaining
+        75 \% exchange and full correlation energy are treated as in PBE. As
+        clarified in Refs. \cite{Krukau06,Heyd06}, two different screening parameters
+        were used in the short-range exchange part and long-range exchange
+        part of the original HSE functional, respectively: \\
+        Screened Hartree-Fock exchange: $\omega_\text{HF}=0.15/\sqrt{2}$ \\
+        Screened PBE-like exchange: $\omega_\text{PBE}=0.15\times 2^{1/3}$ \\
+        Following the notation of Ref. \cite{Krukau06}, the 'hse03' functional 
+        in FHI-aims reproduces these original values exactly.
+      \item \option{hse06} : Hybrid functional according to
+        Heyd, Scuseria and Ernzerhof \cite{Heyd03}, following the naming convention
+        suggested in Ref. \cite{Krukau06}. In this case, the
+        additional option \option{value} is needed, representing the single
+        real, positive screening parameter \option{omega} ($\omega$) as clarified
+        in Ref. \cite{Krukau06}. In this functional, 25 \% of the
+        exchange energy is split into a short-ranged, screened
+        Hartree-Fock part, and a PBE GGA-like functional for the
+        long-range part of exchange. The remaining
+        75 \% exchange and full correlation energy are treated as in PBE. \\
+        \emph{In the literature, the unit for $\omega$ is either {\AA}$^{-1}$ or (bohr radius)$^{-1}$, 
+        depending on the code, authors, and their favorite convention. To avoid any confusion,
+        a separate keyword \keyword{hse\_unit} must be specified in \texttt{control.in}, specifying
+        either {\AA}$^{-1}$ ('A') or bohr$^{-1}$ ('b'). The code will no longer run without this
+        explicit clarification. A correct calling syntax example is therefore:} \\
+        \texttt{xc hse06 0.11} \\
+        \texttt{hse\_unit bohr-1}\footnote{The \texttt{hse\_unit} flag reads only the first character.
+                                           Thus this is equivalent to \texttt{hse\_unit b} (case insensitive).} \\
+        or similar. \\
+        A few comments on typical choices for $\omega$ in the earlier literature: \\
+        The original value of 0.15 bohr$^{-1}$ by Heyd, Scuseria and Ernzerhoff 2003 \cite{Heyd03}
+        was never true - see their 2006 erratum. In FHI-aims, the 'hse03' functional
+        implements their actual choice. \\
+        Krukau, Vydrov, Izmaylov and Scuseria 2006 \cite{Krukau06} clarify the distinction between
+        'hse03' and 'hse06' (in addition to the Erratum mentioned above). Their
+        conclusion is that omega=0.11 bohr$^{-1}$ is a reasonable choice.\\
+        Vydrov, Heyd, Krukau and Scuseria in 2006 \cite{Vydrov06} appear to favor omega=0.25 bohr$^{-1}$,
+        but with a mixing parameter (keyword \keyword{hybrid\_xc\_coeff}) of 0.5 for the short-range exchange.
+        (The default for \keyword{hybrid\_xc\_coeff} in FHI-aims is 0.25, i.e., only a quarter of HF-like exchange.) \\
+         You get the idea. As much as we would like to, we can not specify a single omega
+         parameter for hse06 by default -- the choice is up to you. Apologies for the inconvenience.
+      \item \option{pbe0} : PBE0 hybrid functional \cite{Adamo99}, mixing 75
+        \% GGA exchange with 25 \% Hartree-Fock exchange.
+      \item \option{pbesol0} : Hybrid functional in analogy to PBE0
+        \cite{Adamo99}, except that the PBEsol \cite{Perdew08} GGA functionals
+        are used, mixing 75 \% GGA exchange with 25 \% Hartree-Fock exchange.
+      \item \option{lc\_wpbeh} : Range separated hybrid functional LC-$\omega$PBEh using 100 \% Hartree-Fock exchange in the 
+long-range part
+        and $\omega$PBE \cite{Vydrov06} in the short-range part. The full correlation energy is treated as in PBE. 
+        The \keyword{hse\_unit} must be specified as in hse06!\\
+        Syntax: \\
+        \texttt{xc lc\_wpbeh $\omega$ $\alpha$}\\
+        \begin{equation}
+         E_{xc}^{\text{LC-}\omega\text{PBEh}} = \alpha E_{xx}^{\text{SR}} + (1-\alpha) E_{x_{\omega\text{PBE}}}^{\text{SR}} + 
+         \left( \frac{1}{\epsilon} \right) E_{xx}^{\text{LR}} + \left( 1-\frac{1}{\epsilon} \right) 
+E_{\omega\text{PBE}}^{\text{LR}} + E_{c_{\text{PBE}}}
+        \end{equation}
+        \begin{itemize}
+         \item $\epsilon$ can be the dielectric constant. The default value is 1. One might change this parameter with the 
+               keyword \keyword{lc\_dielectric\_constant}
+         \item If $\alpha = 0$ the functional is also known as LC-$\omega$PBE \cite{Gallandi2015}
+         \item $\alpha = 1$ would correspond to a PBE0 calcuation with 100 \% Hartree-Fock exchange
+        \end{itemize}
+    \end{itemize}
+ \item Hybrid Meta-generalized gradient functionals (including non-local exchange): 
+     \emph{Please also see Secs. \ref{Sec:auxil} and \ref{Sec:periodic_hf} for related keywords and technical hints.
+     Currently the non-local exchange contribution is fixed in all implementations due to the parameterised nature
+     of these density functionals.}
+    \begin{itemize}
+  \item \option{m06} : Truhlar's optimized hybrid meta-GGA of the ``M06'' suite of
+    functionals; with 27\% exact exchange. \cite{ZhaoTruhlar06_M06_M06-2X}
+  \item \option{m06-2x} : Truhlar's optimized hybrid meta-GGA of the ``M06'' suite of
+    functionals, with double contribution (54\%) from the hartree-fock exact exchange. \cite{ZhaoTruhlar06_M06_M06-2X}
+  \item \option{m06-hf} : Truhlar's optimized hybrid meta-GGA of the ``M06'' suite of
+    functionals, with 100\% exact exchage contribution. \cite{ZhaoTruhlar06_M06-HF}
+  \item \option{m08-hx} : Truhlar's optimized hybrid meta-GGA of the ``M08'' suite of
+    functionals, with 52.23\% contribution from the hartree-fock exact exchange. \cite{ZhaoTruhlar08_M08-HX_M08-SO}
+  \item \option{m08-so} : Truhlar's optimized hybrid meta-GGA of the ``M08'' suite of
+    functionals, with 56.79\% contribution from the hartree-fock exact exchange. \cite{ZhaoTruhlar08_M08-HX_M08-SO}
+  \item \option{m11} : Truhlar's optimized range-separated local meta-GGA of the ``M11'' suite of
+  functionals \cite{PeveratiTruhlar11_M11}. The range-separation variable is also hardcoded in this implementation with
+  $\omega = 0.25$ bohr$^{-1}$.
+    \end{itemize}
+  \item Alternative implementations of some XC functionals via the \verb+dfauto+ program \cite{Strange2001}. These implementations are generated automatically from Maple definitions that are located in \verb+xc_dfauto/+. The general syntax is \verb+xc dfauto <name>+ where \verb+<name>+ can be one of (case-insensitive):
+  \begin{itemize}
+    \item \verb+dfauto pw-lda|pbe|pbe0|tpss+ : This is practically identical to specifying directly \verb+xc <name>+, and essentially provides alternative implementations of those functionals for testing purposes.
+    \item \verb+dfauto scan+ : This the meta-GGA functional SCAN \cite{Sun2015}.
+    \item \verb+dfauto scan0+ : This the meta-GGA hybrid functional SCAN0 \cite{Hui2016}, which mixes SCAN with 25\% of exact exchange.
+  \end{itemize}
+  \item Double-hybrid functionals (including non-local exchange and correlation):
+	  Double-hybrid functionals are emerging quickly in the last decade. ``\emph{double-hybrid}'' here
+	  means that the exchange functional mixes LDA(and/or GGA) exchange with ``Hartree-Fock like exact exchange''.
+	  Meanwhile, the correlation functional is composed of both conventional LDA(and/or GGA) correlation and
+	  second-order perturbation energy. Doubly-hybrid functionals are ``\emph{semi-empirical}'', generally
+	  including several empirical parameters determined by optimizing against one or several well-chosen databases.
+	  Double-hybrid functionals show a remarkable improvement over conventional (hybrid-)GGAs in the description
+	  of heats of formation, bond dissociation enthalpies, reaction barrier heights and weak interactions of the 
+	  main group elements.
+	  Doulbe-hybrid functionals have become new leading actors in the field of computational chemistry.
+     \begin{itemize}
+		 \item \option{xyg3} : Double-hybrid functional XYG3, containing 80.33\% Hartree-Fock exchange
+			 and 32.11\% second-order perturbation energy \cite{Zhang2009}.
+		 \item \option{xdh-pbe0} : Double-hybrid functional xDH-PBE0, containing 83.51\% Hartree-Fock exchange
+			 and 52.42\% opposite-spin second-order perturbation correlation \cite{Zhang2012}.
+     \end{itemize}
+	  
+  \item Some specific correlated methods: \emph{Only a subset. For
+    many correlated methods that can be used as non-selfconsistent
+    perturbative post-processing methods after an initial
+    s.c.f. calculation, see the \keyword{total\_energy\_method}
+    keyword. Most of these are not available for periodic
+    geometries, or, if at all, in a very experimental state.}
+    \begin{itemize}
+      \item \option{mp2} : Self-consistent Hartree-Fock, followed by a
+        second-order M{\o}ller-Plesset perturbative addition of the
+        correlation energy. Note that the \keyword{frozen\_core} keyword can
+        be used to specify if and which low-lying states should be excluded
+        from the correlation energy. For spin-component scaled MP2
+        \cite{Grimme03}, see keyword \keyword{scs\_mp2\_parameters}. \\[1.0ex]
+        \emph{Note} that when mp2 is used for binding energy calculations,
+        a \textbf{counterpoise correction} should always be performed to get reliable
+        results, since the basis set superposition error (BSSE) for these correlation
+        methods is significant. \emph{Note added in March 2016: A periodic
+        implementation of MP2 is available but, at the time of writing,
+        computationally extremely expensive. If you decide to use it,
+        please keep in mind that the periodic version is included here
+        as a matter of protocol but is not yet optimized to be fully
+        usable in production calculations.}
+      \item \option{screx} : \emph{experimental!} Self-consistent, screened
+        Hartree-Fock exchange only. The Coulomb operator is screened as:
+        \begin{equation}
+          \frac{1}{r-r^\prime} \rightarrow \frac{1}{\varepsilon(r,r^\prime)}
+          \cdot \frac{1}{r-r^\prime}
+        \end{equation}
+        $\varepsilon(r,r^\prime)$ is the non-local \emph{microscopic}
+        dielectric function, obtained in the $\omega\rightarrow$0 frequency
+        limit of the random-phase approximation (RPA). See Ref. \cite{Hedin65} for
+        details.
+      \item \option{cohsex} : \emph{experimental!} Self-consistent screened
+        exchange plus Coulomb-hole (COH) correlation. See Ref. \cite{Hedin65} for
+        details.
+    \end{itemize}
+  \item Method of non-local correlation using the ``van der Waals
+    density functional'' (vdw-DF) as presented by Dion and coworkers
+    in Ref.~\cite{Dion04}. Two options are available for the exchange
+    part:  
+    \begin{itemize}
+      \item \option{pbe\_vdw} : the functional with pbe exchange
+      \item \option{revpbe\_vdw} : the functional with revpbe exchange
+    \end{itemize}
+    Note that this keyword is \textbf{not} the correction due to
+    Tkatchenko and Scheffler 2009 \cite{TS-vdw}. To activate the
+    Tkatchenko-Scheffler correction instead, use the
+    \keyword{vdw\_correction\_hirshfeld} keyword. The functional by
+    Dion \emph{et al.} is a very different functional. As implemented
+    here, it is also \emph{much} more expensive than the
+    Tkatchenko-Scheffler correction. To use the functional by Dion
+    \emph{et al.}, please review the numerical options described in
+    Sec.~\ref{vdwdf-TKK}. 
+\end{itemize}
+\emph{Note} that our version of the Coulomb operator (which is the basis for
+Hartree-Fock exchange also in hybrid functionals, as well as MP2 theory) is
+based on an auxiliary basis in what is known as \emph{resolution of the
+  identity} (Refs. \cite{Boys59,Alsenoy88,Vahtras93,Eichkorn95} and
+others). While our default settings should be safe, you may
+wish to consult Sec. \ref{Sec:auxil} for particulars regarding this auxiliary
+basis.
+
+\emph{Note also} that some different \emph{perturbative} exchange-correlation
+treatments \emph{for post-processing} (after a self-consistent DFT or HF
+calculation is complete) may be invoked using the tag
+\keyword{total\_energy\_method}. Likewise, perturbative postprocessing for
+single-quasiparticle energies through a self-energy formalism (e.g., $GW$) is
+reached by specifying the \keyword{qpe\_calc} tag and its options.
+
+Right now, the correlated beyond-hybrid and beyond-meta methods are not
+implemented on top of the HSE03 or HSE06 functionals.
+
+\subsubsection*{Subtags for \emph{species} tag in \texttt{control.in}:}
+
+\subkeydefinition{species}{plus\_u}{control.in}
+{
+  \noindent
+  Usage: \subkeyword{species}{plus\_u} \option{n} \option{l} \option{U} \\[1.0ex]
+  Purpose: \emph{Experimental---only for DFT+U.} Adds a +U term to one
+    specific shell of this species. \\[1.0ex] 
+  \option{n} the (integer) radial quantum number of the selected shell. \\
+  \option{l} is a character, specifying the angular momentum (
+    \emph{s}, \emph{p}, \emph{d}, \emph{f}, ...) of the selected shell. \\
+  \option{U} the value of the U parameter, specified in eV. \\
+}
+
+This implementation of DFT+U is based directly on the basis functions available within FHI-aims.
+This option selects one specific \textit{atomic} shell of this species and adds the a rotationally
+invariant term with the specified fixed prefactor U to the Hamiltonian. The implementation follows
+the prescription in Ref.~\cite{Han06}, based on the \textit{dual} occupation numbers. The double
+counting term is handled through the mixed term proposed by Petukhov
+(see \keyword{plus\_u\_petukhov\_mixing}).

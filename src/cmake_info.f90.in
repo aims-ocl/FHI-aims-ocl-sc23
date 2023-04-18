@@ -1,0 +1,91 @@
+!!  COPYRIGHT
+!!
+!!  Max-Planck-Gesellschaft zur Foerderung der Wissenschaften
+!!  e.V. Please note that any use of the "FHI-aims-Software" is
+!!  subject to the terms and conditions of the respective license
+!!  agreement.
+!!
+!!  FUNCTION
+!!
+!!  Print the build configuration of the current instance of FHI-aims.
+!!
+!!  AUTHORS
+!!
+!!  FHI-aims team
+!!
+subroutine cmake_info()
+
+  use localorb_io, only: localorb_multi
+
+  implicit none
+
+  character(:), allocatable :: string, word
+  logical :: link_first_line
+
+  link_first_line = .true.
+
+  call localorb_multi( &
+       & 'Build configuration of the current instance of FHI-aims', &
+       & '-------------------------------------------------------', &
+       & 'FHI-aims version      : ${PROJECT_VERSION}', &
+       & 'Commit number         : ${GIT_SHA1}', &
+       & 'CMake host system     : ${CMAKE_HOST_SYSTEM}', &
+       & 'CMake version         : ${CMAKE_VERSION}', &
+       & 'Fortran compiler      : ${CMAKE_Fortran_COMPILER} &
+       &(${CMAKE_Fortran_COMPILER_ID}) version &
+       &${CMAKE_Fortran_COMPILER_VERSION}', &
+       & 'Fortran compiler flags: ${ALL_Fortran_FLAGS}', &
+       format='(2x, a)')
+  if ('${CMAKE_C_COMPILER}' /= '') &
+       & call localorb_multi( &
+       & 'C compiler            : ${CMAKE_C_COMPILER} &
+       &(${CMAKE_C_COMPILER_ID}) version ${CMAKE_C_COMPILER_VERSION}', &
+       & 'C compiler flags      : ${ALL_C_FLAGS}', &
+       & format='(2x, a)')
+  if ('${CMAKE_CXX_COMPILER_ID}' /= '') &
+       & call localorb_multi( &
+       & 'C++ compiler          : ${CMAKE_CXX_COMPILER} &
+       &(${CMAKE_CXX_COMPILER_ID}) version ${CMAKE_CXX_COMPILER_VERSION}', &
+       & 'C++ compiler flags    : ${ALL_CXX_FLAGS}', &
+       & format='(2x, a)')
+  if ('${CMAKE_CUDA_COMPILER}' /= '') &
+       & call localorb_multi( &
+       & 'CUDA compiler         : ${CMAKE_CUDA_COMPILER}', &
+       & 'CUDA compiler flags   : ${ALL_CUDA_FLAGS}', &
+       & format='(2x, a)')
+  call localorb_multi('Architecture          : ${ARCHITECTURE}', &
+       & format='(2x, a)')
+  if ('${USE_MPI}' == 'ON') &
+       & call localorb_multi('Using MPI', format='(2x, a)')
+  if ('${USE_SCALAPACK}' == 'ON') &
+       & call localorb_multi('Using Scalapack', format='(2x, a)')
+  if ('${USE_C_FILES}' == 'ON') &
+       & call localorb_multi('Using C files', format='(2x, a)')
+  if ('${USE_LIBXC}' == 'ON') &
+       & call localorb_multi('Using LibXC', format='(2x, a)')
+  if ('${USE_CUDA}' == 'ON') &
+       & call localorb_multi('Using CUDA', format='(2x, a)')
+  if ('${USE_CFFI}' == 'ON') &
+       & call localorb_multi('Using CFFI', format='(2x, a)')
+  if ('${USE_SPGLIB}' == 'ON') &
+       & call localorb_multi('Using SPGlib', format='(2x, a)')
+  if ('${USE_iPI}' == 'ON') &
+       & call localorb_multi('Using i-PI', format='(2x, a)')
+  if ('${USE_HDF5}' == 'ON') &
+       & call localorb_multi('Using HDF5', format='(2x, a)')
+  if ('${USE_RLSY}' == 'ON') &
+       & call localorb_multi('Using RLSY', format='(2x, a)')
+  ! Print a list of linked libraries
+  string = '${LIBS_FULL};'
+  do while (index(string,';') > 0)
+     word = string(:index(string,';')-1)
+     if (link_first_line) then
+        call localorb_multi('Linking against: '//word, format='(2x, a)')
+        link_first_line = .false.
+     else
+        call localorb_multi(word, format='(19x, a)')
+     end if
+     string = string(index(string,';')+1:)
+  end do
+  call localorb_multi('')
+end subroutine cmake_info
