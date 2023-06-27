@@ -72,8 +72,6 @@ On other platforms, in order to optimize, you may need to try to adjust paramete
 
 ### Compile
 
-Check out to （没写）branch for specific 。。。。
-
 1. Set `PATH` and `LD_LIBRARY_PATH` for the software and libraries above. We recommend that you package the environment variable design as an `env.sh` for convenience，so that you just need to `source env.sh` later. We provide the examples under `testcases-SC/envs-example/<example-name>/env.sh`.
   
 2. Copy initial_cache.example.cmake as initial_cache.cmake. Modify the `CMAKE_Fortran_COMPILER`, `CMAKE_C_COMPILER`, `CMAKE_Fortran_FLAGS`, `CMAKE_C_FLAGS` options and so on in file based on the your environment. We provide the examples under `testcases-SC/envs-example/<example-name>/initial_cache.cmake`.
