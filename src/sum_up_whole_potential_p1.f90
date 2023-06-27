@@ -1761,7 +1761,7 @@ subroutine sum_up_whole_potential_p1 &
 	  
                   ! add multipole potential gradients to free-atom gradient
                   ! The periodic case is calculated later because it uses both outer and inner atoms.
-                  call far_distance_real_gradient_hartree_potential_single_atom_p2 &
+                  call far_distance_real_gradient_hartree_potential_single_atom_p2_c1 &
                         ( current_spl_atom, dir_tab, &
                         v_hartree_gradient_temp, &
                         l_atom_max )                           

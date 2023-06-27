@@ -214,6 +214,7 @@ endif()
 # contain commands such as enable_language(), which can only be used
 # in the topmost CMakeLists.txt (technically, where the aims target is
 # defined).
+include(DFPT_OpenCL/CMakeLists.txt)
 include(gpu/CMakeLists.txt)
 target_link_libraries(aims PRIVATE ${LIBS})
 # Source files in the root source directory

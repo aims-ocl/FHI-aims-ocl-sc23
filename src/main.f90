@@ -38,7 +38,7 @@
             use json_output, only: open_json_log_file, close_json_log_file, &
                 write_geometry_to_json_log, write_final_output_to_json_log
             use WannierCenters, only: WCC_calc
-            use opencl_util, only: read_opencl_settings, mpi_platform_relative_id, mpi_per_node
+            use opencl_util, only: read_opencl_settings
       
       !  ARGUMENTS
       !  INPUTS
@@ -111,6 +111,7 @@
             !set the global communicator
             use_mpi = mpi_switch
             mpi_comm_global = mpi_comm_input
+
             call get_my_task()
             !set the default output unit
             default_unit = in_unit
@@ -119,6 +120,13 @@
       
             ! call crts_init()
       
+
+            ! read opencl settings
+            call read_opencl_settings()
+            call get_my_task_shmem()
+            mpi_platform_relative_id = mod(myid, mpi_per_node)
+
+
             ! Write Preamble at the beginning of the the output file
             ! E.g. greet the user, uuid identifier, initial_mpi_report, etc.
             call write_preamble()
@@ -155,10 +163,6 @@
             ! call hip_and_hipblas_init()
             ! Initialize GPU, if the user requested it
             if (use_gpu) call initialize_gpu ()
-
-            ! read opencl settings
-            mpi_platform_relative_id = mod(myid, mpi_per_node)
-            ! call read_opencl_settings()
       
             ! Set up all fixed computational quantities:
             ! * Basic integration grid specifications for all species

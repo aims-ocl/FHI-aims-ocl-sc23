@@ -68,8 +68,8 @@ module hartree_potential_storage
   real*8, pointer, public :: rho_multipole_shmem(:,:,:)
   type(C_PTR), public :: rho_multipole_shmem_ptr
   integer, public :: rho_multipole_shmem_win
-  logical, public :: use_rho_multipole_shmem = .true.
-  integer, public :: rho_multipole_tile_size = 2048
+  logical, public :: use_rho_multipole_shmem = .false.
+  integer, public :: rho_multipole_tile_size = 4096
 
   real*8, allocatable, public :: rho_multipole_supercell(:,:,:)
 
@@ -160,7 +160,7 @@ contains
 
     ! ----------------------------------------------------------------
 
-    if (use_rho_multipole_shmem) then
+      if (use_rho_multipole_shmem) then
 
       rho_multipole_shape(1) = (l_pot_max+1)**2
       rho_multipole_shape(2) = n_max_radial+2
@@ -224,7 +224,7 @@ contains
       end if
     end if
 
-    if (myid .eq. 0) print*, "Return initialize_hartree_potential_storage"
+    if (myid .eq. 0) print*, "Finish initialize_hartree_potential_storage"
 
   end subroutine initialize_hartree_potential_storage
   !******

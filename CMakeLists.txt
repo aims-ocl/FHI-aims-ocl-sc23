@@ -95,6 +95,8 @@ option(USE_CFFI "Whether to provide an interface to Python 2 or 3" OFF)
 option(USE_SPGLIB "Whether to compile with Spglib support" ${USE_C_FILES})
 # CUDA
 option(USE_CUDA "Whether to enable GPU acceleration" OFF)
+# OpenCL
+option(USE_OPENCL "Whether to enable OpenCL acceleration" OFF)
 # ELPA_MT
 option(ELPA_MT "Whether to use MPI/OpenMP version of ELPA" OFF)
 # IPC

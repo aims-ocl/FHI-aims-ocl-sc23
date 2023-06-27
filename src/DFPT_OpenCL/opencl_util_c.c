@@ -2,17 +2,22 @@
 #include "pass_mod_var.h"
 #include "save_load_var.h"
 #include "sum_up_whole_potential_shanghui.h"
+#include "cmake_help.h"
 #include <alloca.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+
+
+#define CL_TARGET_OPENCL_VERSION 200
 #ifdef APPLE
 #include <OpenCL/cl.h>
 #else
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
 #endif
+
 
 #undef b0
 #undef b2
@@ -21,11 +26,11 @@
 #undef a_save
 
 extern int MV(mpi_tasks, myid);
-extern int MV(opencl_util, mpi_platform_relative_id);
+extern int MV(mpi_tasks, mpi_platform_relative_id);
 #define myid MV(mpi_tasks, myid)
-#define mpi_platform_relative_id MV(opencl_util, mpi_platform_relative_id)
-#define number_of_files 2
-#define number_of_kernels 4
+#define mpi_platform_relative_id MV(mpi_tasks, mpi_platform_relative_id)
+#define mpi_task_per_gpu MV(mpi_tasks, mpi_task_per_gpu)
+#define mpi_per_node MV(mpi_tasks, mpi_per_node)
 #define DEVICE_ID 0
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
@@ -37,17 +42,24 @@ cl_program program;
 cl_context context;
 cl_command_queue cQ;
 cl_uint numOfPlatforms;
-const char *file_names[] = {"/public/home/aicao/wzk/fhi-aims_MPE_O3_local_index_final/src/DFPT_OpenCL/sum_up.cl", 
-                            "/public/home/aicao/wzk/fhi-aims_MPE_O3_local_index_final/src/DFPT_OpenCL/integrate_first_order_rho.cl"};
+const char *file_names[] = {CURRENT_DIRECTORY "/sum_up.cl", 
+                            CURRENT_DIRECTORY "/integrate_first_order_rho.cl"};
                             // "/public/home/autopar/FHI-aims-test/fhi-aims_MPE_O3_local_index_final/src/DFPT_OpenCL/integration_points.cl"};
 const char *kernel_names[] = {"sum_up_whole_potential_shanghui_sub_t_"
-                              , "integrate_first_order_rho_sub_t_"
-                              , "integrate_first_order_h_sub_t_"
+                              , "integrate_first_order_rho_sub_tmp2_"
+                              , "integrate_first_order_h_sub_tmp2_"
                               , "sum_up_whole_potential_shanghui_pre_proc_"};
                               // "c_integration_points2"};
+
+#define number_of_files (sizeof(file_names) / sizeof(file_names[0]))
+#define number_of_kernels (sizeof(kernel_names) / sizeof(kernel_names[0]))
+
 cl_kernel kernels[number_of_kernels];
 char *buffer[number_of_files];
 size_t sizes[number_of_files];
+
+// const char *buffer[] = {ocl_source_sumup, ocl_source_rho_h};
+// size_t sizes[] = {sizeof(ocl_source_sumup), sizeof(ocl_source_rho_h)};
 
 size_t localSize[] = {128}; // 可能被重新设置 !!!
 size_t globalSize[] = {128 * 128};  // 可能被重新设置 !!!
@@ -244,7 +256,7 @@ typedef struct CL_BUF_SUMUP_T {
   cl_mem valid_point_to_i_full_point;
 } CL_BUF_SUMUP;
 
-CL_BUF_SUMUP cl_buf_sumup[8];
+CL_BUF_SUMUP cl_buf_sumup[16];
 
 #define IF_ERROR_EXIT(cond, err_code, str)                                                                             \
   if (cond) {                                                                                                          \
@@ -272,11 +284,6 @@ CL_BUF_SUMUP cl_buf_sumup[8];
 #define _FWV_(type, var, size, var_out, cl_mem_flag)                                                                    \
   var_out = clCreateBuffer(context, cl_mem_flag, sizeof(type) * (size), var, &error);                       \
   IF_ERROR_EXIT(error != CL_SUCCESS, error, "clCreateBuffer failed");
-
-// #define _EW_(type, var, size)                                                                                          \
-//   error =                                                                                                              \
-//       clEnqueueWriteBuffer(cQ, cl_buf_com.var, CL_TRUE, 0, sizeof(type) * (size), sum_up_param.var, 0, NULL, NULL);    \
-//   IF_ERROR_EXIT(error != CL_SUCCESS, error, "clEnqueueWriteBuffer failed");
 
 #define clSetKernelArgWithCheck(kernel, arg_index, arg_size, arg_value) {\
   cl_int error = clSetKernelArg(kernel, arg_index, arg_size, arg_value); \
@@ -486,6 +493,11 @@ void opencl_init_() {
     return;
   opencl_init_finished = 1;
   cl_int error;
+
+  if(myid == 0){
+    printf("opencl_util_debug_io = %d\n", opencl_util_debug_io);
+  }
+
   // 得到平台数量
   error = clGetPlatformIDs(0, NULL, &numOfPlatforms);
   IF_ERROR_EXIT(error != CL_SUCCESS, error, "Unable to find any OpenCL platforms");
@@ -494,25 +506,29 @@ void opencl_init_() {
   IF_ERROR_EXIT(numOfPlatforms <= platformId, numOfPlatforms, "The selected platformId is out of range");
   error = clGetPlatformIDs(numOfPlatforms, platforms, NULL);
   IF_ERROR_EXIT(error != CL_SUCCESS, error, "Unable to find any OpenCL platforms");
-  // if(myid == 0){
-  //   printf("===================================================\n");
-  //   for(cl_uint i = 0; i < numOfPlatforms; ++i) {
-  //     displayPlatformInfo( platforms[i], CL_PLATFORM_PROFILE, "CL_PLATFORM_PROFILE" );
-  //     displayPlatformInfo( platforms[i], CL_PLATFORM_VERSION, "CL_PLATFORM_VERSION" );
-  //     displayPlatformInfo( platforms[i], CL_PLATFORM_NAME,    "CL_PLATFORM_NAME" );
-  //     displayPlatformInfo( platforms[i], CL_PLATFORM_VENDOR,  "CL_PLATFORM_VENDOR" );
-  //     displayPlatformInfo( platforms[i], CL_PLATFORM_EXTENSIONS, "CL_PLATFORM_EXTENSIONS" );
-  //     // Assume that we don't know how many devices are OpenCL compliant, we locate everything !
-  //     displayDeviceInfo( platforms[i], CL_DEVICE_TYPE_ALL );
-  //     printf("--------------------------------\n");     
-  //   }
-  //   printf("===================================================\n");
-  // }
+  if(myid == 0){
+    printf("===================================================\n");
+    for(cl_uint i = 0; i < numOfPlatforms; ++i) {
+      displayPlatformInfo( platforms[i], CL_PLATFORM_PROFILE, "CL_PLATFORM_PROFILE" );
+      displayPlatformInfo( platforms[i], CL_PLATFORM_VERSION, "CL_PLATFORM_VERSION" );
+      displayPlatformInfo( platforms[i], CL_PLATFORM_NAME,    "CL_PLATFORM_NAME" );
+      displayPlatformInfo( platforms[i], CL_PLATFORM_VENDOR,  "CL_PLATFORM_VENDOR" );
+      displayPlatformInfo( platforms[i], CL_PLATFORM_EXTENSIONS, "CL_PLATFORM_EXTENSIONS" );
+      // Assume that we don't know how many devices are OpenCL compliant, we locate everything !
+      displayDeviceInfo( platforms[i], CL_DEVICE_TYPE_ALL );
+      printf("--------------------------------\n");     
+    }
+    printf("===================================================\n");
+  }
 
   // int device_id = DEVICE_ID;
   // 选择指定平台上的指定设备
   // int device_id = 0;
-  int device_id = mpi_platform_relative_id / 8;
+  int device_id = mpi_platform_relative_id / mpi_task_per_gpu;
+
+  if(myid <= mpi_per_node){
+    printf("rank%d, will choose platform %d, device %d\n", myid, (int)platformId, (int)device_id);
+  }
 
   // 得到选定平台设备数量
   cl_uint numOfDevices = 0;
@@ -537,6 +553,7 @@ void opencl_init_() {
   IF_ERROR_EXIT(error != CL_SUCCESS, error, "Can't create a valid OpenCL context");
   // 读入一个或多个文件，仅文件操作，OpenCL 无关
   loadProgramSource(file_names, number_of_files, buffer, sizes);
+
   // 创建程序对象
   program = clCreateProgramWithSource(context, number_of_files, (const char **)buffer, sizes, &error);
   IF_ERROR_EXIT(error != CL_SUCCESS, error, "Can't create the OpenCL program object");
@@ -554,7 +571,7 @@ void opencl_init_() {
     " -DMACRO_n_centers_integrals=%d -DMACRO_n_max_compute_atoms=%d -DMACRO_n_centers=%d"
     " -DLOCALSIZE_SUM_UP_PRE_PROC=%d", 
     l_pot_max, hartree_fp_function_splines, N_PERIODIC_OR_USE_HARTREE_NON_PERIODIC_EWALD, n_centers_integrals,
-    n_max_compute_atoms, n_centers, localSize_sum_up_pre_proc[0]);
+    n_max_compute_atoms, n_centers, (int)localSize_sum_up_pre_proc[0]);
   if(myid == 0){
 	  printf("clBuildOption=\"%s\"\n", clBuildOption);
     printf("n_periodic = %d, use_hartree_non_periodic_ewald = %d\n", n_periodic, use_hartree_non_periodic_ewald);
@@ -923,7 +940,7 @@ void sum_up_begin() {
 
   cl_int error;
   unsigned int arg_index = 0;
-  unsigned int arg_index_centers_rho_multipole_spl = 0;
+  // unsigned int arg_index_centers_rho_multipole_spl = 0;
   unsigned int arg_index_i_center_begin = 0;
 
   // int i_center_tile_size = n_centers_hartree_potential;
@@ -1025,9 +1042,13 @@ void sum_up_begin() {
   // ----------------------------------------------------------------------------------------
   // ----------------------------------------------------------------------------------------
 
-  // init_opencl_util_mpi_();
   // int vid = 0;
-  int vnum = MV(opencl_util, mpi_task_per_gpu);
+#ifdef S_DEBUG
+  init_opencl_util_mpi_();
+  int vnum = 1;
+#else
+  int vnum = MV(mpi_tasks, mpi_task_per_gpu);
+#endif
 
   #undef n_my_batches_work_sumup
   // #undef n_max_batch_size
@@ -1039,8 +1060,8 @@ void sum_up_begin() {
   #undef Fp_grid_max
   #undef batches_size_sumup
   
-  int i_full_points[8] = {0};
-  int i_valid_points[8] = {0};
+  int i_full_points[16] = {0};
+  int i_valid_points[16] = {0};
 
   for(int vid = 0; vid < vnum; vid++){
 
@@ -1104,7 +1125,7 @@ void sum_up_begin() {
   gettimeofday(&end, NULL);
   time_uses[time_index] = 1000000 * (end.tv_sec - start.tv_sec) + end.tv_usec - start.tv_usec;
   time_infos[time_index++] = "sumup writebuf and setarg";
-  if(myid < 8){
+  if(myid < 8 && opencl_util_debug_io == 1){
     printf("rank%d, %s: %lf seconds\n", myid, time_infos[time_index-1], time_uses[time_index-1]/1000000.0);
     fflush(stdout);
   }
@@ -1156,7 +1177,7 @@ void sum_up_begin() {
       error = clSetKernelArg(kernels[0], arg_index++, sizeof(cl_mem), &cl_buf_sumup[vid].partition_tab_std);
       error = clSetKernelArg(kernels[0], arg_index++, sizeof(cl_mem), &cl_buf_sumup[vid].delta_v_hartree);
       error = clSetKernelArg(kernels[0], arg_index++, sizeof(cl_mem), &cl_buf_sumup[vid].rho_multipole);
-      arg_index_centers_rho_multipole_spl = arg_index+4;
+      // arg_index_centers_rho_multipole_spl = arg_index+4;
       error = clSetKernelArg(kernels[0], arg_index++, sizeof(cl_mem), &cl_buf_com.centers_rho_multipole_spl);
       error = clSetKernelArg(kernels[0], arg_index++, sizeof(cl_mem), &cl_buf_com.centers_delta_v_hart_part_spl);
       error = clSetKernelArg(kernels[0], arg_index++, sizeof(cl_mem), &cl_buf_sumup[vid].adap_outer_radius_sq);
@@ -1208,7 +1229,7 @@ for(int vid = 0; vid < vnum; vid++){
   gettimeofday(&end, NULL);
   time_uses[time_index] = 1000000 * (end.tv_sec - start.tv_sec) + end.tv_usec - start.tv_usec;
   time_infos[time_index++] = "sumup kernel and readbuf";
-  if(myid < 8){
+  if(myid < 8 && opencl_util_debug_io == 1){
     printf("rank%d, %s: %lf seconds, preproc %lf s, main kernel %lf s\n", myid, time_infos[time_index-1], time_uses[time_index-1]/1000000.0,
       time_preproc/1000000.0, time_main_kernel/1000000.0);
     fflush(stdout);
@@ -1273,7 +1294,7 @@ for(int vid = 0; vid < vnum; vid++){
   gettimeofday(&end, NULL);
   time_uses[time_index] = 1000000 * (end.tv_sec - start.tv_sec) + end.tv_usec - start.tv_usec;
   time_infos[time_index++] = "sumup write check file(for debug)";
-  if(myid < 8){
+  if(myid < 8 && opencl_util_debug_io == 1){
     printf("rank%d, %s: %lf seconds\n", myid, time_infos[time_index-1], time_uses[time_index-1]/1000000.0);
     fflush(stdout);
   }
@@ -1323,7 +1344,7 @@ void rho_pass_vars_(
   char save_file_name[64];
   if((myid == 0 || myid == 3) && rho_pass_vars_count <= 1){
     sprintf(save_file_name, "mdata_outer_rank%d_%d.bin", myid, rho_pass_vars_count);
-    m_save_load_rho(save_file_name, 0, 0);
+    m_save_load_rho(save_file_name, 0, 1);
   }
 }
 
@@ -1373,7 +1394,7 @@ void h_pass_vars_(
   char save_file_name[64];
   if((myid == 0 || myid == 3) && H_pass_vars_count <= 4){
     sprintf(save_file_name, "mdata_outer_rank%d_%d.bin", myid, H_pass_vars_count);
-    m_save_load_H(save_file_name, 0, 0);
+    m_save_load_H(save_file_name, 0, 1);
   }
 }
 
@@ -1573,7 +1594,7 @@ void rho_begin(){
   gettimeofday(&end, NULL);
   time_uses[time_index] = 1000000 * (end.tv_sec - start.tv_sec) + end.tv_usec - start.tv_usec;
   time_infos[time_index++] = "rho writebuf and setarg";
-  if(myid < 8){
+  if(myid < 8 && opencl_util_debug_io == 1){
     printf("rank%d, %s: %lf seconds\n", myid, time_infos[time_index-1], time_uses[time_index-1]/1000000.0);
     fflush(stdout);
   }
@@ -1595,7 +1616,7 @@ void rho_begin(){
   gettimeofday(&end, NULL);
   time_uses[time_index] = 1000000 * (end.tv_sec - start.tv_sec) + end.tv_usec - start.tv_usec;
   time_infos[time_index++] = "rho kernel and readbuf";
-  if(myid < 8){
+  if(myid < 8 && opencl_util_debug_io == 1){
     printf("rank%d, %s: %lf seconds\n", myid, time_infos[time_index-1], time_uses[time_index-1]/1000000.0);
     fflush(stdout);
   }
@@ -1654,7 +1675,7 @@ void rho_begin(){
   gettimeofday(&end, NULL);
   time_uses[time_index] = 1000000 * (end.tv_sec - start.tv_sec) + end.tv_usec - start.tv_usec;
   time_infos[time_index++] = "rho write check file(for debug)";
-  if(myid < 8){
+  if(myid < 8 && opencl_util_debug_io == 1){
     printf("rank%d, %s: %lf seconds\n", myid, time_infos[time_index-1], time_uses[time_index-1]/1000000.0);
     fflush(stdout);
   }
@@ -1904,7 +1925,7 @@ void H_begin(){
   gettimeofday(&end, NULL);
   time_uses[time_index] = 1000000 * (end.tv_sec - start.tv_sec) + end.tv_usec - start.tv_usec;
   time_infos[time_index++] = "H writebuf and setarg";
-  if(myid < 8){
+  if(myid < 8 && opencl_util_debug_io == 1){
     printf("rank%d, %s: %lf seconds\n", myid, time_infos[time_index-1], time_uses[time_index-1]/1000000.0);
     fflush(stdout);
   }
@@ -1923,7 +1944,7 @@ void H_begin(){
   gettimeofday(&end, NULL);
   time_uses[time_index] = 1000000 * (end.tv_sec - start.tv_sec) + end.tv_usec - start.tv_usec;
   time_infos[time_index++] = "H kernel and readbuf";
-  if(myid < 8){
+  if(myid < 8 && opencl_util_debug_io == 1){
     printf("rank%d, %s: %lf seconds\n", myid, time_infos[time_index-1], time_uses[time_index-1]/1000000.0);
     fflush(stdout);
   }
@@ -1996,7 +2017,7 @@ void H_begin(){
   gettimeofday(&end, NULL);
   time_uses[time_index] = 1000000 * (end.tv_sec - start.tv_sec) + end.tv_usec - start.tv_usec;
   time_infos[time_index++] = "H write check file(for debug)";
-  if(myid < 8){
+  if(myid < 8 && opencl_util_debug_io == 1){
     printf("rank%d, %s: %lf seconds\n", myid, time_infos[time_index-1], time_uses[time_index-1]/1000000.0);
     fflush(stdout);
   }

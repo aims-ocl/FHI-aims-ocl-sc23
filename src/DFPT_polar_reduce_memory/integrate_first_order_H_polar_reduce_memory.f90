@@ -295,6 +295,8 @@ integer :: ierr, status(MPI_STATUS_SIZE)
 real*8 :: gemm_flop
 real*8 :: time_evaluate, time1
 
+integer :: n_basis_local_actual = 0
+
 ! begin work
 
 
@@ -500,6 +502,7 @@ if(use_batch_permutation > 0) then
     allocate(rho_gradient(3,n_spin,batch_perm(n_bp)%n_full_points))
   endif
 
+  n_basis_local_actual = batch_perm(n_bp)%n_basis_local
   allocate(ins_idx(batch_perm(n_bp)%n_basis_local))
   allocate(ins_idx_all_batches(batch_perm(n_bp)%n_basis_local, n_my_batches_work))
 
@@ -725,7 +728,7 @@ time_evaluate = 0
 
 ! if(myid .eq. 0) then
    call h_pass_vars &
-   ( j_coord, n_spin, l_ylm_max, batch_perm(n_bp)%n_basis_local, n_matrix_size, &
+   ( j_coord, n_spin, l_ylm_max, n_basis_local_actual, n_matrix_size, &
      basis_l_max, n_points_all_batches, n_batch_centers_all_batches, &
      batch_center_all_batches, &
      ins_idx_all_batches, batches_batch_i_basis_h, &

@@ -394,10 +394,11 @@ subroutine sum_up_whole_potential_shanghui_phonon_reduce_memory &
   ! The following averages are only needed in periodic systems
   average_delta_v_hartree_real = 0.d0
 
-  if(myid .eq. 0) print*, "n_periodic, force_new_functional, n_occ_atoms: ", n_periodic, force_new_functional, n_occ_atoms
 
   call mpi_barrier(mpi_comm_world,info) ! Barrier is for correct timing!!!
   time0 = mpi_wtime()
+
+
 
     ! First loop over the grid: We run over the Hartree potential center by center, adding the Hartree
     ! contribution of that atom at each point of the integration grid
@@ -608,7 +609,7 @@ subroutine sum_up_whole_potential_shanghui_phonon_reduce_memory &
 
             else if (dist_tab_sq.lt. adap_outer_radius_sq(current_spl_atom) )then
 
-               ! VB: FIXME - is this correct for the cluster case? any dist_tab_sq should be the right one for the cluster case!
+! VB: FIXME - is this correct for the cluster case? any dist_tab_sq should be the right one for the cluster case!
 
                ! Tabulate distances only for outer part
                dist_tab_out = sqrt(dist_tab_sq)
@@ -634,7 +635,7 @@ subroutine sum_up_whole_potential_shanghui_phonon_reduce_memory &
                      ! With the neutralized energy functional. there is no separate nuclear component to the 
                      ! gradient of the potential here.
                      d_v_hartree_free_d_r = 0.d0
-                  ! v_hartree_gradient_temp =  dir_tab_out(:) * d_v_hartree_free_d_r
+!                     v_hartree_gradient_temp =  dir_tab_out(:) * d_v_hartree_free_d_r
                      v_hartree_gradient_temp = 0.d0
 
                      ! add multipole potential gradients to free-atom gradient
@@ -702,14 +703,6 @@ subroutine sum_up_whole_potential_shanghui_phonon_reduce_memory &
           end do ! loop over atoms
         end if  ! parallel over i_center_spl_atom
       end if ! (( (n_periodic > 0) .or. force_new_functional) .and. i_iter == 1 )
-    end do  ! do i_center = 1, n_centers_hartree_potential, 1
-
-
-    atom_of_splines = 0
-    do i_center = 1, n_centers_hartree_potential, 1
-
-      current_center   = centers_hartree_potential(i_center)
-      current_spl_atom = center_to_atom(current_center)
 
       !
       ! Now follows the real work: Summing the multipole potential, density, and their

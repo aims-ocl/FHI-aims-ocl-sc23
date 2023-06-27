@@ -66,7 +66,6 @@ subroutine evaluate_first_order_DM_polar_reduce_memory(   &
        !call print_ham_cpscf(first_order_ham_polar_reduce_memory_scalapack)
 
       !---(2) evaluate first-order U scalapack
-      !
       call evaluate_first_order_U_polar_reduce_memory_scalapack_cpscf(occ_numbers, KS_eigenvalue, 2)
       ! wyj: [PASS]
       !print *, 'print_U_cpscf'
@@ -74,7 +73,6 @@ subroutine evaluate_first_order_DM_polar_reduce_memory(   &
 
 
       !---(3)  Construct the first-order density matrix (dense, scalapack format)
-      !
       call construct_first_order_dm_polar_reduce_memory_scalapack(occ_numbers) 
       ! wyj: [PASS]
       !print *, 'print_ham_cpscf_2'

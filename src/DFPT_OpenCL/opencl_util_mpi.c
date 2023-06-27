@@ -53,7 +53,7 @@ extern int MV(mpi_tasks, myid);
     MPI_Get_count(&status, mpi_datatype, &count);                                                                      \
     if (_count != count) {                                                                                             \
       printf("rank %d, " #buf " sizeof(datatype)=%d, count=%d, status.count=%d, recv from %d\n", myid,                 \
-             sizeof(datatype), _count, count, rank);                                                                   \
+             (int)sizeof(datatype), _count, count, rank);                                                                   \
       fflush(stdout);                                                                                                  \
       exit(-1);                                                                                                        \
     }                                                                                                                  \
@@ -74,7 +74,7 @@ extern int MV(mpi_tasks, myid);
     MPI_Get_count(&status, mpi_datatype, &count);                                                                      \
     if (_count != count) {                                                                                             \
       printf("rank %d, " #buf " sizeof(datatype)=%d, count=%d, status.count=%d, recv from %d\n", myid,                 \
-             sizeof(datatype), _count, count, rank);                                                                   \
+             (int)sizeof(datatype), _count, count, rank);                                                                   \
       fflush(stdout);                                                                                                  \
       exit(-1);                                                                                                        \
     }                                                                                                                  \
@@ -82,89 +82,61 @@ extern int MV(mpi_tasks, myid);
 
 // version with print
 
-// // 使用 buf2##_size < count 的目的应该是，如果有的值有变化，那么分配新的
-// #define ISEND_RECV(is_send, buf, _count, mpi_datatype, rank, tag, comm, request, buf2, datatype)                       \
-//   if (is_send) {                                                                                                       \
-//     printf("rank %d, send " #buf "\n", myid);                                                                          \
-//     MPI_Send((buf), (_count), (mpi_datatype), (rank), (tag), (comm));                                                  \
-//     printf("rank %d, finish send " #buf "\n", myid);                                                                   \
-//   } else {                                                                                                             \
-//     if (_count <= 0) {                                                                                                 \
-//       printf("rank %d, " #buf2 " count=0\n", myid);                                                                    \
-//       fflush(stdout);                                                                                                  \
-//       exit(-1);                                                                                                        \
-//     }                                                                                                                  \
-//     printf(#buf2 "___sizen=%d, count=%d\n", buf2##___sizen, _count);                                                   \
-//     if (buf2##___sizen < _count) {                                                                                     \
-//       if (buf2 != NULL) {                                                                                              \
-//         free(buf2);                                                                                                    \
-//         if (myid == 0)                                                                                                 \
-//           printf("rank %d, resize " #buf2 " from %d to %d\n", myid, buf2##___sizen, _count);                           \
-//       } else {                                                                                                         \
-//         if (myid == 0)                                                                                                 \
-//           printf("rank %d, new malloc " #buf2 " from %d to %d\n", myid, buf2##___sizen, _count);                       \
-//       }                                                                                                                \
-//       buf2##___sizen = _count;                                                                                         \
-//       buf2 = malloc(sizeof(datatype) * (_count));                                                                      \
-//     }                                                                                                                  \
-//     MPI_Status status;                                                                                                 \
-//     printf("rank %d, recv " #buf2 "\n", myid);                                                                         \
-//     MPI_Recv((buf2), (_count), (mpi_datatype), (rank), (tag), (comm), &status);                                        \
-//     printf("rank %d, finish recv " #buf2 "\n", myid);                                                                  \
-//     int count;                                                                                                         \
-//     MPI_Get_count(&status, mpi_datatype, &count);                                                                      \
-//     printf("rank %d, sizeof(datatype)=%d, count=%d, status.count=%d\n", myid, sizeof(datatype), _count, count);        \
-//   }
+// 使用 buf2##_size < count 的目的应该是，如果有的值有变化，那么分配新的
+#define ISEND_RECV_D(is_send, buf, _count, mpi_datatype, rank, tag, comm, request, buf2, datatype)                       \
+  if (is_send) {                                                                                                       \
+    printf("rank %d, send " #buf "\n", myid);                                                                          \
+    MPI_Send((buf), (_count), (mpi_datatype), (rank), (tag), (comm));                                                  \
+    printf("rank %d, finish send " #buf "\n", myid);                                                                   \
+  } else {                                                                                                             \
+    if (_count <= 0) {                                                                                                 \
+      printf("rank %d, " #buf2 " count=0\n", myid);                                                                    \
+      fflush(stdout);                                                                                                  \
+      exit(-1);                                                                                                        \
+    }                                                                                                                  \
+    printf(#buf2 "___sizen=%d, count=%d\n", buf2##___sizen, _count);                                                   \
+    if (buf2##___sizen < _count) {                                                                                     \
+      if (buf2 != NULL) {                                                                                              \
+        free(buf2);                                                                                                    \
+        if (myid == 0)                                                                                                 \
+          printf("rank %d, resize " #buf2 " from %d to %d\n", myid, buf2##___sizen, _count);                           \
+      } else {                                                                                                         \
+        if (myid == 0)                                                                                                 \
+          printf("rank %d, new malloc " #buf2 " from %d to %d\n", myid, buf2##___sizen, _count);                       \
+      }                                                                                                                \
+      buf2##___sizen = _count;                                                                                         \
+      buf2 = malloc(sizeof(datatype) * (_count));                                                                      \
+    }                                                                                                                  \
+    MPI_Status status;                                                                                                 \
+    printf("rank %d, recv " #buf2 "\n", myid);                                                                         \
+    MPI_Recv((buf2), (_count), (mpi_datatype), (rank), (tag), (comm), &status);                                        \
+    printf("rank %d, finish recv " #buf2 "\n", myid);                                                                  \
+    int count;                                                                                                         \
+    MPI_Get_count(&status, mpi_datatype, &count);                                                                      \
+    printf("rank %d, sizeof(datatype)=%d, count=%d, status.count=%d\n", myid, (int)sizeof(datatype), _count, count);        \
+  }
 
-// #define ISEND_RECV2(is_send, buf, _count, mpi_datatype, rank, tag, comm, request, buf2, datatype)                       \
-//   if (is_send) {                                                                                                       \
-//     printf("rank %d, send " #buf "\n", myid);                                                                          \
-//     MPI_Send((buf), (_count), (mpi_datatype), (rank), (tag), (comm));                                                  \
-//     printf("rank %d, finish send " #buf "\n", myid);                                                                   \
-//   } else {                                                                                                             \
-//     if (_count <= 0) {                                                                                                 \
-//       printf("rank %d, " #buf2 " count=0\n", myid);                                                                    \
-//       fflush(stdout);                                                                                                  \
-//       exit(-1);                                                                                                        \
-//     }                                                                                                                  \
-//     printf(#buf2 "___sizen=%d, count=%d\n", buf2##___sizen, _count);                                                   \
-//     MPI_Status status;                                                                                                 \
-//     printf("rank %d, recv " #buf2 "\n", myid);                                                                         \
-//     MPI_Recv((buf2), (_count), (mpi_datatype), (rank), (tag), (comm), &status);                                        \
-//     printf("rank %d, finish recv " #buf2 "\n", myid);                                                                  \
-//     int count;                                                                                                         \
-//     MPI_Get_count(&status, mpi_datatype, &count);                                                                      \
-//     printf("rank %d, sizeof(datatype)=%d, count=%d, status.count=%d\n", myid, sizeof(datatype), _count, count);        \
-//   }
+#define ISEND_RECV2_D(is_send, buf, _count, mpi_datatype, rank, tag, comm, request, buf2, datatype)                       \
+  if (is_send) {                                                                                                       \
+    printf("rank %d, send " #buf "\n", myid);                                                                          \
+    MPI_Send((buf), (_count), (mpi_datatype), (rank), (tag), (comm));                                                  \
+    printf("rank %d, finish send " #buf "\n", myid);                                                                   \
+  } else {                                                                                                             \
+    if (_count <= 0) {                                                                                                 \
+      printf("rank %d, " #buf2 " count=0\n", myid);                                                                    \
+      fflush(stdout);                                                                                                  \
+      exit(-1);                                                                                                        \
+    }                                                                                                                  \
+    printf(#buf2 "___sizen=%d, count=%d\n", buf2##___sizen, _count);                                                   \
+    MPI_Status status;                                                                                                 \
+    printf("rank %d, recv " #buf2 "\n", myid);                                                                         \
+    MPI_Recv((buf2), (_count), (mpi_datatype), (rank), (tag), (comm), &status);                                        \
+    printf("rank %d, finish recv " #buf2 "\n", myid);                                                                  \
+    int count;                                                                                                         \
+    MPI_Get_count(&status, mpi_datatype, &count);                                                                      \
+    printf("rank %d, sizeof(datatype)=%d, count=%d, status.count=%d\n", myid, (int)sizeof(datatype), _count, count);        \
+  }
 
-// #define ISEND_RECV2(is_send, buf, _count, mpi_datatype, rank, tag, comm, request, buf2, datatype)                      \
-//   if (is_send) {                                                                                                       \
-//     MPI_Send((buf), (_count), (mpi_datatype), (rank), (tag), (comm));                                                  \
-//   } else {                                                                                                             \
-//     if (_count <= 0) {                                                                                                 \
-//       printf("rank %d, " #buf " count=0\n", myid);                                                                     \
-//       fflush(stdout);                                                                                                  \
-//       exit(-1);                                                                                                        \
-//     }                                                                                                                  \
-//     MPI_Status status;                                                                                                 \
-//     MPI_Recv((buf2), (_count), (mpi_datatype), (rank), (tag), (comm), &status);                                        \
-//     int count;                                                                                                         \
-//     MPI_Get_count(&status, mpi_datatype, &count);                                                                      \
-//     printf("rank %d, sizeof(datatype)=%d, count=%d, status.count=%d\n", myid, sizeof(datatype), _count, count);        \
-//   }
-
-// #define ISEND_RECV(is_send, buf, count, datatype, rank, tag, comm, request, buf2)                                      \
-//   if (is_send) {                                                                                                       \
-//     MPI_Isend((buf), (count), (datatype), (rank), (tag), (comm), (request));                                           \
-//   } else {                                                                                                             \
-//     if (buf2##_size < count) {                                                                                         \
-//       if (buf2 != NULL) {                                                                                              \
-//         free(buf2);                                                                                                    \
-//       }                                                                                                                \
-//       buf2 = malloc(sizeof(datatype) * (count));                                                                       \
-//     }                                                                                                                  \
-//     MPI_Irecv((buf2), (count), (datatype), (rank), (tag), (comm), (request));                                          \
-//   }
 
 
 // void opencl_util_mpi_vars_default_(int* is_send, int* send_or_recv_rank) {
@@ -174,10 +146,10 @@ extern int MV(mpi_tasks, myid);
 
 void opencl_util_mpi_vars(OCL_UTIL_VARS* ocl_util_vars, int is_send, int send_or_recv_rank) {
   MPI_Request *request = (MPI_Request *)malloc(sizeof(MPI_Request) * 1024);
-  int request_count = 0;
-  int int_vars[1024]; // WARNING 1024 随便写的
+  // int request_count = 0;
+  int int_vars[1024] = {0}; // WARNING 1024 随便写的
   int int_vars_count = 0;
-  double double_vars[1024]; // WARNING 1024 随便写的
+  double double_vars[1024] = {0}; // WARNING 1024 随便写的
   int double_vars_count = 0;
   // dimensions
 
@@ -344,7 +316,7 @@ void opencl_util_mpi_arrays_(OCL_UTIL_VARS* ocl_util_vars, int is_send, int send
   MPI_Request *request = (MPI_Request *)malloc(sizeof(MPI_Request) * 1024);
   // MPI_Status *status = (MPI_Status *)malloc(sizeof(MPI_Status) * 1024);
 
-  int request_count = 0;
+  // int request_count = 0;
   int mpi_tag_num = 5544;
 
   // sumup batch
@@ -382,7 +354,7 @@ void opencl_util_mpi_arrays_results_(OCL_UTIL_VARS* ocl_util_vars, int is_send, 
   MPI_Request *request = (MPI_Request *)malloc(sizeof(MPI_Request) * 1024);
   // MPI_Status *status = (MPI_Status *)malloc(sizeof(MPI_Status) * 1024);
 
-  int request_count = 0;
+  // int request_count = 0;
   int mpi_tag_num = 6544;
 
   ISEND_RECV2(is_send, ocl_util_vars->delta_v_hartree, ocl_util_vars->n_full_points_work_sumup, MPI_DOUBLE, send_or_recv_rank, mpi_tag_num++, MPI_COMM_WORLD, &request[request_count++], ocl_util_vars->delta_v_hartree, double);
@@ -398,8 +370,8 @@ void opencl_util_mpi_arrays_results_(OCL_UTIL_VARS* ocl_util_vars, int is_send, 
 // #include <hip/hip_profile.h>
 // #include <hip/hip_runtime.h>
 
-// extern int MV(opencl_util, mpi_platform_relative_id);
-// #define mpi_platform_relative_id MV(opencl_util, mpi_platform_relative_id)
+// extern int MV(mpi_tasks, mpi_platform_relative_id);
+// #define mpi_platform_relative_id MV(mpi_tasks, mpi_platform_relative_id)
 // void hip_and_hipblas_init_(){
 //   hipSetDevice(mpi_platform_relative_id / 8);
 //   hipDeviceReset();

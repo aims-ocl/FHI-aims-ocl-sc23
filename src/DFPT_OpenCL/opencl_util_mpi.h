@@ -197,7 +197,7 @@ typedef struct OCL_UTIL_VARS_T {
   int valid_point_to_i_full_point___sizen;
 } OCL_UTIL_VARS;
 
-extern OCL_UTIL_VARS ocl_util_vars_all[8];
+extern OCL_UTIL_VARS ocl_util_vars_all[16];
 
 void set_ocl_util_vars_single(
   OCL_UTIL_VARS* ocl_util_vars,

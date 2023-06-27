@@ -3712,7 +3712,7 @@ end subroutine get_set_full_local_matrix_scalapack_cpscf
     allocate(i_basis_local(n_basis_local))
     i_basis_local(:) = i_basis_local_full(:)
     n_local_matrix_size = n_basis_local*(n_basis_local+1)/2
-
+    if(myid .le. 1) print*, "==================", "myid=", myid, " n_basis_local=", n_basis_local, " n_local_matrix_size=", n_local_matrix_size
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !                               Receiving Data                                 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -13032,6 +13032,7 @@ end subroutine check_ev_orthogonality_complex
     real*8, allocatable :: tmp_1(:,:)
     real*8, allocatable :: tmp_C1(:,:)
     real*8, allocatable :: tmp_U(:,:)
+    real*8 :: time1
 
     ! The work in this routine must be done only on the working set
     if(my_scalapack_id>=npcol*nprow) return
@@ -13086,6 +13087,7 @@ end subroutine check_ev_orthogonality_complex
         if(myid .eq. 0) then
             print*, "pdgemm, c_dm1, myid=", myid, ", N, N, n_basis=", n_basis, ", n_states_k=", n_states_k, ", n_states_k=", n_states_k
         endif
+        time1 = mpi_wtime()
         call pdgemm("N","N",n_basis, n_states_k, n_states_k, &  ! transa, transb, m, n, k
                     1.0d0, tmp_C,  1, 1, sc_desc,      &  ! alpha, a, ia, ja, desc_a
                            tmp_U, 1, 1, sc_desc,      &  !        b, ib, jb, desc_b
@@ -13097,8 +13099,10 @@ end subroutine check_ev_orthogonality_complex
 
         tmp_1 = 0.0d0
         if(myid .eq. 0) then
+            print*, "pdgemm, c_dm1, myid=", myid, ", time=", mpi_wtime() - time1
             print*, "pdgemm, c_dm2, myid=", myid, ", N, T, n_basis=", n_basis, ", n_basis=", n_basis, ", max_occ_number=", max_occ_number
         endif
+        time1 = mpi_wtime()
         call pdgemm("N","T",n_basis, n_basis, max_occ_number, &  ! transa, transb, m, n, k
                     1.0d0, tmp_C1,  1, 1, sc_desc,      &  ! alpha, a, ia, ja, desc_a
                            tmp_C_occ, 1, 1, sc_desc,      &  !        b, ib, jb, desc_b
@@ -13113,8 +13117,10 @@ end subroutine check_ev_orthogonality_complex
 
         tmp_1 = 0.0d0
         if(myid .eq. 0) then
+            print*, "pdgemm, c_dm2, myid=", myid, ", time=", mpi_wtime() - time1
             print*, "pdgemm, c_dm3, myid=", myid, ", N, T, n_basis=", n_basis, ", n_basis=", n_basis, ", max_occ_number=", max_occ_number
         endif
+        time1 = mpi_wtime()
         call pdgemm("N","T",n_basis, n_basis, max_occ_number, &  ! transa, transb, m, n, k
                     1.0d0, tmp_C_occ,  1, 1, sc_desc,      &  ! alpha, a, ia, ja, desc_a
                            tmp_C1, 1, 1, sc_desc,      &  !        b, ib, jb, desc_b
@@ -13123,7 +13129,9 @@ end subroutine check_ev_orthogonality_complex
       !               1.0d0, tmp_C_occ,  1, 1, sc_desc,      &  ! alpha, a, ia, ja, desc_a
       !                      tmp_C1, 1, 1, sc_desc,      &  !        b, ib, jb, desc_b
       !               0.0d0, tmp_1,  1, 1, sc_desc)         ! beta,  c, ic, jc, desc_c
-
+        if(myid .eq. 0) then
+            print*, "pdgemm, c_dm3, myid=", myid, ", time=", mpi_wtime() - time1
+        endif
         first_order_ham_polar_reduce_memory_scalapack(:,:,i_spin) = &
         first_order_ham_polar_reduce_memory_scalapack(:,:,i_spin) + tmp_1(:,:)
 
@@ -13443,6 +13451,7 @@ end subroutine check_ev_orthogonality_complex
     real*8, allocatable :: tmp_C(:,:)
     real*8, allocatable :: tmp_H1(:,:)
     real*8, allocatable :: tmp_1(:,:)
+    real*8 :: time1
 
 ! -- Debug begin--
 !    external  PDLAPRNT
@@ -13505,6 +13514,7 @@ end subroutine check_ev_orthogonality_complex
         if(myid .eq. 0) then
             print*, "pdgemm, U1, myid=", myid, ", T, N, n_states_k=", n_states_k, ", n_basis=", n_basis, ", n_basis=", n_basis
         endif
+        time1 = mpi_wtime() 
         call pdgemm("T","N",n_states_k, n_basis, n_basis, &  ! transa, transb, m, n, k
                     1.0d0, tmp_C,  1, 1, sc_desc,      &  ! alpha, a, ia, ja, desc_a
                            tmp_H1 , 1, 1, sc_desc,      &  !        b, ib, jb, desc_b
@@ -13518,8 +13528,10 @@ end subroutine check_ev_orthogonality_complex
     !call print_ham_cpscf(tmp_1)
        tmp_H1 = 0.0d0
         if(myid .eq. 0) then
+            print*, "pdgemm, U1, myid=", myid, ", time=", mpi_wtime() - time1
             print*, "pdgemm, U2, myid=", myid, ", N, T, n_states_k=", n_states_k, ", n_states_k=", n_states_k, ", n_basis=", n_basis
         endif
+       time1 = mpi_wtime() 
        call pdgemm("N","N",n_states_k, n_states_k, n_basis, &  ! transa, transb, m, n, k
                    1.0d0, tmp_1,  1, 1, sc_desc,      &  ! alpha, a, ia, ja, desc_a
                           tmp_C, 1, 1, sc_desc,      &  !        b, ib, jb, desc_b
@@ -13528,7 +13540,9 @@ end subroutine check_ev_orthogonality_complex
       !              1.0d0, tmp_1,  1, 1, sc_desc,      &  ! alpha, a, ia, ja, desc_a
       !                     tmp_C, 1, 1, sc_desc,      &  !        b, ib, jb, desc_b
       !              0.0d0, tmp_H1,  1, 1, sc_desc)        ! beta,  c, ic, jc, desc_c
-
+        if(myid .eq. 0) then
+            print*, "pdgemm, U2, myid=", myid, ", time=", mpi_wtime() - time1
+        endif
     ! wyj: TODO debug
     !print *, myid, '1*C=tmp_H1='
     !call print_ham_cpscf(tmp_H1)

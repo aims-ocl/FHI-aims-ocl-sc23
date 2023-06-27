@@ -418,6 +418,8 @@
 
       update_hartree_potential_p1_counter = 0
 
+  if(myid .le. 1) print*, "==================", "myid=", myid, " n_hamiltonian_matrix_size=", n_hamiltonian_matrix_size
+
 !===============================================================================
 !=                          BEGIN SELF-CONSISTENCY LOOP                        =
 !===============================================================================

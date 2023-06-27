@@ -228,6 +228,8 @@ subroutine integrate_first_order_rho_polar_reduce_memory &
   real*8 :: gemm_flop
   real*8 :: time_evaluate, time1
 
+  integer :: n_basis_local_actual = 0
+
   ! begin work
 
   n_bp = use_batch_permutation
@@ -329,7 +331,7 @@ subroutine integrate_first_order_rho_polar_reduce_memory &
     partition_tab => batch_perm(n_bp)%partition_tab
 
 
-
+    n_basis_local_actual = batch_perm(n_bp)%n_basis_local
     allocate(ins_idx(batch_perm(n_bp)%n_basis_local))
     allocate(ins_idx_all_batches(batch_perm(n_bp)%n_basis_local, n_my_batches_work))
 
@@ -514,7 +516,7 @@ subroutine integrate_first_order_rho_polar_reduce_memory &
 
 ! if(myid .eq. 0) then
   call rho_pass_vars( &
-    l_ylm_max, batch_perm(n_bp)%n_local_matrix_size, batch_perm(n_bp)%n_basis_local,&
+    l_ylm_max, batch_perm(n_bp)%n_local_matrix_size, n_basis_local_actual,&
     batch_perm(n_bp)%n_full_points, first_order_density_matrix_size,&
     basis_l_max, n_points_all_batches,&
     n_batch_centers_all_batches, batch_center_all_batches,&
@@ -525,10 +527,6 @@ subroutine integrate_first_order_rho_polar_reduce_memory &
 ! endif
 
 if((use_c_version .or. use_opencl_version) .and. opencl_rho_fortran_init .and. use_rho_c_cl_version .and. opencl_util_init) then
-  if(n_bp <= 0) then
-    print*, "The opencl version of rho can only be used while use_local_index and load_balancing are true!"
-    stop
-  endif
   tag = 10203
   count = 1
   ! mpi_platform_relative_id = myid / mpi_platform_num
@@ -703,7 +701,7 @@ else
               ! without any copying and without doing any unnecessary operations.
               ! The price is that the interface is no longer explicit in terms of physical
               ! objects. See shrink_fixed_basis() for details regarding the reorganized spline arrays.
-time2 = mpi_wtime()
+              time2 = mpi_wtime()
               call prune_radial_basis_p2 &
                    ( n_max_compute_atoms, n_max_compute_fns_ham, &
                      dist_tab_sq(1,i_point), dist_tab(1,i_point), dir_tab(1,1,i_point), &
@@ -716,28 +714,28 @@ time2 = mpi_wtime()
                      fn_atom, n_zero_compute, zero_index_point &
                     )
 
-time_f(4) = time_f(4) + (mpi_wtime() - time2)
-time2 = mpi_wtime()  
+              time_f(4) = time_f(4) + (mpi_wtime() - time2)
+              time2 = mpi_wtime()  
               ! Tabulate distances, unit vectors, and inverse logarithmic grid units
               ! for all atoms which are actually relevant
               call tab_local_geometry_p2 &
                    ( n_compute_atoms, atom_index, &
                      dist_tab(1,i_point), i_r )
-time_f(5) = time_f(5) + (mpi_wtime() - time2)
-time2 = mpi_wtime()
+              time_f(5) = time_f(5) + (mpi_wtime() - time2)
+              time2 = mpi_wtime()
               ! compute trigonometric functions of spherical coordinate angles
               ! of current integration point, viewed from all atoms
               call tab_trigonom_p0 &
                    ( n_compute_atoms, dir_tab(1,1,i_point), trigonom_tab )
-time_f(6) = time_f(6) + (mpi_wtime() - time2)
-time2 = mpi_wtime()
+              time_f(6) = time_f(6) + (mpi_wtime() - time2)
+              time2 = mpi_wtime()
 
                 call tab_wave_ylm_p0 &
                    ( n_compute_atoms, atom_index,  &
                    trigonom_tab, basis_l_max,  &
                    l_ylm_max, ylm_tab )
-time_f(7) = time_f(7) + (mpi_wtime() - time2)
-time2 = mpi_wtime()
+              time_f(7) = time_f(7) + (mpi_wtime() - time2)
+              time2 = mpi_wtime()
               ! Now evaluate radial functions
               ! from the previously stored compressed spline arrays
               call evaluate_radial_functions_p0  &
@@ -747,8 +745,8 @@ time2 = mpi_wtime()
                    atom_index, i_basis_fns_inv,  &
                    basis_wave_ordered, radial_wave,  &
                    .false. , n_compute_c, n_max_compute_fns_ham )
-time_f(8) = time_f(8) + (mpi_wtime() - time2)
-time2 = mpi_wtime()
+              time_f(8) = time_f(8) + (mpi_wtime() - time2)
+              time2 = mpi_wtime()
               ! tabulate total wave function value for each basis function
               call evaluate_waves_p2  &
                    ( n_compute_c, n_compute_atoms, n_compute_fns, &
@@ -757,8 +755,8 @@ time2 = mpi_wtime()
                      rad_index, wave_index, l_index, l_count, fn_atom, &
                      n_zero_compute, zero_index_point &
                    )
-time_f(9) = time_f(9) + (mpi_wtime() - time2)
-time2 = mpi_wtime()
+              time_f(9) = time_f(9) + (mpi_wtime() - time2)
+              time2 = mpi_wtime()
 
 
 

@@ -20,6 +20,7 @@
       use debugmanager, only: module_is_debugged, debugprint
       use mpi_tasks, only: myid
       use runtime_choices, only: sc_iter_limit
+      use hartree_potential_storage, only: use_rho_multipole_shmem
       implicit none
 
 !  ARGUMENTS
@@ -300,6 +301,8 @@
         do i_atom=1,n_atoms
            do i_coord=1,3
 
+        if (use_rho_multipole_shmem) then
+
         call update_hartree_potential_p2_shanghui &
             ( hartree_partition_tab,first_order_rho(i_coord,i_atom,1:n_full_points),& 
             delta_v_hartree_part_at_zero, &
@@ -307,6 +310,16 @@
             multipole_moments, multipole_radius_sq, &
             l_hartree_max_far_distance, &
             outer_potential_radius )
+        
+        else
+        call update_hartree_potential_p2_shanghui_no_shmem &
+            ( hartree_partition_tab,first_order_rho(i_coord,i_atom,1:n_full_points),& 
+            delta_v_hartree_part_at_zero, &
+            delta_v_hartree_deriv_l0_at_zero, &
+            multipole_moments, multipole_radius_sq, &
+            l_hartree_max_far_distance, &
+            outer_potential_radius )
+        endif
 
         !-------shanghui begin debug_mode------
        if (module_is_debugged("DFPT")) then
@@ -437,6 +450,7 @@
        do i_atom=1,n_atoms
            do i_coord=1,3
  
+        if (use_rho_multipole_shmem) then
         call update_hartree_potential_p2_shanghui &
             ( hartree_partition_tab,first_order_rho_moving_grid(i_coord,i_atom,1:n_full_points),& 
             delta_v_hartree_part_at_zero, &
@@ -444,6 +458,15 @@
             multipole_moments, multipole_radius_sq, &
             l_hartree_max_far_distance, &
             outer_potential_radius )
+        else
+        call update_hartree_potential_p2_shanghui_no_shmem &
+            ( hartree_partition_tab,first_order_rho_moving_grid(i_coord,i_atom,1:n_full_points),& 
+            delta_v_hartree_part_at_zero, &
+            delta_v_hartree_deriv_l0_at_zero, &
+            multipole_moments, multipole_radius_sq, &
+            l_hartree_max_far_distance, &
+            outer_potential_radius )
+        endif
 
         call sum_up_whole_potential_p2_shanghui &
                 ( delta_v_hartree_part_at_zero, &

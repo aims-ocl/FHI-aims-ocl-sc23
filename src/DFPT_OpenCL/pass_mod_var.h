@@ -169,10 +169,11 @@ extern int *MV(opencl_util, batches_batch_i_basis_h);   // (n_centers_basis_I, n
 extern double *MV(opencl_util,
                   batches_points_coords_h); // (3, n_max_batch_size, n_my_batches_work) // 进程间不同 // TODO
 
-extern int MV(opencl_util, mpi_platform_relative_id);
-extern int MV(opencl_util, mpi_per_node);
-extern int MV(opencl_util, mpi_task_per_gpu);
+extern int MV(mpi_tasks, mpi_platform_relative_id);
+extern int MV(mpi_tasks, mpi_per_node);
+extern int MV(mpi_tasks, mpi_task_per_gpu);
 extern int MV(opencl_util, max_n_batch_centers);
+extern int MV(opencl_util, debug_io);
 
 // ------
 
@@ -293,10 +294,8 @@ extern int MV(opencl_util, max_n_batch_centers);
 // #define batches_size_s(i) MV(opencl_util, batches_size_s)[(i)-1]
 // #define batches_batch_n_compute_s(i) MV(opencl_util, batches_batch_n_compute_s)[(i)-1]
 // #define batches_batch_i_basis_s(i, j) MV(opencl_util, batches_batch_i_basis_s)[(i)-1 + n_centers_basis_I * ((j)-1)]
-// #define batches_points_coords_s(i, j, k) \
-//   MV(opencl_util, batches_points_coords_s)[(((k)-1) * n_max_batch_size + (j)-1) * 3 + (i)-1]
-// #define batches_points_coords_mc_s(i, j, k) \
-//   MV(opencl_util, batches_points_coords_mc_s)[(((k)-1) * n_max_batch_size + (j)-1) * 3 + (i)-1]
+// #define batches_points_coords_s(i, j, k) MV(opencl_util, batches_points_coords_s)[(((k)-1) * n_max_batch_size + (j)-1) * 3 + (i)-1]
+// #define batches_points_coords_mc_s(i, j, k) MV(opencl_util, batches_points_coords_mc_s)[(((k)-1) * n_max_batch_size + (j)-1) * 3 + (i)-1]
 
 #define ctrl_use_opencl_version MV(opencl_util, use_opencl_version)
 #define ctrl_use_sumup_pre_c_cl_version MV(opencl_util, use_sumup_pre_c_cl_version)
@@ -330,6 +329,8 @@ extern int MV(opencl_util, max_n_batch_centers);
 #define outer_potential_radius(i, j) outer_potential_radius[(((j)-1) * (l_pot_max + 1)) + (i)]
 
 #define Fp(i, j) Fp[((j)-1) * (l_pot_max + 2) + (i)] // info 没有减 1，因为从 0 开始数 // TODO 验证大小
+
+#define opencl_util_debug_io MV(opencl_util, debug_io)
 // ------
 
 typedef struct SUM_UP_PARAM_T {

@@ -488,7 +488,7 @@ void prune_density_matrix_sparse_polar_reduce_memory(double *density_matrix_spar
       density_matrix_con[j_compute + i_compute * n_compute] = 0.0;
     }
   }
-  int i_index_real;
+  int i_index_real = 0;
   for (int i_compute = 0; i_compute < n_compute; i_compute++) {
     int i_basis = i_basis_index[i_compute];
     int i_start = index_hamiltonian(1, 1, i_basis);
@@ -675,7 +675,7 @@ void evaluate_first_order_h_polar_reduce_memory_c_(
 #include "pass_mod_var.h"
 #include "opencl_util_c.h"
 static int rho_c_count = -1;
-void integrate_first_order_rho_sub_t_(
+void integrate_first_order_rho_sub_tmp2_(
     int *l_ylm_max_,
     int *n_local_matrix_size_, // 仅适用于使用了 local_index 且实际使用 ins_idx 转换矩阵的版本
     int *n_basis_local_, // 仅适用于使用了 local_index 且实际使用 ins_idx 转换矩阵的版本
@@ -878,7 +878,7 @@ void integrate_first_order_rho_sub_t_(
 #undef batch_point_to_i_full_point
 }
 
-void integrate_first_order_h_sub_t_(
+void integrate_first_order_h_sub_tmp2_(
   int* j_coord_,
   int* n_spin_,
   int* l_ylm_max_,

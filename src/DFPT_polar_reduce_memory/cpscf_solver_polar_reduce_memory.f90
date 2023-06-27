@@ -57,8 +57,8 @@
 
       use mpi_utilities
 
-      use opencl_util, only: opencl_util_init, load_balance_finished, use_rho_c_cl_version, use_sumup_c_cl_version, use_sumup_pre_c_cl_version, use_h_c_cl_version
-
+      use opencl_util, only: opencl_util_init, load_balance_finished, use_opencl
+      use hartree_potential_storage, only: use_rho_multipole_shmem
       implicit none
 
 !  ARGUMENTS
@@ -181,7 +181,7 @@
      write(use_unit,*) "-------------------------------------------------------------------------------"
      endif
 
-     if (use_rho_c_cl_version .or. use_sumup_c_cl_version .or. use_sumup_pre_c_cl_version .or. use_h_c_cl_version) then
+     if (use_opencl) then
         call opencl_init()
      endif
 
@@ -639,6 +639,7 @@
 
            time1 = mpi_wtime()
 
+        if (use_rho_multipole_shmem) then
            call update_hartree_potential_p2_shanghui &
                ( hartree_partition_tab,first_order_total_rho(1:n_full_points),& 
                delta_v_hartree_part_at_zero, &
@@ -646,6 +647,15 @@
                multipole_moments, multipole_radius_sq, &
                l_hartree_max_far_distance, &
                outer_potential_radius )
+        else
+           call update_hartree_potential_p2_shanghui_no_shmem &
+               ( hartree_partition_tab,first_order_total_rho(1:n_full_points),& 
+               delta_v_hartree_part_at_zero, &
+               delta_v_hartree_deriv_l0_at_zero, &
+               multipole_moments, multipole_radius_sq, &
+               l_hartree_max_far_distance, &
+               outer_potential_radius )
+        endif
 
            time_c = mpi_wtime() - time1
            if(myid .eq. 0) print*, "myid=", myid, " time of update_hartree_potential_p2_shanghui = ", time_c

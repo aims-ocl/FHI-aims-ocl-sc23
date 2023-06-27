@@ -136,7 +136,7 @@ my_mkl = /public/software/compiler/intel/oneapi/mkl/2021.3.0
 LAPACKBLAS = -I$(my_mkl)/include/intel64/lp64 -L$(my_mkl)/lib/intel64 \
                -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread
 # SCALAPACK = -L/public/home/aicao/wzk/fhi-aims_MPE_O3_local_index_final/hipscalapack -lhipscalapack -L/public/home/aicao/wzk/local/lib -lscalapack -lm
-SCALAPACK = -L/public/home/aicao/wzk/local/lib -lscalapack -lm
+# SCALAPACK = -L/public/home/aicao/wzk/local/lib -lscalapack -lm
 
 
 
@@ -146,8 +146,8 @@ SCALAPACK = -L/public/home/aicao/wzk/local/lib -lscalapack -lm
 # my_mkl = /public/software/compiler/intel/intel-compiler-2017.5.239/mkl
 # LAPACKBLAS = -I$(my_mkl)/include/intel64/lp64 -L$(my_mkl)/lib/intel64_lin \
 # -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread
-# SCALAPACK = -I$(my_mkl)/include/intel64/lp64 -L$(my_mkl)/lib/intel64_lin \
-# -lmkl_blacs_intelmpi_lp64 -lmkl_scalapack_lp64 -lm
+SCALAPACK = -I$(my_mkl)/include/intel64/lp64 -L$(my_mkl)/lib/intel64_lin \
+-lmkl_blacs_intelmpi_lp64 -lmkl_scalapack_lp64 -lm
 
 # SCALAPACK = -L/public/home/aicao/wzk/fhi-aims_MPE_O3_local_index_final/hipscalapack -lhipscalapack
 

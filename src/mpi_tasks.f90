@@ -23,6 +23,11 @@
       integer :: shm_per0_comm
       integer :: shm_per0_num_of_rank = -1
 
+      integer :: mpi_platform_relative_id = 0
+      integer :: mpi_per_node = 1
+      integer :: mpi_task_per_gpu = 0
+      integer :: mpi_gpu_per_node = 0
+
       integer :: kpt_comm   ! One alternative communicator for possible
                             ! restriction of communication to k-point
                             ! carrying tasks only.

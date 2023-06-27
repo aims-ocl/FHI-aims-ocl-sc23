@@ -13,11 +13,11 @@
 
 int MV(mpi_tasks, n_tasks) = 1;
 int MV(mpi_tasks, myid) = 0;
-int MV(opencl_util, mpi_platform_relative_id) = 0;
+int MV(mpi_tasks, mpi_platform_relative_id) = 0;
 
 #define n_tasks MV(mpi_tasks, n_tasks)
 #define myid MV(mpi_tasks, myid)
-#define mpi_platform_relative_id MV(opencl_util, mpi_platform_relative_id)
+#define mpi_platform_relative_id MV(mpi_tasks, mpi_platform_relative_id)
 
 int MV(dimensions, n_centers_hartree_potential);
 int MV(dimensions, n_periodic);
@@ -293,7 +293,7 @@ int main(int argc,char *argv[]) {
   // // // struct timeval start, end;
   // gettimeofday(&start, NULL);
 
-  // integrate_first_order_rho_sub_t_(
+  // integrate_first_order_rho_sub_tmp2_(
   //     &(rho_param.l_ylm_max), &(rho_param.n_local_matrix_size), &(rho_param.n_basis_local), &(rho_param.perm_n_full_points),
   //     &(rho_param.first_order_density_matrix_size), rho_param.basis_l_max, rho_param.n_points_all_batches,
   //     rho_param.n_batch_centers_all_batches, rho_param.batch_center_all_batches,
@@ -315,7 +315,7 @@ int main(int argc,char *argv[]) {
 //       H_param.local_dVxc_drho_all_batches, H_param.local_rho_gradient, H_param.first_order_gradient_rho);
 
 
-//   integrate_first_order_h_sub_t_(
+//   integrate_first_order_h_sub_tmp2_(
 //       &(H_param.j_coord), &(H_param.n_spin), &(H_param.l_ylm_max), &(H_param.n_basis_local), &(H_param.n_matrix_size),
 //       H_param.basis_l_max, H_param.n_points_all_batches, H_param.n_batch_centers_all_batches,
 //       H_param.batch_center_all_batches, H_param.ins_idx_all_batches, H_param.batches_batch_i_basis_h,

@@ -1208,7 +1208,6 @@
 !    it should not be needed to be called again.
 !  USES
       use localorb_io, only: use_unit
-      use opencl_util, only: mpi_per_node, mpi_task_per_gpu
       implicit none
 !  ARGUMENTS
 !  INPUTS
@@ -1227,10 +1226,49 @@
       call MPI_COMM_SIZE(mpi_comm_global, n_tasks, mpierr)
       call MPI_COMM_RANK(mpi_comm_global, myid, mpierr)
 
+      if (mpierr.ne.MPI_SUCCESS) then
+         write(use_unit,'(1X,A)') "* get_my_task() failed"
+         write(use_unit,'(1X,A)') "* Exiting..."
+         stop
+      end if
+
+      end subroutine get_my_task
+!******
+!****s* mpi_utilities/get_my_task_shmem
+!  NAME
+!    get_my_task_shmem
+!  SYNOPSIS
+      subroutine get_my_task_shmem()
+!  PURPOSE
+!    Find the task index of this thread and set the corresponding values
+!    in mpi_tasks.f90.  As this subroutine is called in initialize_mpi.f90,
+!    it should not be needed to be called again.
+!  USES
+      use localorb_io, only: use_unit
+      implicit none
+!  ARGUMENTS
+!  INPUTS
+!    none
+!  OUTPUT
+!    n_tasks and myid are set on exit
+!  AUTHOR
+!    FHI-aims team, Fritz-Haber Institute of the Max-Planck-Society
+!  HISTORY
+!    Release version, FHI-aims (2008).
+!  SOURCE
+
+      integer :: mpierr
+      integer :: tmp_int
+
+      call get_my_task()
+
+      ! print*, "myid=", myid, " mpi_per_node=", mpi_per_node
+
       call MPI_COMM_SPLIT(mpi_comm_global, myid / mpi_per_node, myid, shm_comm, mpierr);
       call MPI_COMM_SIZE(shm_comm, shm_num_of_rank, mpierr)
       call MPI_COMM_RANK(shm_comm, shm_rank, mpierr)
 
+      ! print*, "myid=", myid, " shm_rank=", shm_rank
 
       if (shm_rank .eq. 0) then
          tmp_int = shm_rank
@@ -1246,12 +1284,12 @@
       end if
 
       if (mpierr.ne.MPI_SUCCESS) then
-         write(use_unit,'(1X,A)') "* get_my_task() failed"
+         write(use_unit,'(1X,A)') "* get_my_task_shmem() failed"
          write(use_unit,'(1X,A)') "* Exiting..."
          stop
       end if
 
-      end subroutine get_my_task
+      end subroutine get_my_task_shmem
 !******
 !-------------------------------------------------------------------------
 !****s* mpi_utilities/get_my_processor

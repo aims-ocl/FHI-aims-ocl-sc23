@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-OCL_UTIL_VARS ocl_util_vars_all[8];
+OCL_UTIL_VARS ocl_util_vars_all[16];
 
 void clear_ocl_util_vars(OCL_UTIL_VARS* ocl_util_vars){
     memset(ocl_util_vars, 0, sizeof(OCL_UTIL_VARS));
@@ -178,7 +178,7 @@ static int init_opencl_util_mpi_first_call = 1;
 
 void init_opencl_util_mpi_(){
   if(init_opencl_util_mpi_first_call){
-    for(int i=0; i<8; i++){
+    for(int i=0; i<16; i++){
         clear_ocl_util_vars(&ocl_util_vars_all[i]);
     }
   }
@@ -267,7 +267,7 @@ void init_opencl_util_mpi_(){
 
 void init_opencl_util_mpi3_(){
   if(init_opencl_util_mpi_first_call){
-    for(int i=0; i<8; i++){
+    for(int i=0; i<16; i++){
         clear_ocl_util_vars(&ocl_util_vars_all[i]);
     }
   }
@@ -362,9 +362,9 @@ void init_opencl_util_mpi3_(){
     // p_erfc_6
 
 
-  if(MV(opencl_util, mpi_platform_relative_id) % MV(opencl_util, mpi_task_per_gpu) == 0){
+  if(MV(mpi_tasks, mpi_platform_relative_id) % MV(mpi_tasks, mpi_task_per_gpu) == 0){
     // recv
-    for(int i=1; i<MV(opencl_util, mpi_task_per_gpu); i++){
+    for(int i=1; i<MV(mpi_tasks, mpi_task_per_gpu); i++){
       // printf("rank %d, call opencl_util_mpi_vars, prepare to recv from %d\n", myid, myid+i);
       opencl_util_mpi_vars(&ocl_util_vars_all[i], 0, myid+i);
       // printf("rank %d, call opencl_util_mpi_arrays_, prepare to recv from %d\n", myid, myid+i);
@@ -372,29 +372,29 @@ void init_opencl_util_mpi3_(){
       // printf("rank %d, call opencl_util_mpi_arrays_, recv from %d\n", myid, myid+i);
     }
   } else {
-    // printf("rank %d, call opencl_util_mpi_vars, prepare to send to %d\n", myid, (myid/MV(opencl_util, mpi_task_per_gpu))*MV(opencl_util, mpi_task_per_gpu));
+    // printf("rank %d, call opencl_util_mpi_vars, prepare to send to %d\n", myid, (myid/MV(mpi_tasks, mpi_task_per_gpu))*MV(opencl_util, mpi_task_per_gpu));
     // send
-    opencl_util_mpi_vars(&ocl_util_vars_all[0], 1, (myid/MV(opencl_util, mpi_task_per_gpu))*MV(opencl_util, mpi_task_per_gpu));
-    // printf("rank %d, call opencl_util_mpi_arrays_, prepare to send to %d\n", myid, (myid/MV(opencl_util, mpi_task_per_gpu))*MV(opencl_util, mpi_task_per_gpu));
-    opencl_util_mpi_arrays_(&ocl_util_vars_all[0], 1, (myid/MV(opencl_util, mpi_task_per_gpu))*MV(opencl_util, mpi_task_per_gpu));
-    // printf("rank %d, call opencl_util_mpi_arrays_, send to %d\n", myid, (myid/MV(opencl_util, mpi_task_per_gpu))*MV(opencl_util, mpi_task_per_gpu));
+    opencl_util_mpi_vars(&ocl_util_vars_all[0], 1, (myid/MV(mpi_tasks, mpi_task_per_gpu))*MV(mpi_tasks, mpi_task_per_gpu));
+    // printf("rank %d, call opencl_util_mpi_arrays_, prepare to send to %d\n", myid, (myid/MV(mpi_tasks, mpi_task_per_gpu))*MV(opencl_util, mpi_task_per_gpu));
+    opencl_util_mpi_arrays_(&ocl_util_vars_all[0], 1, (myid/MV(mpi_tasks, mpi_task_per_gpu))*MV(mpi_tasks, mpi_task_per_gpu));
+    // printf("rank %d, call opencl_util_mpi_arrays_, send to %d\n", myid, (myid/MV(mpi_tasks, mpi_task_per_gpu))*MV(opencl_util, mpi_task_per_gpu));
   }
   // printf("rank %d, finish init_opencl_util_mpi_\n", myid);
 }
 
 void finish_opencl_util_mpi_(){
-  if(MV(opencl_util, mpi_platform_relative_id) % MV(opencl_util, mpi_task_per_gpu) == 0){
+  if(MV(mpi_tasks, mpi_platform_relative_id) % MV(mpi_tasks, mpi_task_per_gpu) == 0){
     // send
-    for(int i=1; i<MV(opencl_util, mpi_task_per_gpu); i++){
+    for(int i=1; i<MV(mpi_tasks, mpi_task_per_gpu); i++){
       // printf("rank %d, call opencl_util_mpi_arrays_results_, prepare to send to %d\n", myid, myid+i);
       opencl_util_mpi_arrays_results_(&ocl_util_vars_all[i], 1, myid+i);
       // printf("rank %d, finish opencl_util_mpi_arrays_results_, send to %d\n", myid, myid+i);
     }
   } else {
-    // printf("rank %d, call opencl_util_mpi_arrays_results_, prepare to recv from %d\n", myid, (myid/MV(opencl_util, mpi_task_per_gpu))*MV(opencl_util, mpi_task_per_gpu));
+    // printf("rank %d, call opencl_util_mpi_arrays_results_, prepare to recv from %d\n", myid, (myid/MV(mpi_tasks, mpi_task_per_gpu))*MV(opencl_util, mpi_task_per_gpu));
     // recv
-    opencl_util_mpi_arrays_results_(&ocl_util_vars_all[0], 0, (myid/MV(opencl_util, mpi_task_per_gpu))*MV(opencl_util, mpi_task_per_gpu));
-    // printf("rank %d, finish opencl_util_mpi_arrays_results_, recv from %d\n", myid, (myid/MV(opencl_util, mpi_task_per_gpu))*MV(opencl_util, mpi_task_per_gpu));
+    opencl_util_mpi_arrays_results_(&ocl_util_vars_all[0], 0, (myid/MV(mpi_tasks, mpi_task_per_gpu))*MV(mpi_tasks, mpi_task_per_gpu));
+    // printf("rank %d, finish opencl_util_mpi_arrays_results_, recv from %d\n", myid, (myid/MV(mpi_tasks, mpi_task_per_gpu))*MV(opencl_util, mpi_task_per_gpu));
   }
   // printf("rank %d, finish init_opencl_util_mpi_\n", myid);
 }

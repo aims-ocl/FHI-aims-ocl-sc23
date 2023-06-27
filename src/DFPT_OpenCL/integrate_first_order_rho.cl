@@ -1037,6 +1037,52 @@ void prune_density_matrix_sparse_polar_reduce_memory_local_index(global double *
   barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 }
 
+void prune_density_matrix_sparse_polar_reduce_memory(global double *density_matrix_sparse, global double *density_matrix_con,
+                                               int* n_compute_, mconstant int* i_basis_index,
+                                               // outer
+                                               int index_hamiltonian_dim2, global int *index_hamiltonian,
+                                               global int *column_index_hamiltonian
+                                               ) {
+#define index_hamiltonian(i, j, k) index_hamiltonian[(((k)-1) * index_hamiltonian_dim2 + (j)-1) * 2 + (i)-1]
+  int n_compute_c = *n_compute_;
+  int lid = get_local_id(0);
+  int lsize = get_local_size(0);
+  barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+  for(int i=lid; i<n_compute_c*n_compute_c; i+=lsize){
+    density_matrix_con[i] = 0.0;
+  }
+  barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+  for(int i_compute = 1+lid; i_compute <= n_compute_c; i_compute+=lsize){
+    int i_basis = i_basis_index[i_compute-1];
+    int i_start = index_hamiltonian(1, 1, i_basis);
+    int i_end = index_hamiltonian(2, 1, i_basis);
+
+    if(i_start <= i_end){
+      for(int j_compute = 1; j_compute <= i_compute; j_compute++){
+        int j_basis = i_basis_index[j_compute-1];
+        int i_index_real;
+        for(int i_place = i_start; i_place <= i_end; i_place++){
+          if(column_index_hamiltonian[i_place-1] == j_basis){
+            double tmp = density_matrix_sparse[i_place-1];
+            density_matrix_con[(j_compute-1) + (i_compute-1) * n_compute_c] = i_compute == j_compute ? tmp : tmp * 2;
+            // density_matrix_con[(i_compute-1) + (j_compute-1) * n_compute_c] = density_matrix_sparse[i_place-1];
+            i_index_real = i_place;
+            break;
+          } else if(column_index_hamiltonian[i_place-1] > j_basis){
+            i_index_real = i_place;
+            break;
+          }
+        }
+        i_start = i_index_real;
+      }
+    }
+  }
+
+  barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+#undef index_hamiltonian
+}
+
+
 inline void atomicAdd_g_f(volatile __global double *addr, double val){
   union {
   unsigned long u64;
@@ -1049,6 +1095,56 @@ inline void atomicAdd_g_f(volatile __global double *addr, double val){
   current.u64 = atomic_cmpxchg( (volatile __global unsigned long *)addr,
   expected.u64, next.u64);
   } while( current.u64 != expected.u64 );
+}
+
+void prune_density_matrix_sparse_polar_reduce_memory_reverse(global double *density_matrix_sparse, global double *density_matrix_con,
+                                               int* n_compute_, mconstant int* i_basis_index,
+                                               // outer
+                                               int index_hamiltonian_dim2, global int *index_hamiltonian,
+                                               global int *column_index_hamiltonian
+                                               ) {
+#define index_hamiltonian(i, j, k) index_hamiltonian[(((k)-1) * index_hamiltonian_dim2 + (j)-1) * 2 + (i)-1]
+  int n_compute_c = *n_compute_;
+  int lid = get_local_id(0);
+  int lsize = get_local_size(0);
+  // barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+  // for(int i=lid; i<n_compute_c*n_compute_c; i+=lsize){
+  //   density_matrix_con[i] = 0.0;
+  // }
+  barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+  for(int i_compute = 1+lid; i_compute <= n_compute_c; i_compute+=lsize){
+    int i_basis = i_basis_index[i_compute-1];
+    int i_start = index_hamiltonian(1, 1, i_basis);
+    int i_end = index_hamiltonian(2, 1, i_basis);
+
+    if(i_start <= i_end){
+      for(int j_compute = 1; j_compute <= i_compute; j_compute++){
+        int j_basis = i_basis_index[j_compute-1];
+        int i_index_real;
+        for(int i_place = i_start; i_place <= i_end; i_place++){
+          if(column_index_hamiltonian[i_place-1] == j_basis){
+            // double tmp = density_matrix_sparse[i_place-1];
+            // density_matrix_con[(j_compute-1) + (i_compute-1) * n_compute_c] = i_compute == j_compute ? tmp : tmp * 2;
+            // density_matrix_con[(i_compute-1) + (j_compute-1) * n_compute_c] = density_matrix_sparse[i_place-1];
+            if(j_compute<=i_compute){
+              atomicAdd_g_f(&density_matrix_sparse[i_place-1], density_matrix_con[(j_compute-1) + (i_compute-1) * n_compute_c]);
+            } else {
+              atomicAdd_g_f(&density_matrix_sparse[i_place-1], density_matrix_con[(i_compute-1) + (j_compute-1) * n_compute_c]);
+            }
+            i_index_real = i_place;
+            break;
+          } else if(column_index_hamiltonian[i_place-1] > j_basis){
+            i_index_real = i_place;
+            break;
+          }
+        }
+        i_start = i_index_real;
+      }
+    }
+  }
+
+  barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+#undef index_hamiltonian
 }
 
 void evaluate_first_order_h_polar_reduce_memory_c_(
@@ -1200,10 +1296,12 @@ void evaluate_first_order_h_polar_reduce_memory_c_(
   }
 }
     barrier(CLK_GLOBAL_MEM_FENCE);
-    for(int i=0; i<n_compute_c; i++){
-      int i_off = (ins_idx[i] * (ins_idx[i] -1)) / 2;
-      for(int j=lid; j<=i; j+=lsize){
-        atomicAdd_g_f(&first_order_H[ins_idx[j] + i_off - 1], first_order_H_dense(j+1, i+1, i_spin));
+    if(*n_basis_local_ > 0){
+      for(int i=0; i<n_compute_c; i++){
+        int i_off = (ins_idx[i] * (ins_idx[i] -1)) / 2;
+        for(int j=lid; j<=i; j+=lsize){
+          atomicAdd_g_f(&first_order_H[ins_idx[j] + i_off - 1], first_order_H_dense(j+1, i+1, i_spin));
+        }
       }
     }
   }
@@ -1280,7 +1378,7 @@ void evaluate_first_order_h_polar_reduce_memory_c_(
 #define batches_batch_i_basis_rho(i, j) batches_batch_i_basis_rho[(i)-1 + n_max_compute_dens * ((j)-1)]
 #define batches_points_coords_rho(i, j, k) batches_points_coords_rho[(((k)-1) * n_max_batch_size + (j)-1) * 3 + (i)-1]
 
-kernel void integrate_first_order_rho_sub_t_(
+kernel void integrate_first_order_rho_sub_tmp2_(
     int l_ylm_max_,
     int n_local_matrix_size_, // 仅适用于使用了 local_index 且实际使用 ins_idx 转换矩阵的版本
     int n_basis_local_,       // 仅适用于使用了 local_index 且实际使用 ins_idx 转换矩阵的版本
@@ -1426,8 +1524,16 @@ kernel void integrate_first_order_rho_sub_t_(
     //           &n_compute_c, &batches_batch_i_basis_rho(1, i_my_batch), index_hamiltonian_dim2, position_in_hamiltonian_dim1, 
     //           &center_to_cell(1), &Cbasis_to_basis(1), &Cbasis_to_center(1), &index_hamiltonian(1, 1, 1),
     //           &position_in_hamiltonian(1, 1), &column_index_hamiltonian(1));
-    prune_density_matrix_sparse_polar_reduce_memory_local_index(first_order_density_matrix_sparse, first_order_density_matrix_con,
-              &n_compute_c, &ins_idx_all_batches[(i_my_batch-1) * (n_basis_local_)], n_local_matrix_size_);
+    if(n_basis_local_ > 0){
+      prune_density_matrix_sparse_polar_reduce_memory_local_index(first_order_density_matrix_sparse, first_order_density_matrix_con,
+                &n_compute_c, &ins_idx_all_batches[(i_my_batch-1) * (n_basis_local_)], n_local_matrix_size_);
+    } else {
+      prune_density_matrix_sparse_polar_reduce_memory(first_order_density_matrix_sparse, first_order_density_matrix_con,
+                                               &n_compute_c, &batches_batch_i_basis_rho(1, i_my_batch),
+                                               // outer
+                                               index_hamiltonian_dim2, index_hamiltonian,
+                                               column_index_hamiltonian);
+    }
     // if(lid == 0 && i_my_batch <= 2){
     //   printf("%d: %d, %d\n", i_my_batch, n_points_all_batches[i_my_batch - 1], batch_point_to_i_full_point(n_points_all_batches[i_my_batch - 1], i_my_batch));
     // }
@@ -1654,7 +1760,7 @@ kernel void integrate_first_order_rho_sub_t_(
 #define batches_batch_i_basis_h(i, j) batches_batch_i_basis_h[(i)-1 + n_max_compute_dens * ((j)-1)]
 #define batches_points_coords_h(i, j, k) batches_points_coords_h[(((k)-1) * n_max_batch_size + (j)-1) * 3 + (i)-1]
 
-kernel void integrate_first_order_h_sub_t_(
+kernel void integrate_first_order_h_sub_tmp2_(
   int j_coord,
   int n_spin,
   int l_ylm_max,
@@ -1891,7 +1997,7 @@ kernel void integrate_first_order_h_sub_t_(
       global double* H_times_psi_group = NULL;
       evaluate_first_order_h_polar_reduce_memory_c_(first_order_H, &n_points_all_batches[i_my_batch-1],
               &partition_all_batches[(i_my_batch-1) * n_max_batch_size], grid_coord_group,
-              H_times_psi_group, &n_compute_c, &batches_batch_i_basis_h[n_centers_basis_I * (i_my_batch-1)], 
+              H_times_psi_group, &n_compute_c, &batches_batch_i_basis_h(1, i_my_batch), 
               wave_group, NULL,
               &local_first_order_rho_all_batches[n_spin * n_max_batch_size * (i_my_batch-1)],
               &local_first_order_potential_all_batches[n_max_batch_size * (i_my_batch-1)],
@@ -1901,6 +2007,13 @@ kernel void integrate_first_order_h_sub_t_(
               first_order_gradient_rho, &n_matrix_size,
               &ins_idx_all_batches[n_basis_local * (i_my_batch-1)], &n_basis_local, &n_spin, &n_max_compute_ham,
               NULL, NULL, first_order_H_dense_group, A_local, B_local);
+      // if(n_basis_local <= 0){
+      //   prune_density_matrix_sparse_polar_reduce_memory_reverse(first_order_H, first_order_H_dense_group,
+      //                                            &n_compute_c, &batches_batch_i_basis_h(1, i_my_batch),
+      //                                            // outer
+      //                                            index_hamiltonian_dim2, index_hamiltonian,
+      //                                            column_index_hamiltonian);
+      // }
     }
   }
 #undef i_basis_fns_inv

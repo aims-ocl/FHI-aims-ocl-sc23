@@ -464,10 +464,12 @@ void m_load_free() {
 
 static int m_save_load_count = 0;
 void m_save_load_() {
+  if(opencl_util_debug_io != 1)
+    return;
   int count = m_save_load_count;
   m_save_load_count++;
   // if (count == 1 || myid == 0) {
-  if ((myid == 0 || myid == 1 || myid == 3) && count <= 1) {
+  if ((myid == 0 || myid == 3) && count <= 1) {
     char save_file_name[64];
     sprintf(save_file_name, "mdata_outer_rank%d_%d.bin", myid, count);
     m_save_load(save_file_name, 0, 1);
@@ -475,8 +477,10 @@ void m_save_load_() {
 }
 
 void m_save_load_not_count_() {
+  if(opencl_util_debug_io != 1)
+    return;
   int count = m_save_load_count;
-  if ((myid == 0 || myid == 1 || myid == 3) && count <= 1) {
+  if ((myid == 0 || myid == 3) && count <= 1) {
     char save_file_name[64];
     sprintf(save_file_name, "mdata_outer_rank%d_%d.bin", myid, count);
     m_save_load(save_file_name, 0, 1);
@@ -485,6 +489,8 @@ void m_save_load_not_count_() {
 
 static int m_save_load_sumup_count = 0;
 void m_save_load_sumup_() {
+  if(opencl_util_debug_io != 1)
+    return;
   int count = m_save_load_sumup_count;
   m_save_load_sumup_count++;
   // if (count == 1 || myid == 0) {
@@ -575,6 +581,8 @@ void m_load_sumup_free() {
 
 static int m_save_check_sumup_count = -1;
 void m_save_check_sumup_(double *delta_v_hartree, double *rho_multipole) {
+  if(opencl_util_debug_io != 1)
+    return;
   char save_file_name[64];
   sprintf(save_file_name, "sumup_check_rank%d_%d.bin", myid, m_save_check_sumup_count++);
   if(!(m_save_check_sumup_count <= 1)){
@@ -587,7 +595,7 @@ void m_save_check_sumup_(double *delta_v_hartree, double *rho_multipole) {
   fclose(file_p);
 }
 
-static int m_save_check_rho_test_count = -1;
+static int m_save_check_rho_test_count = 0;
 void m_save_check_rho_test_(int *j_cells, 
   int* i_place_begins,
   int* i_place_ends,
@@ -595,6 +603,8 @@ void m_save_check_rho_test_(int *j_cells,
   int* j_basis_uc,
   int* poss,
   int* n_compute_c) {
+  if(opencl_util_debug_io != 1)
+    return;
   char save_file_name[64];
   sprintf(save_file_name, "rho_check_test_rank%d_%d.bin", myid, m_save_check_rho_test_count++);
   FILE *file_p = fopen(save_file_name, "w");
@@ -608,7 +618,7 @@ void m_save_check_rho_test_(int *j_cells,
   fclose(file_p);
 }
 
-static int m_save_check_rho_wave_count = -1;
+static int m_save_check_rho_wave_count = 0;
 void m_save_check_rho_wave_(double *wave, int* n_compute_c) {
   char save_file_name[64];
   sprintf(save_file_name, "rho_check_wave_rank%d_%d.bin", myid, m_save_check_rho_wave_count++);
@@ -626,8 +636,10 @@ void m_save_check_rho_wave_(double *wave, int* n_compute_c) {
   fclose(file_p);
 }
 
-static int m_save_check_rho_count = -1;
+static int m_save_check_rho_count = 0;
 void m_save_check_rho_(double *first_order_rho) {
+  if(opencl_util_debug_io != 1)
+    return;
   char save_file_name[64];
   sprintf(save_file_name, "rho_check_rank%d_%d.bin", myid, m_save_check_rho_count++);
   if(!(m_save_check_rho_count <= 1)){
@@ -646,8 +658,10 @@ void m_save_check_rho_(double *first_order_rho) {
   fclose(file_p);
 }
 
-static int m_save_check_H_count = -1;
+static int m_save_check_H_count = 0;
 void m_save_check_h_(double *first_order_H, int* n_spin_, int* n_matrix_size_) {
+  if(opencl_util_debug_io != 1)
+    return;
   char save_file_name[64];
   sprintf(save_file_name, "H_check_rank%d_%d.bin", myid, m_save_check_H_count++);
   if(!(m_save_check_H_count <= 4)){
@@ -663,6 +677,8 @@ void m_save_check_h_(double *first_order_H, int* n_spin_, int* n_matrix_size_) {
 }
 
 void m_save_load_rho(const char *file_name, int is_load, int print) {
+  if(opencl_util_debug_io != 1)
+    return;
   size_t (*func)(void *restrict, size_t, size_t, FILE *restrict);
   FILE *file_p;
   if (is_load) {
@@ -725,6 +741,8 @@ void m_save_load_rho(const char *file_name, int is_load, int print) {
 }
 
 void m_save_load_H(const char *file_name, int is_load, int print) {
+  if(opencl_util_debug_io != 1)
+    return;
   size_t (*func)(void *restrict, size_t, size_t, FILE *restrict);
   FILE *file_p;
   if (is_load) {
@@ -855,7 +873,7 @@ void debug_check_output_04_file_(double* array, int* dims, int* dims_num_, const
       for(int j=0; j<dims_num-1; j++){
         fprintf(file_p, "%d, ", dims_count[j]);
       }
-      fprintf(file_p, "%d, %.14f\n", i, array[offset]);
+      fprintf(file_p, "%d, %.13f\n", i, array[offset]);
       offset++;
     }
     if(dims_num == 1)
@@ -877,6 +895,8 @@ void debug_check_output_04_file_(double* array, int* dims, int* dims_num_, const
 }
 
 void print_mem_info_(){
+  if(opencl_util_debug_io != 1)
+    return;
   struct sysinfo s_info;
   int error = sysinfo(&s_info);
   printf("rank%d, error0: %d, totalram: %.3f, freeram: %.3f\n", myid, error, s_info.totalram / (1024.0 * 1024 * 1024), s_info.freeram / (1024.0 * 1024 * 1024));
