@@ -595,7 +595,7 @@ void m_save_check_sumup_(double *delta_v_hartree, double *rho_multipole) {
   fclose(file_p);
 }
 
-static int m_save_check_rho_test_count = 0;
+static int m_save_check_rho_test_count = -1;
 void m_save_check_rho_test_(int *j_cells, 
   int* i_place_begins,
   int* i_place_ends,
@@ -618,7 +618,7 @@ void m_save_check_rho_test_(int *j_cells,
   fclose(file_p);
 }
 
-static int m_save_check_rho_wave_count = 0;
+static int m_save_check_rho_wave_count = -1;
 void m_save_check_rho_wave_(double *wave, int* n_compute_c) {
   char save_file_name[64];
   sprintf(save_file_name, "rho_check_wave_rank%d_%d.bin", myid, m_save_check_rho_wave_count++);
@@ -636,7 +636,7 @@ void m_save_check_rho_wave_(double *wave, int* n_compute_c) {
   fclose(file_p);
 }
 
-static int m_save_check_rho_count = 0;
+static int m_save_check_rho_count = -1;
 void m_save_check_rho_(double *first_order_rho) {
   if(opencl_util_debug_io != 1)
     return;
@@ -658,7 +658,7 @@ void m_save_check_rho_(double *first_order_rho) {
   fclose(file_p);
 }
 
-static int m_save_check_H_count = 0;
+static int m_save_check_H_count = -1;
 void m_save_check_h_(double *first_order_H, int* n_spin_, int* n_matrix_size_) {
   if(opencl_util_debug_io != 1)
     return;
@@ -873,7 +873,7 @@ void debug_check_output_04_file_(double* array, int* dims, int* dims_num_, const
       for(int j=0; j<dims_num-1; j++){
         fprintf(file_p, "%d, ", dims_count[j]);
       }
-      fprintf(file_p, "%d, %.13f\n", i, array[offset]);
+      fprintf(file_p, "%d, %.14f\n", i, array[offset]);
       offset++;
     }
     if(dims_num == 1)

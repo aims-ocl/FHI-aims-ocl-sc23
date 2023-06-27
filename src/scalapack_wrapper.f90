@@ -3712,7 +3712,7 @@ end subroutine get_set_full_local_matrix_scalapack_cpscf
     allocate(i_basis_local(n_basis_local))
     i_basis_local(:) = i_basis_local_full(:)
     n_local_matrix_size = n_basis_local*(n_basis_local+1)/2
-    if(myid .le. 1) print*, "==================", "myid=", myid, " n_basis_local=", n_basis_local, " n_local_matrix_size=", n_local_matrix_size
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !                               Receiving Data                                 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

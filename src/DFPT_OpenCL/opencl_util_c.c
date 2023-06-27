@@ -2,7 +2,6 @@
 #include "pass_mod_var.h"
 #include "save_load_var.h"
 #include "sum_up_whole_potential_shanghui.h"
-#include "cmake_help.h"
 #include <alloca.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,6 +33,7 @@ extern int MV(mpi_tasks, mpi_platform_relative_id);
 #define DEVICE_ID 0
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#define ALIGN_128(num) ((((num) + 127) / 128) * 128)
 
 size_t platformId = 0; // INFO choose a platform
 
@@ -42,13 +42,15 @@ cl_program program;
 cl_context context;
 cl_command_queue cQ;
 cl_uint numOfPlatforms;
-const char *file_names[] = {CURRENT_DIRECTORY "/sum_up.cl", 
-                            CURRENT_DIRECTORY "/integrate_first_order_rho.cl"};
+const char *file_names[] = {"/home/export/online1/mdt00/shisuan/swyjs/wzk/new/fhi-aims_MPE_O3_local_index_final/src/DFPT_OpenCL/sum_up.cl", 
+                            "/home/export/online1/mdt00/shisuan/swyjs/wzk/new/fhi-aims_MPE_O3_local_index_final/src/DFPT_OpenCL/integrate_first_order_rho.cl"};
                             // "/public/home/autopar/FHI-aims-test/fhi-aims_MPE_O3_local_index_final/src/DFPT_OpenCL/integration_points.cl"};
 const char *kernel_names[] = {"sum_up_whole_potential_shanghui_sub_t_"
                               , "integrate_first_order_rho_sub_tmp2_"
                               , "integrate_first_order_h_sub_tmp2_"
-                              , "sum_up_whole_potential_shanghui_pre_proc_"};
+                              , "sum_up_whole_potential_shanghui_pre_proc_"
+                              , "parallel_reduce_add_double_arrays"
+                              , "sum_up_count_centers_hit"};
                               // "c_integration_points2"};
 
 #define number_of_files (sizeof(file_names) / sizeof(file_names[0]))
@@ -65,7 +67,7 @@ size_t localSize[] = {128}; // 可能被重新设置 !!!
 size_t globalSize[] = {128 * 128};  // 可能被重新设置 !!!
 
 size_t globalSize_sum_up_pre_proc[1];
-size_t localSize_sum_up_pre_proc[1] = {64};
+size_t localSize_sum_up_pre_proc[1] = {1};
 const int i_center_tile_size_default = 256;
 
 extern double *Fp_function_spline_slice;
@@ -143,6 +145,7 @@ struct CL_BUF_COM_T {
   cl_mem valid_point_to_i_full_point;
   cl_mem index_cc_aos;
   cl_mem i_center_to_centers_index;
+  cl_mem spl_atom_needs;
   // sum up
   // cl_mem partition_tab_std;
   // cl_mem delta_v_hartree;               // (n_full_points_work)
@@ -222,11 +225,12 @@ struct CL_BUF_COM_T {
   cl_mem first_order_rho__;
   cl_mem first_order_density_matrix__;
   cl_mem partition_tab__;
-  // cl_mem tmp_rho__; // only for swcl
+  cl_mem tmp_rho__; // only for swcl
   // H
   cl_mem batches_batch_i_basis_h__;
   cl_mem partition_all_batches__;
   cl_mem first_order_H__;
+  cl_mem first_order_H_all; // only for swcl
   cl_mem local_potential_parts_all_points__;
   cl_mem local_first_order_rho_all_batches__;
   cl_mem local_first_order_potential_all_batches__;
@@ -364,7 +368,9 @@ void displayDeviceInfo(cl_platform_id id,
         displayDeviceDetails( devices[i], CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, "CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS" );
         displayDeviceDetails( devices[i], CL_DEVICE_MAX_WORK_ITEM_SIZES, "CL_DEVICE_MAX_WORK_ITEM_SIZES" );
         displayDeviceDetails( devices[i], CL_DEVICE_MAX_WORK_GROUP_SIZE, "CL_DEVICE_MAX_WORK_GROUP_SIZE" );
+#ifdef CL_DEVICE_TOPOLOGY_TYPE_PCIE_AMD
         displayDeviceDetails( devices[i], CL_DEVICE_TOPOLOGY_AMD, "CL_DEVICE_TOPOLOGY_AMD" );
+#endif
     }
 }
 
@@ -471,6 +477,7 @@ void displayDeviceDetails(cl_device_id id,
                 case CL_DEVICE_MAX_MEM_ALLOC_SIZE: printf("\tDevice max memory allocation: %ld mega-bytes\n", (*size)>>20); break; 
             }
     } break;
+#ifdef CL_DEVICE_TOPOLOGY_TYPE_PCIE_AMD
     case CL_DEVICE_TOPOLOGY_AMD: {
             cl_device_topology_amd topology;
             error = clGetDeviceInfo (id, param_name, sizeof(cl_device_topology_amd), &topology, NULL);
@@ -483,6 +490,7 @@ void displayDeviceDetails(cl_device_id id,
                     , (int)topology.pcie.device, (int)topology.pcie.function);
             }
     } break;
+#endif
 
   } //end of switch
          
@@ -590,6 +598,8 @@ void opencl_init_() {
   }
   // 构建 kernel
   for (int i = 0; i < number_of_kernels; i++) {
+    // if(!(i == 0 || i == 1 || i == 3))
+    //   continue;
     kernels[i] = clCreateKernel(program, kernel_names[i], &error);
     char tmp_str[256];
     sprintf(tmp_str, "clCreateKernel failed, kernel name: %s", kernel_names[i]);
@@ -754,7 +764,7 @@ void sum_up_pre_processing_init_(){
   opencl_init_();
   opencl_common_buffer_init_();
 
-  globalSize_sum_up_pre_proc[0] = 256 * localSize_sum_up_pre_proc[0];  // static !
+  globalSize_sum_up_pre_proc[0] = 64 * localSize_sum_up_pre_proc[0];  // static !
   // globalSize_sum_up_pre_proc[0] = n_atoms * localSize_sum_up_pre_proc[0];  // dynamic !
 
   int arg_index = 0;
@@ -809,6 +819,7 @@ void sum_up_pre_processing_part_(int* n_coeff_hartree_, int* i_center_begin_, in
   clSetKernelArgWithCheck(kernels[3], arg_index++, sizeof(int), i_center_begin_);
   clSetKernelArgWithCheck(kernels[3], arg_index++, sizeof(int), i_center_end_);
   clSetKernelArgWithCheck(kernels[3], arg_index++, sizeof(cl_mem), i_center_to_centers_index);
+  clSetKernelArgWithCheck(kernels[3], arg_index++, sizeof(cl_mem), &cl_buf_com.spl_atom_needs);
 
   error = clEnqueueNDRangeKernel(cQ, kernels[3], 1, NULL, globalSize_sum_up_pre_proc, localSize_sum_up_pre_proc, 0, NULL, NULL);
   IF_ERROR_EXIT(error != CL_SUCCESS, error, "clEnqueueNDRangeKernel failed")
@@ -946,8 +957,8 @@ void sum_up_begin() {
   // int i_center_tile_size = n_centers_hartree_potential;
   int i_center_tile_size = MIN(i_center_tile_size_default, n_centers_hartree_potential);
 
-  size_t localSize[] = {256};
-  size_t globalSize[] = {256 * 128};
+  size_t localSize[] = {1};
+  size_t globalSize[] = {64};
 
   // printf("index_cc size %d\n", n_cc_lm_ijk(l_max_analytic_multipole));
   int *index_cc_aos = (int *)malloc(sizeof(int) * n_cc_lm_ijk(l_max_analytic_multipole) * 6);
@@ -992,6 +1003,7 @@ void sum_up_begin() {
 
   int *spl_atom_to_i_center = (int*)malloc(sizeof(int) * (max_spl_atom+1));
   int *i_center_to_centers_index = (int*)malloc(sizeof(int) * n_centers_hartree_potential);
+  int *spl_atom_needs = (int*)malloc(sizeof(int) * (n_atoms+1));
 
   for(int i_center_tile = 0; i_center_tile < n_centers_hartree_potential; i_center_tile += i_center_tile_size){
 
@@ -1032,10 +1044,10 @@ void sum_up_begin() {
 
   if(MV(hartree_potential_storage, use_rho_multipole_shmem)){
     _FW_(double, MV(hartree_potential_storage, rho_multipole_shmem_ptr), 
-      ((l_pot_max+1)*(l_pot_max+1) * (n_max_radial+2) * n_rho_multipole_atoms), rho_multipole_h_p_s, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR);
+      ((l_pot_max+1)*(l_pot_max+1) * (n_max_radial+2) * n_rho_multipole_atoms), rho_multipole_h_p_s, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR);
   } else {
     _FW_(double, MV(hartree_potential_storage, rho_multipole), 
-      ((l_pot_max+1)*(l_pot_max+1) * (n_max_radial+2) * n_rho_multipole_atoms), rho_multipole_h_p_s, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR);
+      ((l_pot_max+1)*(l_pot_max+1) * (n_max_radial+2) * n_rho_multipole_atoms), rho_multipole_h_p_s, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR);
   }
   sum_up_pre_processing_init_();
 
@@ -1122,6 +1134,8 @@ void sum_up_begin() {
     free(valid_point_to_i_full_point);
   }
 
+  _FWV_(int, spl_atom_needs, n_atoms+1, cl_buf_com.spl_atom_needs, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR);
+
   gettimeofday(&end, NULL);
   time_uses[time_index] = 1000000 * (end.tv_sec - start.tv_sec) + end.tv_usec - start.tv_usec;
   time_infos[time_index++] = "sumup writebuf and setarg";
@@ -1143,6 +1157,43 @@ void sum_up_begin() {
 
     struct timeval start, end;
     gettimeofday(&start, NULL);
+
+    if(n_atoms < 800){
+      for(int i=0; i<(n_atoms+1); i++)
+        spl_atom_needs[i] = 1;
+      error = clEnqueueWriteBuffer(cQ, cl_buf_com.spl_atom_needs, CL_TRUE, 0, sizeof(int) * (n_atoms+1), 
+        spl_atom_needs, 0, NULL, NULL);
+      IF_ERROR_EXIT(error != CL_SUCCESS, error, "clEnqueueWriteBuffer failed");    
+    } else {
+      memset(spl_atom_needs, 0, sizeof(int) * (n_atoms+1));
+      error = clEnqueueWriteBuffer(cQ, cl_buf_com.spl_atom_needs, CL_TRUE, 0, sizeof(int) * (n_atoms+1), 
+        spl_atom_needs, 0, NULL, NULL);
+      IF_ERROR_EXIT(error != CL_SUCCESS, error, "clEnqueueWriteBuffer failed");    
+      for(int vid = 0; vid < vnum; vid++){
+        arg_index = 0;
+        clSetKernelArgWithCheck(kernels[5], arg_index++, sizeof(cl_mem), &cl_buf_sumup[vid].partition_tab_std);
+        clSetKernelArgWithCheck(kernels[5], arg_index++, sizeof(cl_mem), &cl_buf_sumup[vid].multipole_radius_sq);
+        clSetKernelArgWithCheck(kernels[5], arg_index++, sizeof(int), &l_pot_max);
+        clSetKernelArgWithCheck(kernels[5], arg_index++, sizeof(int), &n_max_batch_size);
+        clSetKernelArgWithCheck(kernels[5], arg_index++, sizeof(cl_mem), &cl_buf_com.centers_hartree_potential);
+        clSetKernelArgWithCheck(kernels[5], arg_index++, sizeof(cl_mem), &cl_buf_com.center_to_atom);
+        clSetKernelArgWithCheck(kernels[5], arg_index++, sizeof(cl_mem), &cl_buf_com.species_center);
+        clSetKernelArgWithCheck(kernels[5], arg_index++, sizeof(cl_mem), &cl_buf_com.coords_center);
+        clSetKernelArgWithCheck(kernels[5], arg_index++, sizeof(cl_mem), &cl_buf_sumup[vid].batches_points_coords_sumup);
+        clSetKernelArgWithCheck(kernels[5], arg_index++, sizeof(int), &i_valid_points[vid]); // TODO 注意这个 ！！！, 有没有 partition_tab 的预判不同 !
+        clSetKernelArgWithCheck(kernels[5], arg_index++, sizeof(cl_mem), &cl_buf_sumup[vid].point_to_i_batch);
+        clSetKernelArgWithCheck(kernels[5], arg_index++, sizeof(cl_mem), &cl_buf_sumup[vid].point_to_i_index);
+        clSetKernelArgWithCheck(kernels[5], arg_index++, sizeof(cl_mem), &cl_buf_sumup[vid].valid_point_to_i_full_point);
+        clSetKernelArgWithCheck(kernels[5], arg_index++, sizeof(int), &i_center_begin);
+        clSetKernelArgWithCheck(kernels[5], arg_index++, sizeof(int), &i_center_end);
+        clSetKernelArgWithCheck(kernels[5], arg_index++, sizeof(cl_mem), &cl_buf_com.i_center_to_centers_index);
+        clSetKernelArgWithCheck(kernels[5], arg_index++, sizeof(cl_mem), &cl_buf_com.spl_atom_needs);
+
+        error = clEnqueueNDRangeKernel(cQ, kernels[5], 1, NULL, globalSize, localSize, 0, NULL, &event);
+        IF_ERROR_EXIT(error != CL_SUCCESS, error, "clEnqueueNDRangeKernel failed")
+      }
+      clFinish(cQ);
+    }
 
     // OpenCL version
     sum_up_pre_processing_part_(&n_coeff_hartree, &i_center_begin, &i_center_end, 
@@ -1242,6 +1293,7 @@ for(int vid = 0; vid < vnum; vid++){
   // free(local_centers_delta_v_hart_part_spl);
   free(spl_atom_to_i_center);
   free(i_center_to_centers_index);
+  free(spl_atom_needs);
 
   sum_up_pre_processing_finish();
 
@@ -1278,6 +1330,7 @@ for(int vid = 0; vid < vnum; vid++){
   clReleaseMemObject(cl_buf_com.ylm_tab);
 
   clReleaseMemObject(cl_buf_com.rho_multipole_h_p_s);
+  clReleaseMemObject(cl_buf_com.spl_atom_needs);
   // char save_file_name[64];
   // sprintf(save_file_name, "sumup_check_rank%d_%d.bin", myid, sumup_c_count);
   // FILE *file_p = fopen(save_file_name, "w");
@@ -1465,8 +1518,8 @@ void rho_begin(){
   cl_int error;
   int arg_index;
 
-  size_t localSize[] = {256}; // 覆盖前面的设置
-  size_t globalSize[] = {256 * 128};  // 覆盖前面的设置
+  size_t localSize[] = {1}; // 覆盖前面的设置
+  size_t globalSize[] = {64};  // 覆盖前面的设置
   if(myid == 0)
     printf("n_max_batch_size=%d\n", n_max_batch_size);
   // rho tmp
@@ -1481,17 +1534,17 @@ void rho_begin(){
   _FW_(int, NULL, 1, i_atom_fns__, CL_MEM_READ_WRITE);
   _FW_(int, NULL, globalSize[0] * (n_max_compute_atoms), spline_array_start__, CL_MEM_READ_WRITE);
   _FW_(int, NULL, globalSize[0] * (n_max_compute_atoms), spline_array_end__, CL_MEM_READ_WRITE);
-  _FW_(double, NULL, 1, one_over_dist_tab__, CL_MEM_READ_WRITE);
-  _FW_(int, NULL, 1, rad_index__, CL_MEM_READ_WRITE);
+  _FW_(double, NULL, globalSize[0] * (n_max_compute_atoms), one_over_dist_tab__, CL_MEM_READ_WRITE);
+  _FW_(int, NULL, globalSize[0] * (n_max_compute_atoms), rad_index__, CL_MEM_READ_WRITE);
   _FW_(int, NULL, globalSize[0] * (n_max_compute_fns_ham), wave_index__, CL_MEM_READ_WRITE);
   _FW_(int, NULL, 1, l_index__, CL_MEM_READ_WRITE);
   _FW_(int, NULL, globalSize[0] * (n_max_compute_fns_ham), l_count__, CL_MEM_READ_WRITE);
   _FW_(int, NULL, globalSize[0] * (n_max_compute_fns_ham), fn_atom__, CL_MEM_READ_WRITE);
   _FW_(int, NULL, globalSize[0] * (n_max_compute_ham), zero_index_point__, CL_MEM_READ_WRITE);
   // _FW_(double, NULL, (globalSize[0] * (n_max_compute_ham) + 128), wave__, CL_MEM_READ_WRITE); // 多加 128 为了避免 TILE 后越界
-  _FW_(double, NULL, (globalSize[0]/localSize[0]) * ((n_max_batch_size+127)/128*128) * ((n_max_compute_ham+127)/128*128) + 256 + 16 * n_max_compute_ham, 
+  _FW_(double, NULL, (globalSize[0]/localSize[0]) * ((n_max_batch_size+8+127)/128*128) * ((n_max_compute_ham+127)/128*128) + 256 + 16 * n_max_compute_ham, 
                 wave__, CL_MEM_READ_WRITE);
-  _FW_(double, NULL, (globalSize[0]/localSize[0]) * (n_max_compute_dens * n_max_compute_dens) + 256 + 16 * n_max_compute_ham, 
+  _FW_(double, NULL, (globalSize[0]/localSize[0]) * ((n_max_compute_dens+8) * n_max_compute_dens) + 256 + 16 * n_max_compute_ham, 
                 first_order_density_matrix_con__, CL_MEM_READ_WRITE);
   _FW_(double, NULL, globalSize[0] * (n_max_compute_atoms), i_r__, CL_MEM_READ_WRITE);
   _FW_(double, NULL, globalSize[0] * (4 * n_max_compute_atoms), trigonom_tab__, CL_MEM_READ_WRITE);
@@ -1501,8 +1554,8 @@ void rho_begin(){
   _FW_(double, NULL, globalSize[0] * ((rho_param.l_ylm_max + 1) * (rho_param.l_ylm_max + 1) * n_max_compute_atoms), ylm_tab__, CL_MEM_READ_WRITE);
   _FW_(double, NULL, globalSize[0] * ((rho_param.l_ylm_max + 1) * (rho_param.l_ylm_max + 1) * n_max_compute_atoms), dylm_dtheta_tab__, CL_MEM_READ_WRITE);
   _FW_(double, NULL, ((rho_param.l_ylm_max + 1) * (rho_param.l_ylm_max + 1) * n_max_compute_atoms), scaled_dylm_dphi_tab__, CL_MEM_READ_WRITE); // 反正这个和上面那个暂时无用
-  // _FW_(double, NULL, (globalSize[0]/localSize[0]) * ((n_max_batch_size+127)/128*128) * ((n_max_compute_ham+127)/128*128) + 128, 
-  //               tmp_rho__, CL_MEM_READ_WRITE);  // only for swcl
+  _FW_(double, NULL, (globalSize[0]/localSize[0]) * ((n_max_batch_size+8+127)/128*128) * ((n_max_compute_ham+127)/128*128) + 128, 
+                tmp_rho__, CL_MEM_READ_WRITE);  // only for swcl
   // rho tmp
   arg_index = 54;
   clSetKernelArgWithCheck(kernels[1], arg_index++, sizeof(cl_mem), &cl_buf_com.dist_tab_sq__);
@@ -1533,7 +1586,7 @@ void rho_begin(){
   clSetKernelArgWithCheck(kernels[1], arg_index++, sizeof(cl_mem), &cl_buf_com.dylm_dtheta_tab__);
   clSetKernelArgWithCheck(kernels[1], arg_index++, sizeof(cl_mem), &cl_buf_com.scaled_dylm_dphi_tab__);
   clSetKernelArgWithCheck(kernels[1], arg_index++, sizeof(int), &max_n_batch_centers);
-  // clSetKernelArgWithCheck(kernels[1], arg_index++, sizeof(cl_mem), &cl_buf_com.tmp_rho__);  // only for swcl
+  clSetKernelArgWithCheck(kernels[1], arg_index++, sizeof(cl_mem), &cl_buf_com.tmp_rho__);  // only for swcl
 
   // clSetKernelArgWithCheck(kernels[1], arg_index++, sizeof(double) * 1024, NULL); // local mem
 
@@ -1573,11 +1626,11 @@ void rho_begin(){
   IF_ERROR_EXIT(error != CL_SUCCESS, error, "clSetKernelArg failed");
 
   // rho batches
-  _FW_(int, MV(opencl_util, batches_size_rho), n_my_batches_work_rho, batches_size_rho, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR);
-  _FW_(int, MV(opencl_util, batches_batch_n_compute_rho), n_my_batches_work_rho, batches_batch_n_compute_rho, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR);
+  _FW_(int, MV(opencl_util, batches_size_rho), n_my_batches_work_rho, batches_size_rho, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR);
+  _FW_(int, MV(opencl_util, batches_batch_n_compute_rho), n_my_batches_work_rho, batches_batch_n_compute_rho, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR);
   // _FW_(int, MV(opencl_util, batches_batch_i_basis_rho), n_centers_basis_I * n_my_batches_work_rho, batches_batch_i_basis_rho, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR);
-  _FW_(int, MV(opencl_util, batches_batch_i_basis_rho), n_max_compute_dens * n_my_batches_work_rho, batches_batch_i_basis_rho, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR);
-  _FW_(double, MV(opencl_util, batches_points_coords_rho), 3 * n_max_batch_size * n_my_batches_work_rho, batches_points_coords_rho, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR);
+  _FW_(int, MV(opencl_util, batches_batch_i_basis_rho), n_max_compute_dens * n_my_batches_work_rho, batches_batch_i_basis_rho, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR);
+  _FW_(double, MV(opencl_util, batches_points_coords_rho), 3 * n_max_batch_size * n_my_batches_work_rho, batches_points_coords_rho, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR);
   // rho batches
   arg_index = 50;
   clSetKernelArgWithCheck(kernels[1], arg_index++, sizeof(cl_mem), &cl_buf_com.batches_size_rho);
@@ -1665,7 +1718,7 @@ void rho_begin(){
   clReleaseMemObject(cl_buf_com.ylm_tab__);
   clReleaseMemObject(cl_buf_com.dylm_dtheta_tab__);
   clReleaseMemObject(cl_buf_com.scaled_dylm_dphi_tab__);
-  // clReleaseMemObject(cl_buf_com.tmp_rho__);  // only for swcl
+  clReleaseMemObject(cl_buf_com.tmp_rho__);  // only for swcl
 
   if (myid == 0)
     m_save_check_rho_(rho_param.first_order_rho);
@@ -1769,17 +1822,17 @@ void h_begin_0_(){
   _FW_(double, H_param.first_order_H, (H_param.n_matrix_size * H_param.n_spin), first_order_H__, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR);
   // _FW_(double, H_param.local_potential_parts_all_points, (H_param.n_spin * n_full_points_work_h), local_potential_parts_all_points__, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR);
   _FW_(double, H_param.local_potential_parts_all_points, 1, local_potential_parts_all_points__, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR);
-  _FW_(double, H_param.local_first_order_rho_all_batches, (H_param.n_spin * n_max_batch_size * n_my_batches_work_h), local_first_order_rho_all_batches__, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR);
-  _FW_(double, H_param.local_first_order_potential_all_batches, (n_max_batch_size * n_my_batches_work_h), local_first_order_potential_all_batches__, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR);
-  _FW_(double, H_param.local_dVxc_drho_all_batches, (3 * n_max_batch_size * n_my_batches_work_h), local_dVxc_drho_all_batches__, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR);
+  _FW_(double, H_param.local_first_order_rho_all_batches, (H_param.n_spin * n_max_batch_size * n_my_batches_work_h), local_first_order_rho_all_batches__, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR);
+  _FW_(double, H_param.local_first_order_potential_all_batches, (n_max_batch_size * n_my_batches_work_h), local_first_order_potential_all_batches__, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR);
+  _FW_(double, H_param.local_dVxc_drho_all_batches, (3 * n_max_batch_size * n_my_batches_work_h), local_dVxc_drho_all_batches__, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR);
   _FW_(double, H_param.local_rho_gradient, (3 * H_param.n_spin * n_max_batch_size), local_rho_gradient__, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR);
   _FW_(double, H_param.first_order_gradient_rho, (3 * H_param.n_spin * n_max_batch_size), first_order_gradient_rho__, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR);
 
   // H batches
-  _FW_(int, MV(opencl_util, batches_size_h), n_my_batches_work_h, batches_size_H, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR);
-  _FW_(int, MV(opencl_util, batches_batch_n_compute_h), n_my_batches_work_h, batches_batch_n_compute_H, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR);
-  _FW_(int, MV(opencl_util, batches_batch_i_basis_h), n_max_compute_dens * n_my_batches_work_h, batches_batch_i_basis_H, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR);
-  _FW_(double, MV(opencl_util, batches_points_coords_h), 3 * n_max_batch_size * n_my_batches_work_h, batches_points_coords_H, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR);
+  _FW_(int, MV(opencl_util, batches_size_h), n_my_batches_work_h, batches_size_H, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR);
+  _FW_(int, MV(opencl_util, batches_batch_n_compute_h), n_my_batches_work_h, batches_batch_n_compute_H, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR);
+  _FW_(int, MV(opencl_util, batches_batch_i_basis_h), n_max_compute_dens * n_my_batches_work_h, batches_batch_i_basis_H, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR);
+  _FW_(double, MV(opencl_util, batches_points_coords_h), 3 * n_max_batch_size * n_my_batches_work_h, batches_points_coords_H, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR);
 }
 
 void H_begin(){
@@ -1795,8 +1848,8 @@ void H_begin(){
   cl_int error;
   int arg_index;
 
-  size_t localSize[] = {256}; // 覆盖前面的设置
-  size_t globalSize[] = {256 * 128};  // 覆盖前面的设置
+  size_t localSize[] = {1}; // 覆盖前面的设置
+  size_t globalSize[] = {64};  // 覆盖前面的设置
   // printf("n_max_batch_size=%d\n", n_max_batch_size);
   // H tmp
   _FW_(double, NULL, globalSize[0] * (n_max_compute_atoms), dist_tab_sq__, CL_MEM_READ_WRITE);
@@ -1810,14 +1863,14 @@ void H_begin(){
   _FW_(int, NULL, 1, i_atom_fns__, CL_MEM_READ_WRITE);
   _FW_(int, NULL, globalSize[0] * (n_max_compute_atoms), spline_array_start__, CL_MEM_READ_WRITE);
   _FW_(int, NULL, globalSize[0] * (n_max_compute_atoms), spline_array_end__, CL_MEM_READ_WRITE);
-  _FW_(double, NULL, 1, one_over_dist_tab__, CL_MEM_READ_WRITE);
-  _FW_(int, NULL, 1, rad_index__, CL_MEM_READ_WRITE);
+  _FW_(double, NULL, globalSize[0] * (n_max_compute_atoms), one_over_dist_tab__, CL_MEM_READ_WRITE);
+  _FW_(int, NULL, globalSize[0] * (n_max_compute_atoms), rad_index__, CL_MEM_READ_WRITE);
   _FW_(int, NULL, globalSize[0] * (n_max_compute_fns_ham), wave_index__, CL_MEM_READ_WRITE);
   _FW_(int, NULL, 1, l_index__, CL_MEM_READ_WRITE);
   _FW_(int, NULL, globalSize[0] * (n_max_compute_fns_ham), l_count__, CL_MEM_READ_WRITE);
   _FW_(int, NULL, globalSize[0] * (n_max_compute_fns_ham), fn_atom__, CL_MEM_READ_WRITE);
   _FW_(int, NULL, globalSize[0] * (n_max_compute_ham), zero_index_point__, CL_MEM_READ_WRITE);
-  _FW_(double, NULL, (globalSize[0]/localSize[0]) * ((n_max_batch_size+127)/128*128) * ((n_max_compute_ham+127)/128*128) + 256 + 16 * n_max_compute_ham, 
+  _FW_(double, NULL, (globalSize[0]/localSize[0]) * ((n_max_batch_size+8+127)/128*128) * ((n_max_compute_ham+127)/128*128) + 256 + 16 * n_max_compute_ham, 
                 wave__, CL_MEM_READ_WRITE); // 多加 128 为了避免 TILE 后越界, 长宽按 128 对齐
   _FW_(double, NULL, 1, first_order_density_matrix_con__, CL_MEM_READ_WRITE);
   _FW_(double, NULL, globalSize[0] * (n_max_compute_atoms), i_r__, CL_MEM_READ_WRITE);
@@ -1834,12 +1887,19 @@ void H_begin(){
   _FW_(double, NULL, 1, H_times_psi__, CL_MEM_READ_WRITE);
   _FW_(double, NULL, 1, T_plus_V__, CL_MEM_READ_WRITE);
   // _FW_(double, NULL, globalSize[0] * (n_max_compute_atoms * n_basis_fns), T_plus_V__, CL_MEM_READ_WRITE);
-  // _FW_(double, NULL, (globalSize[0]/localSize[0]) * ((n_max_batch_size+127)/128*128) * n_max_compute_ham, contract__, CL_MEM_READ_WRITE);
+  _FW_(double, NULL, (globalSize[0]/localSize[0]) * ((n_max_batch_size+8+127)/128*128) * ((n_max_compute_ham+127)/128*128) + 256, contract__, CL_MEM_READ_WRITE);
   // _FW_(double, NULL, (globalSize[0]/localSize[0]) * ((n_max_batch_size+127)/128*128) * n_max_compute_ham, wave_t__, CL_MEM_READ_WRITE);
   // _FW_(double, NULL, (globalSize[0]/localSize[0]) * n_max_compute_ham * n_max_compute_ham * H_param.n_spin, first_order_H_dense__, CL_MEM_READ_WRITE);
-  _FW_(double, NULL, 1, contract__, CL_MEM_READ_WRITE);
+  // _FW_(double, NULL, 1, contract__, CL_MEM_READ_WRITE);
   _FW_(double, NULL, 1, wave_t__, CL_MEM_READ_WRITE);
-  _FW_(double, NULL, (globalSize[0]/localSize[0] + 1) * n_max_compute_ham * n_max_compute_ham + 128 * H_param.n_spin, first_order_H_dense__, CL_MEM_READ_WRITE);
+  _FW_(double, NULL, (globalSize[0]/localSize[0] + 1) * (((n_max_compute_ham+8+127)/128*128) * (n_max_compute_ham+1) + 128) * H_param.n_spin, first_order_H_dense__, CL_MEM_READ_WRITE);
+
+  double* first_order_H_all = (double*)malloc((H_param.n_matrix_size * H_param.n_spin) * 64 * sizeof(double));
+  for(int i=0; i<64; i++){
+    memset(&first_order_H_all[(H_param.n_matrix_size * H_param.n_spin) * i], 0, (H_param.n_matrix_size * H_param.n_spin) * sizeof(double));
+  }
+  // _FW_(double, NULL, (globalSize[0]/localSize[0]) * H_param.n_matrix_size * H_param.n_spin, first_order_H_all, CL_MEM_READ_WRITE); // only for swcl
+  _FW_(double, first_order_H_all, (H_param.n_matrix_size * H_param.n_spin) * 64, first_order_H_all, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR);
   // H tmp
   arg_index = 60;
   clSetKernelArgWithCheck(kernels[2], arg_index++, sizeof(cl_mem), &cl_buf_com.dist_tab_sq__);
@@ -1877,6 +1937,7 @@ void H_begin(){
   clSetKernelArgWithCheck(kernels[2], arg_index++, sizeof(cl_mem), &cl_buf_com.wave_t__);
   clSetKernelArgWithCheck(kernels[2], arg_index++, sizeof(cl_mem), &cl_buf_com.first_order_H_dense__);
   clSetKernelArgWithCheck(kernels[2], arg_index++, sizeof(int), &max_n_batch_centers);
+  clSetKernelArgWithCheck(kernels[2], arg_index++, sizeof(cl_mem), &cl_buf_com.first_order_H_all);
 
   // clSetKernelArgWithCheck(kernels[2], arg_index++, sizeof(double) * 1024, NULL); // local mem
 
@@ -1898,7 +1959,8 @@ void H_begin(){
 
   clSetKernelArgWithCheck(kernels[2], arg_index++, sizeof(cl_mem), &cl_buf_com.batches_batch_i_basis_h__);
   clSetKernelArgWithCheck(kernels[2], arg_index++, sizeof(cl_mem), &cl_buf_com.partition_all_batches__);
-  clSetKernelArgWithCheck(kernels[2], arg_index++, sizeof(cl_mem), &cl_buf_com.first_order_H__);
+  // clSetKernelArgWithCheck(kernels[2], arg_index++, sizeof(cl_mem), &cl_buf_com.first_order_H__);
+  clSetKernelArgWithCheck(kernels[2], arg_index++, sizeof(cl_mem), &cl_buf_com.first_order_H_all);  // only for swcl
   clSetKernelArgWithCheck(kernels[2], arg_index++, sizeof(cl_mem), &cl_buf_com.local_potential_parts_all_points__);
   clSetKernelArgWithCheck(kernels[2], arg_index++, sizeof(cl_mem), &cl_buf_com.local_first_order_rho_all_batches__);
   clSetKernelArgWithCheck(kernels[2], arg_index++, sizeof(cl_mem), &cl_buf_com.local_first_order_potential_all_batches__);
@@ -1937,9 +1999,31 @@ void H_begin(){
   cl_event event;
   error = clEnqueueNDRangeKernel(cQ, kernels[2], 1, NULL, globalSize, localSize, 0, NULL, &event);
   IF_ERROR_EXIT(error != CL_SUCCESS, error, "clEnqueueNDRangeKernel failed")
-  clEnqueueReadBuffer(cQ, cl_buf_com.first_order_H__, CL_TRUE, 0, sizeof(double) * (H_param.n_matrix_size * H_param.n_spin), H_param.first_order_H, 1, &event, NULL);
+  // clEnqueueReadBuffer(cQ, cl_buf_com.first_order_H__, CL_TRUE, 0, sizeof(double) * (H_param.n_matrix_size * H_param.n_spin), H_param.first_order_H, 1, &event, NULL);
+  // clEnqueueReadBuffer(cQ, cl_buf_com.first_order_H_all, CL_TRUE, 0, sizeof(double) * (H_param.n_matrix_size * H_param.n_spin) * 64, first_order_H_all, 1, &event, NULL);
   clFinish(cQ);
 
+  // for(int group_id=0; group_id<((globalSize[0]/localSize[0])); group_id++){
+  //   double* first_order_H_local = &first_order_H_all[(H_param.n_matrix_size * H_param.n_spin) * group_id];
+  //   for(int i=0; i<(H_param.n_matrix_size * H_param.n_spin); i++){
+  //     H_param.first_order_H[i] += first_order_H_local[i];
+  //   }
+  // }
+
+  arg_index = 0;
+  int first_order_H_size = (H_param.n_matrix_size * H_param.n_spin);
+  // int first_order_H_stride = ALIGN_128(H_param.n_matrix_size * H_param.n_spin);
+  int first_order_H_stride = (H_param.n_matrix_size * H_param.n_spin);
+  int int_global_size = globalSize[0];
+  clSetKernelArgWithCheck(kernels[4], arg_index++, sizeof(cl_mem), &cl_buf_com.first_order_H_all);
+  clSetKernelArgWithCheck(kernels[4], arg_index++, sizeof(cl_mem), &cl_buf_com.first_order_H__);
+  clSetKernelArgWithCheck(kernels[4], arg_index++, sizeof(int), &first_order_H_size);
+  clSetKernelArgWithCheck(kernels[4], arg_index++, sizeof(int), &first_order_H_stride);
+  clSetKernelArgWithCheck(kernels[4], arg_index++, sizeof(int), &int_global_size);
+  error = clEnqueueNDRangeKernel(cQ, kernels[4], 1, NULL, globalSize, localSize, 0, NULL, &event);
+  IF_ERROR_EXIT(error != CL_SUCCESS, error, "clEnqueueNDRangeKernel failed")
+  clEnqueueReadBuffer(cQ, cl_buf_com.first_order_H__, CL_TRUE, 0, sizeof(double) * (H_param.n_matrix_size * H_param.n_spin), H_param.first_order_H, 1, &event, NULL);
+  clFinish(cQ);
 
   gettimeofday(&end, NULL);
   time_uses[time_index] = 1000000 * (end.tv_sec - start.tv_sec) + end.tv_usec - start.tv_usec;
@@ -1949,6 +2033,8 @@ void H_begin(){
     fflush(stdout);
   }
   gettimeofday(&start, NULL);
+
+  free(first_order_H_all);
 
   clReleaseMemObject(cl_buf_com.batches_size_H);
   clReleaseMemObject(cl_buf_com.batches_batch_n_compute_H);
@@ -2006,6 +2092,7 @@ void H_begin(){
   clReleaseMemObject(cl_buf_com.contract__);
   clReleaseMemObject(cl_buf_com.wave_t__);
   clReleaseMemObject(cl_buf_com.first_order_H_dense__);
+  clReleaseMemObject(cl_buf_com.first_order_H_all);
 
   if (myid == 0)
     m_save_check_h_(H_param.first_order_H, &(H_param.n_spin), &(H_param.n_matrix_size));

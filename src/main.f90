@@ -118,7 +118,7 @@
             use_unit     = in_unit
             !Begin work
       
-            ! call crts_init()
+            call crts_init()
       
 
             ! read opencl settings
@@ -536,7 +536,7 @@
       ! Needed in case number of atoms changes in QM/MM
             call deallocate_mpi ( )
       
-            ! call athread_halt() 
+            call athread_halt() 
       
           end subroutine aims
       !******

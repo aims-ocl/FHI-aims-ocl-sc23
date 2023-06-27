@@ -6,7 +6,7 @@
 #pragma OPENCL EXTENSION cl_amd_fp64 : enable
 #endif
 
-#define WAVE_SIZE 64
+// #define WAVE_SIZE 64
 
 // #include <math.h>
 // #include <stdio.h>
@@ -15,6 +15,9 @@
 // #define global
 // #define local
 // #define constant
+#define L_POT_MAX 8
+#define mconstant global const
+#define LOCALSIZE_SUM_UP_PRE_PROC 1
 
 #define MV(mod_name, var_name) var_name
 #define pmaxab 30
@@ -89,8 +92,8 @@
 #define multipole_radius_sq(i) multipole_radius_sq[(i)-1]
 #define outer_potential_radius(i, j) outer_potential_radius[(((j)-1) * (l_pot_max + 1)) + (i)]
 
-#define Fp(i, j) Fp[(i) * lsize + lid] // info 没有减 1，因为从 0 开始数 // TODO 验证大小
-// #define Fp(i, j) Fp[(i)] // info 没有减 1，因为从 0 开始数 // TODO 验证大小
+// #define Fp(i, j) Fp[(i) * lsize + lid] // info 没有减 1，因为从 0 开始数 // TODO 验证大小
+#define Fp(i, j) Fp[(i)] // info 没有减 1，因为从 0 开始数 // TODO 验证大小
 
 #define CEIL_DIV(a, b) (((a) + (b) - 1) / (b))
 
@@ -102,7 +105,7 @@ double invert_log_grid_c_(double r_current, double r_min, double scale) {
 
 // n_coeff -- number of spline coefficients, must be 2 or 4
 void spline_vector_v2_c_(double r_output, global double *spl_param, int n_l_dim, int n_coeff, int n_grid_dim,
-                         int n_points, int n_vector, global double *out_result) {
+                         int n_points, int n_vector, double *out_result) {
 #define spl_param(i, j, k)                                                                                             \
   spl_param[((((k)-1) * n_coeff) + ((j)-1)) * n_l_dim + (i)] // TODO 检查 spl_param 是否会导致切片问题
   int i_spl;
@@ -220,9 +223,7 @@ double spline_vector_v2_c_reduce(double r_output, global double *spl_param, int 
 
 // INFO 小心 spl_param 的大小，c/c++ 可没有 fortran 的自动切片，应准确地为 spl_param(n_l_dim,4,n_grid_dim)
 void spline_vector_c_(double r_output, global double *spl_param, int n_grid_dim, int n_l_dim, int n_points,
-                      int n_vector, global double *out_result) {
-  int lid = get_local_id(0);
-  int lsize = get_local_size(0);
+                      int n_vector, double *out_result) {
 #define spl_param(i, j, k) spl_param[((((k)-1) * 4) + ((j)-1)) * n_l_dim + (i)]
   double t, term;
   int i_spl = (int)r_output;
@@ -230,27 +231,27 @@ void spline_vector_c_(double r_output, global double *spl_param, int n_grid_dim,
   i_spl = (n_points - 1) < i_spl ? (n_points - 1) : i_spl;
   t = r_output - (double)i_spl;
   for (int i = 0; i < n_vector; i++)
-    out_result[i*lsize] = spl_param(i, 1, i_spl);
+    out_result[i] = spl_param(i, 1, i_spl);
   term = 1.0;
   for (int i_term = 2; i_term <= 4; i_term++) {
     term = term * t;
     for (int i = 0; i < n_vector; i++)
-      out_result[i*lsize] += term * spl_param(i, i_term, i_spl);
+      out_result[i] += term * spl_param(i, i_term, i_spl);
   }
 #undef spl_param
 }
 
-void F_erf_table_original_c_(global double *F_erf_table, double r, int p_max) {
+void F_erf_table_original_c_(double *F_erf_table, double r, int p_max) {
   printf("%s, not finished\n", __func__); // TODO
   // exit(-19);
 }
-void F_erfc_table_original_c_(global double *F_table, double r, int p_max) {
+void F_erfc_table_original_c_(double *F_table, double r, int p_max) {
   printf("%s, not finished\n", __func__); // TODO
   // exit(-19);
 }
 
 // F_erf + F_erfc
-void F_erf_c_(global double *F, double r, int p, int c,
+void F_erf_c_(double *F, double r, int p, int c,
               // outer
               int hartree_fp_function_splines, int Fp_max_grid, int lmax_Fp, double Fp_grid_min, double Fp_grid_inc,
               global double *Fp_function_spline_slice, global double *Fpc_function_spline_slice) {
@@ -274,7 +275,7 @@ void far_distance_hartree_fp_periodic_single_atom_c_(
     int inside, int forces_on, double multipole_radius_sq,
     double adap_outer_radius, // int *non_peri_extd
     // outer
-    int l_pot_max, global double *Fp, global double *b0, global double *b2, global double *b4, global double *b6,
+    int l_pot_max, double *Fp, global double *b0, global double *b2, global double *b4, global double *b6,
     global double *a_save, int hartree_force_l_add, int use_hartree_non_periodic_ewald, int hartree_fp_function_splines,
     int Fp_max_grid, int lmax_Fp, double Fp_grid_min, double Fp_grid_inc, global double *Fp_function_spline_slice,
     global double *Fpc_function_spline_slice) {
@@ -333,7 +334,7 @@ kernel void sum_up_whole_potential_shanghui_sub_t_(
     global double *centers_rho_multipole_spl, global double *centers_delta_v_hart_part_spl,
     global double *adap_outer_radius_sq, global double *multipole_radius_sq, global int *l_hartree_max_far_distance,
     // global double *outer_potential_radius, global double *multipole_c,
-    global double *outer_potential_radius, constant double *multipole_c,
+    global double *outer_potential_radius, mconstant double *multipole_c,
     // outer
     // dimensions
     int n_centers_hartree_potential, int n_periodic, int n_max_radial, int l_pot_max, int n_max_spline,
@@ -367,7 +368,7 @@ kernel void sum_up_whole_potential_shanghui_sub_t_(
     // ------ loop helper ------
     int valid_max_point, global int *point_to_i_batch, global int *point_to_i_index,
     global int* valid_point_to_i_full_point,
-    constant int *index_cc_aos,
+    mconstant int *index_cc_aos,
     // global int *index_cc_aos,
     // ------ intermediate ------
     global double *Fp_all, global double *coord_c_all, global double *coord_mat_all, global double *rest_mat_all,
@@ -384,8 +385,8 @@ kernel void sum_up_whole_potential_shanghui_sub_t_(
   int gsize = get_global_size(0);
   int lid = get_local_id(0);
   int lsize = get_local_size(0);
-  
-  global double *Fp = &Fp_all[get_group_id(0) * lsize * (l_pot_max + 2)];
+  double Fp[(L_POT_MAX+2)];
+  // global double *Fp = &Fp_all[get_group_id(0) * lsize * (l_pot_max + 2)];
   // global double *Fp = &Fp_all[gid * (l_pot_max + 2)];
   // global double *coord_c = coord_c_all + gid * 3 * (l_pot_max + 1);
   // global double *coord_mat = coord_mat_all + gid * (l_pot_max + 1) * (l_pot_max + 1);
@@ -406,10 +407,13 @@ kernel void sum_up_whole_potential_shanghui_sub_t_(
     // for (int i_batch = 1; i_batch <= n_my_batches; i_batch++)
     {
       // for (int i_index = 1; i_index <= batches_size_s(i_batch); i_index++)
-      for (int i_valid_points_ = gid; i_valid_points_ < valid_max_point; i_valid_points_ += gsize) {
-        
+      // for (int i_valid_points_ = gid; i_valid_points_ < valid_max_point; i_valid_points_ += gsize) {
+      for (int i_valid_points_ = 0; i_valid_points_ < (valid_max_point+gsize-1) / gsize; i_valid_points_ += 1) {
+        int i_valid_points = i_valid_points_ + gid * ((valid_max_point+gsize-1) / gsize);
+        if(i_valid_points >= valid_max_point)
+          break;
         // int i_full_points_ = i_valid_points_; // 没有 partition_tab 预判
-        int i_full_points_ = valid_point_to_i_full_point[i_valid_points_]; // 有 partition_tab 预判
+        int i_full_points_ = valid_point_to_i_full_point[i_valid_points]; // 有 partition_tab 预判
         int i_batch = point_to_i_batch[i_full_points_];
         int i_index = point_to_i_index[i_full_points_];
         int i_full_points = i_full_points_ + 1;
@@ -645,17 +649,35 @@ double coord_c[3][(L_POT_MAX + 1)];
                 }
                 int index_cc_i_dim = n_cc_lm_ijk(l_max_analytic_multipole);
                 int multipole_c_size1 = n_cc_lm_ijk(l_pot_max);
-                constant double * multipole_c_tmp = &multipole_c[1 - 1 + (center_to_atom(i_center) - 1) * multipole_c_size1];
-                constant int* index_tmp;
+                mconstant double * multipole_c_tmp = &multipole_c[1 - 1 + (center_to_atom(i_center) - 1) * multipole_c_size1];
+                mconstant int* index_tmp;
                 int ii, jj, kk, nn;
 
-                int nmax_ = n_cc_lm_ijk(l_max);
-                #pragma unroll 4
-                for (int n = 1; n <= nmax_; n++) {
+                int nmax = n_cc_lm_ijk(l_max) & 0xFFFFFFFC;
+                for (int n = 1; n <= nmax; n+=4) {
+                  index_tmp = index_cc_aos + (n-1)*4;
+                  ii = index_tmp[0];  jj = index_tmp[1];  kk = index_tmp[2];  nn = index_tmp[3];
+                  dpot = dpot + coord_c(0, ii) * coord_c(1, jj) * coord_c(2, kk) * Fp(nn, 1) * (*(multipole_c_tmp++));
+                  ii = index_tmp[4];  jj = index_tmp[5];  kk = index_tmp[6];  nn = index_tmp[7];
+                  dpot = dpot + coord_c(0, ii) * coord_c(1, jj) * coord_c(2, kk) * Fp(nn, 1) * (*(multipole_c_tmp++));
+                  ii = index_tmp[8];  jj = index_tmp[9];  kk = index_tmp[10];  nn = index_tmp[11];
+                  dpot = dpot + coord_c(0, ii) * coord_c(1, jj) * coord_c(2, kk) * Fp(nn, 1) * (*(multipole_c_tmp++));
+                  ii = index_tmp[12];  jj = index_tmp[13];  kk = index_tmp[14];  nn = index_tmp[15];
+                  dpot = dpot + coord_c(0, ii) * coord_c(1, jj) * coord_c(2, kk) * Fp(nn, 1) * (*(multipole_c_tmp++));
+                }
+                for (int n = nmax + 1; n <= n_cc_lm_ijk(l_max); n++) {
                   index_tmp = index_cc_aos + (n-1)*4;
                   ii = index_tmp[0];  jj = index_tmp[1];  kk = index_tmp[2];  nn = index_tmp[3];
                   dpot = dpot + coord_c(0, ii) * coord_c(1, jj) * coord_c(2, kk) * Fp(nn, 1) * (*(multipole_c_tmp++));
                 }
+                
+                // int nmax_ = n_cc_lm_ijk(l_max);
+                // #pragma unroll 4
+                // for (int n = 1; n <= nmax_; n++) {
+                //   index_tmp = index_cc_aos + (n-1)*4;
+                //   ii = index_tmp[0];  jj = index_tmp[1];  kk = index_tmp[2];  nn = index_tmp[3];
+                //   dpot = dpot + coord_c(0, ii) * coord_c(1, jj) * coord_c(2, kk) * Fp(nn, 1) * (*(multipole_c_tmp++));
+                // }
                 delta_v_hartree[i_full_points - 1] += dpot;
               }
             } else {
@@ -731,9 +753,9 @@ double rest_mat[(L_POT_MAX + 1)][(L_POT_MAX + 1)];
                   for (int i_l = 1; i_l <= index_ijk_max_cc(i_coord + 1, l_max); i_l++)
                     coord_c(i_coord, i_l) = dir[i_coord] * coord_c(i_coord, i_l - 1);
                 int index_cc_i_dim = n_cc_lm_ijk(l_max_analytic_multipole);
-                constant int* index_tmp;
+                mconstant int* index_tmp;
                 int multipole_c_size1 = n_cc_lm_ijk(l_pot_max);
-                // constant double * multipole_c_tmp = &multipole_c[1 - 1 + (center_to_atom(current_center) - 1) * multipole_c_size1];
+                // mconstant double * multipole_c_tmp = &multipole_c[1 - 1 + (center_to_atom(current_center) - 1) * multipole_c_size1];
                 int ii, jj, kk, nn;
                 int nmax_ = n_cc_lm_ijk(l_max);
                 #pragma unroll 4
@@ -757,6 +779,109 @@ double rest_mat[(L_POT_MAX + 1)][(L_POT_MAX + 1)];
 
 #undef centers_rho_multipole_spl
 #undef centers_delta_v_hart_part_spl
+}
+
+kernel void sum_up_count_centers_hit(
+    // int forces_on, 
+    global double *partition_tab_std, 
+    // global double *delta_v_hartree, global double *rho_multipole,
+    // global double *centers_rho_multipole_spl, global double *centers_delta_v_hart_part_spl,
+    // global double *adap_outer_radius_sq, 
+    global double *multipole_radius_sq, 
+    // global int *l_hartree_max_far_distance,
+    // global double *outer_potential_radius, global double *multipole_c,
+    // global double *outer_potential_radius, mconstant double *multipole_c,
+    // outer
+    // dimensions
+    // int n_centers_hartree_potential, int n_periodic, int n_max_radial, 
+    int l_pot_max, 
+    // int n_max_spline,
+    // int n_hartree_grid, int n_species, int n_atoms, int n_centers, 
+    int n_max_batch_size, 
+    // int n_my_batches,
+    // int n_full_points,
+    // runtime_choices
+    // int use_hartree_non_periodic_ewald, int hartree_fp_function_splines, int fast_ylm, int new_ylm,
+    // analytic_multipole_coefficients
+    // int l_max_analytic_multipole,
+    // hartree_potential_real_p0
+    // int n_hartree_atoms, int hartree_force_l_add,
+    // hartree_f_p_functions
+    // int Fp_max_grid, int lmax_Fp, double Fp_grid_min, double Fp_grid_inc, double Fp_grid_max,
+    // outer arrays
+    // geometry
+    // global int *species, // 从0开始数，第35个
+    // pbc_lists
+    global int *centers_hartree_potential, global int *center_to_atom, global int *species_center,
+    global double *coords_center,
+    // species_data
+    // global int *l_hartree,
+    // grids
+    // global int *n_grid, global int *n_radial, global int *batches_size_s, 
+    global double *batches_points_coords_s,
+    // global double *r_grid_min, global double *log_r_grid_inc, global double *scale_radial,
+    // analytic_multipole_coefficients
+    // global int *n_cc_lm_ijk, global int *index_cc, global int *index_ijk_max_cc,
+    // hartree_potential_real_p0
+    // global double *b0, global double *b2, global double *b4, global double *b6, global double *a_save,
+    // hartree_f_p_functions
+    // global double *Fp_function_spline_slice, global double *Fpc_function_spline_slice,
+    // ------ loop helper ------
+    int valid_max_point, global int *point_to_i_batch, global int *point_to_i_index,
+    global int* valid_point_to_i_full_point,
+    // mconstant int *index_cc_aos,
+
+    // global int *index_cc_aos,
+    // ------ intermediate ------
+    // global double *Fp_all, global double *coord_c_all, global double *coord_mat_all, global double *rest_mat_all,
+    // global double *vector_all, global double *delta_v_hartree_multipole_component_all,
+    // global double *rho_multipole_component_all, global double *ylm_tab_all,
+    int i_center_begin, int i_center_end, global int* i_center_to_centers_index, global int* spl_atom_needs
+
+) {
+  int gid = get_global_id(0);
+  int gsize = get_global_size(0);
+  int lid = get_local_id(0);
+  int lsize = get_local_size(0);
+
+
+  for (int i_center = i_center_begin+1; i_center <= i_center_end; i_center++) {
+    {
+      for (int i_valid_points_ = 0; i_valid_points_ < (valid_max_point+gsize-1) / gsize; i_valid_points_ += 1) {
+        int i_valid_points = i_valid_points_ + gid * ((valid_max_point+gsize-1) / gsize);
+        if(i_valid_points >= valid_max_point)
+          break;
+        // int i_full_points_ = i_valid_points_; // 没有 partition_tab 预判
+        int i_full_points_ = valid_point_to_i_full_point[i_valid_points]; // 有 partition_tab 预判
+        int i_batch = point_to_i_batch[i_full_points_];
+        int i_index = point_to_i_index[i_full_points_];
+        int i_full_points = i_full_points_ + 1;
+        // i_full_points++;
+        if (partition_tab(i_full_points) > 0.0) {
+          int n_l_dim = (l_pot_max + 1) * (l_pot_max + 1);
+          int n_coeff_hartree = 2;
+          int current_center = centers_hartree_potential(i_center);
+          int current_spl_atom = center_to_atom(current_center);
+          int centers_xxx_index = i_center_to_centers_index[(i_center-1) - i_center_begin];
+          double coord_current[3];
+          for (int i = 0; i < 3; i++)
+            coord_current[i] = batches_points_coords_s(i + 1, i_index, i_batch);
+          double dist_tab_sq;
+          double dir_tab[3];
+          {
+            dist_tab_sq = 0.0;
+            for (int i_coord = 0; i_coord < 3; i_coord++) {
+              dir_tab[i_coord] = coord_current[i_coord] - coords_center(i_coord + 1, current_center);
+              dist_tab_sq += dir_tab[i_coord] * dir_tab[i_coord];
+            }
+          }
+          if (dist_tab_sq < multipole_radius_sq[current_spl_atom - 1]) {
+            spl_atom_needs[current_spl_atom] = 1;
+          }
+        }
+      }
+    }
+  }
 }
 
 double invert_radial_grid_c_(double r_current, int n_scale, double r_scale) {
@@ -824,92 +949,6 @@ void cubic_spline_v2_c_(global double *spl_param, int *n_l_dim_, int *n_coeff_, 
 #undef spl_param
 }
 
-void cubic_spline_v2_c_opt_block(global double *spl_param, int *n_l_dim_, int *n_coeff_, int *n_grid_dim_, int n_points,
-                        int *n_vector_) {
-#define spl_param(i, j, k) spl_param[(i)-1 + n_l_dim * ((j)-1 + n_coeff * ((k)-1))]
-#define d_inv(i) d_inv[(i)-1]
-#define _MIN(i, j) ((i) < (j) ? (i) : (j))
-  int n_l_dim = *n_l_dim_;
-  int n_coeff = *n_coeff_;
-  int n_grid_dim = *n_grid_dim_;
-  // int n_points = *n_points_;
-  int n_vector = *n_vector_;
-  double d_inv[20];
-
-  int lid = get_local_id(0);
-  int lsize = get_local_size(0);
-
-  barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
-  if (n_points == 1) {
-    for (int i = lid + 1; i <= n_vector; i+=lsize)
-      spl_param(i, 2, 1) = 0;
-    if (n_coeff == 4) {
-      for (int i = lid + 1; i <= n_vector; i+=lsize)
-        spl_param(i, 3, 1) = 0;
-      for (int i = lid + 1; i <= n_vector; i+=lsize)
-        spl_param(i, 4, 1) = 0;
-    }
-  }
-  barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
-  if(lid < WAVE_SIZE){
-    d_inv(1) = 0.5;
-    for (int i = 2; i <= 20; i++)
-      d_inv(i) = 1.0 / (4 - d_inv(i - 1));
-    for (int i = lid+1; i <= n_vector; i+=WAVE_SIZE)
-      spl_param(i, 2, 1) = 3 * (spl_param(i, 1, 2) - spl_param(i, 1, 1));
-  }
-  barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
-  if(lid < WAVE_SIZE){
-    for (int i = lid+1; i <= n_vector; i+=WAVE_SIZE){
-      // #pragma loop unroll 8
-      for (int x = 2; x <= n_points - 1; x++) {
-        int d_inv_id = _MIN(x - 1, 20);
-        spl_param(i, 2, x) =
-            3 * (spl_param(i, 1, x + 1) - spl_param(i, 1, x - 1)) - d_inv(d_inv_id) * spl_param(i, 2, x - 1);
-      }
-    }
-  }
-  barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
-  if(get_local_id(0) == 0){
-    int d_inv_id = _MIN(n_points - 1, 20);
-    for (int i = 1; i <= n_vector; i++)
-      spl_param(i, 2, n_points) = 3 * (spl_param(i, 1, n_points) - spl_param(i, 1, n_points - 1)) -
-                                  d_inv(d_inv_id) * spl_param(i, 2, n_points - 1);
-    for (int i = 1; i <= n_vector; i++)
-      spl_param(i, 2, n_points) = spl_param(i, 2, n_points) / (2 - d_inv(d_inv_id)); // TODO 合并
-  }
-  // 0.036
-  barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
-  if(lid < WAVE_SIZE){
-    if (n_coeff == 4) {
-      for (int x = n_points - 1; x >= 1; x--) {
-        int d_inv_id = _MIN(x, 20);
-        for (int i = lid+1; i <= n_vector; i+=WAVE_SIZE)
-          spl_param(i, 2, x) = (spl_param(i, 2, x) - spl_param(i, 2, x + 1)) * d_inv(d_inv_id);
-          for (int i = lid+1; i <= n_vector; i+=WAVE_SIZE){
-            spl_param(i, 3, x) =
-                3 * (spl_param(i, 1, x + 1) - spl_param(i, 1, x)) - 2 * spl_param(i, 2, x) - spl_param(i, 2, x + 1);
-            spl_param(i, 4, x) =
-                2 * (spl_param(i, 1, x) - spl_param(i, 1, x + 1)) + spl_param(i, 2, x) + spl_param(i, 2, x + 1);
-          }
-      }
-    } else {
-      for (int i = lid+1; i <= n_vector; i+=WAVE_SIZE){
-        #pragma unroll 8
-        for (int x = n_points - 1; x >= 1; x--) {
-          int d_inv_id = _MIN(x, 20);
-            spl_param(i, 2, x) = (spl_param(i, 2, x) - spl_param(i, 2, x + 1)) * d_inv(d_inv_id);
-        }
-      }
-    }
-  // 0.049
-  }
-  barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
-#undef _MIN
-#undef d_inv
-#undef spl_param
-}
-
 void get_rho_multipole_spl_c_(global double *rho_multipole_spl, int spl_atom, 
   // outer
   int l_pot_max, int n_max_radial, int n_max_spline,
@@ -933,20 +972,20 @@ void get_rho_multipole_spl_c_(global double *rho_multipole_spl, int spl_atom,
   const int lid = get_local_id(0);
   const int lsize = get_local_size(0);
 
-  for(int x=lid; x < (n_rad + 2)*l_h_dim; x+=lsize){
-    int k = x / l_h_dim + 1;
-    int i = x % l_h_dim + 1;
-    rho_multipole_spl(i, 1, k) = rho_multipole(i, k, i_atom_index);
+  for (int k = 1; k <= (n_rad + 2); k++) {
+    for (int i = 1; i <= l_h_dim; i++) {
+      rho_multipole_spl(i, 1, k) = rho_multipole(i, k, i_atom_index);
+    }
   }
 
-  barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
+  // barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
 
   // TODO first check this func
-  cubic_spline_v2_c_opt_block(rho_multipole_spl, &l_pot_max_help, &n_max_spline, &n_max_radial_help, n_rad_help, &l_h_dim);
+  cubic_spline_v2_c_(rho_multipole_spl, &l_pot_max_help, &n_max_spline, &n_max_radial_help, n_rad_help, &l_h_dim);
 
-  barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
+  // barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
 
-  if(get_local_id(0) == 0){
+  // if(get_local_id(0) == 0){
     int i_radial = n_rad;
     while ((r_radial(i_radial, species_tmp) >= multipole_radius_free[species_tmp-1]) && i_radial > 1) {
       for (int j = 1; j <= n_max_spline; j++)
@@ -966,7 +1005,7 @@ void get_rho_multipole_spl_c_(global double *rho_multipole_spl, int spl_atom,
       rho_multipole_spl(j, 4, i_radial) =
           2.0 / delta_3 * rho_multipole_spl(j, 1, i_radial) + 1.0 / delta_2 * rho_multipole_spl(j, 2, i_radial);
     }
-  }
+  // }
 #undef r_radial
 #undef rho_multipole
 #undef rho_multipole_spl
@@ -999,8 +1038,8 @@ void spline_angular_integral_log_c_(global double *angular_part_spl, global doub
 #define r_grid(i, j) MV(grids, r_grid)[(i)-1+n_max_grid*((j)-1)]
 #define multipole_radius_free(i) multipole_radius_free[(i)-1]
 #define angular_part_spl(i, j, k) angular_part_spl[(i)-1 + l_pot_max_help * ((j)-1 + n_max_spline * ((k)-1))]
-// #define angular_integral_log(i, j) angular_integral_log[(i)-1 + l_pot_max_help * ((j)-1)]
-#define angular_integral_log(i, j) angular_integral_log[((i)-1) * n_max_grid + (j)-1]
+#define angular_integral_log(i, j) angular_integral_log[(i)-1 + l_pot_max_help * ((j)-1)]
+// #define angular_integral_log(i, j) angular_integral_log[((i)-1) * n_max_grid + (j)-1]
   int l_pot_max_help = (l_pot_max + 1) * (l_pot_max + 1);
   int n_max_radial_help = n_max_radial + 2;
   // int i_atom = *i_atom_;
@@ -1011,26 +1050,24 @@ void spline_angular_integral_log_c_(global double *angular_part_spl, global doub
   int l_h_dim = (l_hartree(species(i_atom)) + 1) * (l_hartree(species(i_atom)) + 1);
 
   int i_grid_max = n_grid(species(i_atom));
-
-  for (int i_grid = lid+1; i_grid <= i_grid_max; i_grid+=lsize) {
+  for (int i_grid = 1; i_grid <= i_grid_max; i_grid++) {
     if (r_grid(i_grid, species(i_atom)) < multipole_radius_free(species(i_atom))) {
       double i_r_radial = 1 + invert_radial_grid_c_(r_grid(i_grid, species(i_atom)), n_radial(species(i_atom)),
                                                     scale_radial(species(i_atom)));
-      spline_vector_v2_c_step(i_r_radial, angular_part_spl, l_pot_max_help, n_max_spline, n_max_radial_help,
-                          n_radial(species(i_atom)) + 2, l_h_dim, &angular_integral_log(1, i_grid),
-                          n_max_grid);
+      spline_vector_v2_c_g_(i_r_radial, angular_part_spl, l_pot_max_help, n_max_spline, n_max_radial_help,
+                          n_radial(species(i_atom)) + 2, l_h_dim, &angular_integral_log(1, i_grid));
     } else {
-      for (int i = 1; i <= l_h_dim; i+=1)
+      for (int i = 1; i <= l_h_dim; i++)
         angular_integral_log(i, i_grid) = 0.0;
     }
   }
-  barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
+  // barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
   if (compensate_multipole_errors) {
     double c_n_tmp = compensation_norm[i_atom-1];
     double c_r_tmp = compensation_radius[i_atom-1];
     int s_tmp = species(i_atom);
     int i_l = 0;
-    for (int i_grid = lid+1; i_grid <= i_grid_max; i_grid+=lsize) {
+    for (int i_grid = 1; i_grid <= i_grid_max; i_grid++) {
       angular_integral_log(1, i_grid) += c_n_tmp * compensating_density_c_(r_grid(i_grid, s_tmp), c_r_tmp, i_l);
     }
   }
@@ -1050,15 +1087,15 @@ void integrate_delta_v_hartree_internal_c_(global double *angular_integral_log,
   global int* species, global int* l_hartree, global int* n_grid,
   global double* r_grid_inc, global double* r_grid,
   // local array
-  local double* integral_zero_r, local double* integral_r_infty,
+  local double* integral_zero_r_deprecate, local double* integral_r_infty_deprecate,
   local double (*local_grids_AM)[L_POT_MAX + 1],
   // local double (*local_iri)[(L_POT_MAX + 1) * (L_POT_MAX + 1)],
   local double (*local_iri)[LOCALSIZE_SUM_UP_PRE_PROC+1],
   local int* local_i_index_to_i_l
 ) {
 #define r_grid(i, j) MV(grids, r_grid)[(i)-1+n_max_grid*((j)-1)]
-// #define angular_integral_log(i, j) angular_integral_log[(i)-1 + l_pot_max_help * ((j)-1)]
-#define angular_integral_log(i, j) angular_integral_log[((i)-1) * n_max_grid + (j)-1]
+#define angular_integral_log(i, j) angular_integral_log[(i)-1 + l_pot_max_help * ((j)-1)]
+// #define angular_integral_log(i, j) angular_integral_log[((i)-1) * n_max_grid + (j)-1]
 #define delta_v_hartree(i, j, k) delta_v_hartree[(i)-1 + l_pot_max_help * ((j)-1 + n_coeff_hartree * ((k)-1))]
 #define integral_zero_r(i) integral_zero_r[(i)-1]
 #define integral_r_infty(i) integral_r_infty[(i)-1]
@@ -1072,15 +1109,17 @@ void integrate_delta_v_hartree_internal_c_(global double *angular_integral_log,
   const int lsize = get_local_size(0);
 
   double prefactor[L_POT_MAX + 1];  // generate once
+  double integral_zero_r[(L_POT_MAX + 1) * (L_POT_MAX + 1)];
+  double integral_r_infty[(L_POT_MAX + 1) * (L_POT_MAX + 1)];
   double r_l_AM[4];
   double r_neg_l1_AM[4];
   double r_inv_AM[4];
   double dr_coef_AM[4];
 
-  for(int i_index=lid; i_index<(l_pot_max + 1) * (l_pot_max + 1); i_index+=lsize){
-    int i_l = (int)sqrt((float)i_index);  // the sqrt may be replaced by integer sqrt
-    local_i_index_to_i_l[i_index] = i_l;
-  }
+  // for(int i_index=lid; i_index<(l_pot_max + 1) * (l_pot_max + 1); i_index+=lsize){
+  //   int i_l = (int)sqrt((float)i_index);  // the sqrt may be replaced by integer sqrt
+  //   local_i_index_to_i_l[i_index] = i_l;
+  // }
 
   for (int i_l = 0; i_l <= l_pot_max; i_l++)
     prefactor[i_l] = 12.56637061435917295376 / (2.0 * (double)i_l + 1.0); // pi4 = 12.56637061435917295376
@@ -1092,7 +1131,7 @@ void integrate_delta_v_hartree_internal_c_(global double *angular_integral_log,
     integral_zero_r[i] = 0;
   for (int i = 0; i < (l_pot_max + 1) * (l_pot_max + 1); i++)
     integral_r_infty[i] = 0;
-  barrier(CLK_LOCAL_MEM_FENCE);
+  // barrier(CLK_LOCAL_MEM_FENCE);
 
   // TODO print Adams_Moulton_integrator
   // WARNING the other path may mot be checked
@@ -1101,7 +1140,7 @@ void integrate_delta_v_hartree_internal_c_(global double *angular_integral_log,
   if (Adams_Moulton_integrator) {
     int i_l_max = l_hartree(species(i_atom));
     int i_index = 0; // TODO: change to static form in the loop
-    if(get_local_id(0) == 0){
+    // if(get_local_id(0) == 0){
       double r_grid1 = r_grid(1, species(i_atom));
       double r_grid2 = r_grid(2, species(i_atom));
       double r_grid3 = r_grid(3, species(i_atom));
@@ -1134,55 +1173,40 @@ void integrate_delta_v_hartree_internal_c_(global double *angular_integral_log,
           delta_v_hartree(i_index, 1, 2) = integral_zero_r(i_index) / pow(r_grid3, i_l + 1);
         }
       }
-    }
+    // }
+    
     // 0.016
-    barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
+    // barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
     // if(get_local_id(0) == 0)
-    local double (*local_r_neg_l1_AM)[L_POT_MAX + 1] = local_grids_AM;
-    for (int i_grid_o = 0; i_grid_o < CEIL_DIV(n_tmp - 4 + 1, lsize); i_grid_o += 1) {
-      int i_grid_min = i_grid_o * lsize + 4;
-      int i_grid = i_grid_min + lid;
-      if (i_grid <= n_tmp) {
-        for (int i_g = 0; i_g <= 3; i_g++) {
+    // local double (*local_r_neg_l1_AM)[L_POT_MAX + 1] = local_grids_AM;
+    for (int i_grid = 4; i_grid <= n_tmp; i_grid++) {
+      for (int i_g = 0; i_g <= 3; i_g++) {
         r_inv_AM[i_g] = 1.0 / r_grid(i_grid - i_g, s_tmp);
         r_l_AM[i_g] = r_inv_AM[i_g];
         r_neg_l1_AM[i_g] = 1.0;
         dr_coef_AM[i_g] =
             r_grid(i_grid - i_g, s_tmp) * r_grid(i_grid - i_g, s_tmp) * alpha * r_grid(i_grid - i_g, s_tmp);
-        }
+      }
 
-        int i_index = 0;
-        for (int i_l = 0; i_l <= i_l_max; i_l++) {
-          for (int i_g = 0; i_g <= 3; i_g++)
-            r_l_AM[i_g] *= r_grid(i_grid - i_g, s_tmp);
-          r_neg_l1_AM[0] *= r_inv_AM[0];
-          local_r_neg_l1_AM[i_grid - i_grid_min][i_l] = r_neg_l1_AM[0];
-          for (int i_m = -i_l; i_m <= i_l; i_m++) {
-            ++i_index;
-            local_iri[i_index-1][i_grid - i_grid_min] = (9 * angular_integral_log(i_index, i_grid) * r_l_AM[0] * dr_coef_AM[0] +
+      int i_index = 0;
+      for (int i_l = 0; i_l <= i_l_max; i_l++) {
+        for (int i_g = 0; i_g <= 3; i_g++)
+          r_l_AM[i_g] *= r_grid(i_grid - i_g, s_tmp);
+        r_neg_l1_AM[0] *= r_inv_AM[0];
+        for (int i_m = 0; i_m <= i_l+i_l; i_m++) {
+          ++i_index;
+          integral_zero_r(i_index) += (9 * angular_integral_log(i_index, i_grid) * r_l_AM[0] * dr_coef_AM[0] +
                                        19 * angular_integral_log(i_index, i_grid - 1) * r_l_AM[1] * dr_coef_AM[1] -
                                        5 * angular_integral_log(i_index, i_grid - 2) * r_l_AM[2] * dr_coef_AM[2] +
                                        angular_integral_log(i_index, i_grid - 3) * r_l_AM[3] * dr_coef_AM[3]) *
                                       d_1_24;
-          }
+          delta_v_hartree(i_index, 1, i_grid) = integral_zero_r(i_index) * r_neg_l1_AM[0];
         }
       }
-      // we can use parallel prefix sum to optimize, but let's use a simpler way first
-      barrier(CLK_LOCAL_MEM_FENCE);
-      for(int i_index=lid; i_index<(i_l_max + 1) * (i_l_max + 1); i_index+=lsize){
-        int i_l = local_i_index_to_i_l[i_index];
-        int i_m = i_index - i_l * i_l - i_l;
-        for(int i_grid = i_grid_min; i_grid <= min(i_grid_min + lsize - 1, n_tmp); i_grid++){
-          // integral_zero_r[i_index] += local_iri[i_grid - i_grid_min][i_index];
-          integral_zero_r[i_index] += local_iri[i_index][i_grid - i_grid_min];
-          delta_v_hartree(i_index+1, 1, i_grid) = integral_zero_r[i_index] * local_r_neg_l1_AM[i_grid - i_grid_min][i_l];
-        }
-      }
-      barrier(CLK_LOCAL_MEM_FENCE);
     }
-    barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
+    // barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
     // 0.034
-    if(get_local_id(0) == 0){
+    // if(get_local_id(0) == 0){
       for (int i = 0; i < (l_pot_max + 1) * (l_pot_max + 1); i++)
         integral_r_infty[i] = 0.0;
       // int i_index = 0;
@@ -1216,57 +1240,40 @@ void integrate_delta_v_hartree_internal_c_(global double *angular_integral_log,
           delta_v_hartree(i_index, 1, n_tmp - 2) *= prefactor[i_l];
         }
       }
-    }
+    // }
     // all remaining terms
     // Integral_i = Integral_(i+1) + h[9 f_i + 19 f_(i+1) - 5 f_(i+2) + f_(i+3)]/24
-    barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
+    // barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
     local double (*local_r_l_AM_0)[L_POT_MAX + 1] = local_grids_AM;
-    for (int i_grid_o = CEIL_DIV(n_tmp - 3, lsize) - 1; i_grid_o >= 0; i_grid_o -= 1) {
-      int i_grid_min = i_grid_o * lsize + 1;
-      int i_grid = i_grid_min + lid;
-      // for(int i_grid = i_grid_o * lsize + lsize; i_grid >= i_grid_o * lsize + 1; i_grid--)
-      if (i_grid <= n_tmp - 3) {
-        for (int i_g = 0; i_g <= 3; i_g++) {
-          r_inv_AM[i_g] = 1.0 / r_grid(i_grid + i_g, s_tmp);
-          r_neg_l1_AM[i_g] = 1.0;
-          dr_coef_AM[i_g] = r_grid(i_grid + i_g, s_tmp) * r_grid(i_grid + i_g, s_tmp) * alpha * r_grid(i_grid + i_g, s_tmp);
-          r_l_AM[i_g] = r_inv_AM[i_g];
-        }
-
-        int i_index = 0;
-        for (int i_l = 0; i_l <= i_l_max; i_l++) {
-          for (int i_g = 0; i_g <= 3; i_g++)
-            r_neg_l1_AM[i_g] *= r_inv_AM[i_g];
-
-          r_l_AM[0] *= r_grid(i_grid, s_tmp);
-          local_r_l_AM_0[i_grid - i_grid_min][i_l] = r_l_AM[0];
-          for (int i_m = -i_l; i_m <= i_l; i_m++) {
-            ++i_index;
-            local_iri[i_index-1][i_grid - i_grid_min] = (9 * angular_integral_log(i_index, i_grid) * r_neg_l1_AM[0] * dr_coef_AM[0] +
-                                       19 * angular_integral_log(i_index, i_grid + 1) * r_neg_l1_AM[1] * dr_coef_AM[1] -
-                                       5 * angular_integral_log(i_index, i_grid + 2) * r_neg_l1_AM[2] * dr_coef_AM[2] +
-                                       angular_integral_log(i_index, i_grid + 3) * r_neg_l1_AM[3] * dr_coef_AM[3]) *
-                                      d_1_24;
-          }
+    for (int i_grid = n_tmp - 3; i_grid >= 1; i_grid--) {
+      for (int i_g = 0; i_g <= 3; i_g++) {
+        r_inv_AM[i_g] = 1.0 / r_grid(i_grid + i_g, s_tmp);
+        r_l_AM[i_g] = r_inv_AM[i_g];
+        r_neg_l1_AM[i_g] = 1.0;
+        dr_coef_AM[i_g] =
+            r_grid(i_grid + i_g, s_tmp) * r_grid(i_grid + i_g, s_tmp) * alpha * r_grid(i_grid + i_g, s_tmp);
+      }
+      int i_index = 0;
+      for (int i_l = 0; i_l <= i_l_max; i_l++) {
+        for (int i_g = 0; i_g <= 3; i_g++)
+          r_neg_l1_AM[i_g] *= r_inv_AM[i_g];
+        r_l_AM[0] *= r_grid(i_grid, s_tmp);
+        for (int i_m = -i_l; i_m <= i_l; i_m++) {
+          ++i_index;
+          integral_r_infty(i_index) +=
+              (9 * angular_integral_log(i_index, i_grid) * r_neg_l1_AM[0] * dr_coef_AM[0] +
+               19 * angular_integral_log(i_index, i_grid + 1) * r_neg_l1_AM[1] * dr_coef_AM[1] -
+               5 * angular_integral_log(i_index, i_grid + 2) * r_neg_l1_AM[2] * dr_coef_AM[2] +
+               angular_integral_log(i_index, i_grid + 3) * r_neg_l1_AM[3] * dr_coef_AM[3]) *
+              d_1_24;
+          delta_v_hartree(i_index, 1, i_grid) += integral_r_infty(i_index) * r_l_AM[0];
+          delta_v_hartree(i_index, 1, i_grid) *= prefactor[i_l];
         }
       }
-      // we can use parallel prefix sum to optimize, but let's use a simpler way first
-      barrier(CLK_LOCAL_MEM_FENCE);
-      for(int i_index=lid; i_index<(i_l_max + 1) * (i_l_max + 1); i_index+=lsize){
-        // int i_l = (int)sqrt((float)i_index);  // 应该换一个整数 sqrt 快速算法的
-        int i_l = local_i_index_to_i_l[i_index];
-        int i_m = i_index - i_l * i_l - i_l;
-        for(int i_grid = min(i_grid_o * lsize + lsize, n_tmp - 3); i_grid >= i_grid_min; i_grid--){
-          integral_r_infty[i_index] += local_iri[i_index][i_grid - i_grid_min];
-          delta_v_hartree(i_index+1, 1, i_grid) += integral_r_infty[i_index] * local_r_l_AM_0[i_grid - i_grid_min][i_l];
-          delta_v_hartree(i_index+1, 1, i_grid) *= prefactor[i_l];
-        }
-      }
-      barrier(CLK_LOCAL_MEM_FENCE);
     }
-    barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
+    // barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
   } else { // TODO NO CHECKED (without cases which Adams_Moulton_integrator=False)
-    if(get_local_id(0) == 0){
+    // if(get_local_id(0) == 0){
     // Now to the integrations
     // First part of the integral 0 -> r
     for (int i_grid = 1; i_grid <= n_tmp; i_grid++) {
@@ -1311,11 +1318,12 @@ void integrate_delta_v_hartree_internal_c_(global double *angular_integral_log,
         }
       }
     }
-    }
+    // }
   } // end if !(Adams_Moulton_integrator) and else
   // Calculate spline coefficients
-  cubic_spline_v2_c_opt_block(delta_v_hartree, &l_pot_max_help, &n_coeff_hartree, &n_hartree_grid, n_grid(species(i_atom)),
+  cubic_spline_v2_c_(delta_v_hartree, &l_pot_max_help, &n_coeff_hartree, &n_hartree_grid, n_grid(species(i_atom)),
                      &l_h_dim);
+                    
 #undef r_grid
 #undef angular_integral_log
 #undef delta_v_hartree
@@ -1347,7 +1355,8 @@ kernel void sum_up_whole_potential_shanghui_pre_proc_(
   global double *angular_integral_log_,
   // func spec
   global double *rho_multipole_spl, global double* delta_v_hartree, int n_coeff_hartree,
-  int i_center_begin, int i_center_end, global int* i_center_to_centers_index
+  int i_center_begin, int i_center_end, global int* i_center_to_centers_index,
+  global int* spl_atom_needs
 ){
   const int gid = get_global_id(0);
   const int bid = get_group_id(0);
@@ -1367,8 +1376,12 @@ kernel void sum_up_whole_potential_shanghui_pre_proc_(
     // int i_center = i_center_ + 1;
     int current_center = MV(pbc_lists, centers_hartree_potential)[i_center_];
     int current_spl_atom = MV(pbc_lists, center_to_atom)[current_center - 1];
+    if(!(spl_atom_needs[current_spl_atom] > 0))
+      continue;
     int index = i_center_to_centers_index[i_center_];
-    // printf("%d: i_center_=%d, index=%d, i_center_begin=%d\n", gid, i_center_, index, i_center_begin);
+    // if(gid <= 1)
+    //   printf("%d: i_center_=%d, index=%d, i_center_begin=%d, current_center=%d, current_spl_atom=%d\n", gid, i_center_, index, 
+    //               i_center_begin, current_center, current_spl_atom);
     if(index == (i_center_ - i_center_begin)){
       int rho_multipole_spl_offset = (l_pot_max + 1) * (l_pot_max + 1) * n_max_spline * (n_max_radial+2) * index;
       int delta_v_hartree_offset = (l_pot_max + 1) * (l_pot_max + 1) * n_coeff_hartree * n_hartree_grid * index;
@@ -1381,7 +1394,7 @@ kernel void sum_up_whole_potential_shanghui_pre_proc_(
         species, l_hartree, n_radial, scale_radial, r_radial, multipole_radius_free,
         rho_multipole, rho_multipole_index);
 
-      barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
+      // barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
 
       spline_angular_integral_log_c_(&rho_multipole_spl[rho_multipole_spl_offset], angular_integral_log, current_spl_atom,
         n_max_radial, l_pot_max, n_max_spline, n_max_grid, compensate_multipole_errors,
@@ -1389,7 +1402,7 @@ kernel void sum_up_whole_potential_shanghui_pre_proc_(
         n_grid, n_radial, scale_radial, r_grid,
         compensation_norm, compensation_radius);
 
-      barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
+      // barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
 
       integrate_delta_v_hartree_internal_c_(angular_integral_log, &delta_v_hartree[delta_v_hartree_offset], &n_coeff_hartree, current_spl_atom, 
         l_pot_max, n_hartree_grid, n_max_grid, Adams_Moulton_integrator,

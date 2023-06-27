@@ -153,8 +153,6 @@ function solve_evp_real_2stage_double(na,nev,a,lda,ev,q,ldq,nblk,&
   integer(kind=c_int) :: istat
   character(200) :: errorMessage
 
-  logical :: elpa_print_times_save
-
   call MPI_Comm_rank(mpi_comm_all,my_pe,mpierr)
   call MPI_Comm_size(mpi_comm_all,n_pes,mpierr)
   call MPI_Comm_rank(mpi_comm_rows,my_prow,mpierr)
@@ -165,8 +163,7 @@ function solve_evp_real_2stage_double(na,nev,a,lda,ev,q,ldq,nblk,&
   success = .true.
 
   THIS_REAL_ELPA_KERNEL = DEFAULT_REAL_ELPA_KERNEL
-  elpa_print_times_save = elpa_print_times
-  elpa_print_times = .true.
+
 ! Bandwidth must be a multiple of nblk
 ! Set to a value >= 32
   nbw = (63/nblk+1)*nblk
@@ -186,8 +183,7 @@ function solve_evp_real_2stage_double(na,nev,a,lda,ev,q,ldq,nblk,&
   if(.not.(success)) return
   ttt1 = MPI_Wtime()
   if(my_prow==0 .and. my_pcol==0 .and. elpa_print_times) then
-    ! write(use_unit,"(A,F10.3,A)") "  | Time full => band           :",ttt1-ttt0," s"
-    WRITE(*,"(A,F10.3,A)") "  | Time full => band           :",ttt1-ttt0," s"
+    write(use_unit,"(A,F10.3,A)") "  | Time full => band           :",ttt1-ttt0," s"
   endif
 
 ! Reduction band -> tridiagonal
@@ -204,8 +200,7 @@ function solve_evp_real_2stage_double(na,nev,a,lda,ev,q,ldq,nblk,&
 
   ttt1 = MPI_Wtime()
   if(my_prow==0 .and. my_pcol==0 .and. elpa_print_times) then
-    ! write(use_unit,"(A,F10.3,A)") "  | Time band => tridiagonal    :",ttt1-ttt0," s"
-    write(*,"(A,F10.3,A)") "  | Time band => tridiagonal    :",ttt1-ttt0," s"
+    write(use_unit,"(A,F10.3,A)") "  | Time band => tridiagonal    :",ttt1-ttt0," s"
   endif
 
   call MPI_Bcast(ev,na,MPI_REAL8,0,mpi_comm_all,mpierr)
@@ -219,8 +214,7 @@ function solve_evp_real_2stage_double(na,nev,a,lda,ev,q,ldq,nblk,&
   if(.not.(success)) return
   ttt1 = MPI_Wtime()
   if(my_prow==0 .and. my_pcol==0 .and. elpa_print_times) then
-    ! write(use_unit,"(A,F10.3,A)") "  | Time solve tridiagonal      :",ttt1-ttt0," s"
-    write(*,"(A,F10.3,A)") "  | Time solve tridiagonal      :",ttt1-ttt0," s"
+    write(use_unit,"(A,F10.3,A)") "  | Time solve tridiagonal      :",ttt1-ttt0," s"
   endif
 
   deallocate(e,stat=istat,errmsg=errorMessage)
@@ -238,8 +232,7 @@ function solve_evp_real_2stage_double(na,nev,a,lda,ev,q,ldq,nblk,&
   if(.not.(success)) return
   ttt1 = MPI_Wtime()
   if(my_prow==0 .and. my_pcol==0 .and. elpa_print_times) then
-    ! write(use_unit,"(A,F10.3,A)") "  | Time ev tridiagonal => band :",ttt1-ttt0," s"
-    write(*,"(A,F10.3,A)") "  | Time ev tridiagonal => band :",ttt1-ttt0," s"
+    write(use_unit,"(A,F10.3,A)") "  | Time ev tridiagonal => band :",ttt1-ttt0," s"
   endif
 
 ! We can now deallocate the stored householder vectors
@@ -257,8 +250,7 @@ function solve_evp_real_2stage_double(na,nev,a,lda,ev,q,ldq,nblk,&
 
   ttt1 = MPI_Wtime()
   if(my_prow==0 .and. my_pcol==0 .and. elpa_print_times) then
-    ! write(use_unit,"(A,F10.3,A)") "  | Time ev band => full        :",ttt1-ttt0," s"
-    write(*,"(A,F10.3,A)") "  | Time ev band => full        :",ttt1-ttt0," s"
+    write(use_unit,"(A,F10.3,A)") "  | Time ev band => full        :",ttt1-ttt0," s"
   endif
 
   deallocate(tmat,stat=istat,errmsg=errorMessage)
@@ -266,8 +258,6 @@ function solve_evp_real_2stage_double(na,nev,a,lda,ev,q,ldq,nblk,&
     write(error_unit,*) "solve_evp_real_2stage: error when deallocating tmat"//errorMessage
     stop
   endif
-
-  elpa_print_times = elpa_print_times_save
 
 end function solve_evp_real_2stage_double
 

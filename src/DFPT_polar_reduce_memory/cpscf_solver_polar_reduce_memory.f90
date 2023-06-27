@@ -57,7 +57,7 @@
 
       use mpi_utilities
 
-      use opencl_util, only: opencl_util_init, load_balance_finished, use_opencl
+      use opencl_util, only: opencl_util_init, load_balance_finished, use_rho_c_cl_version, use_sumup_c_cl_version, use_sumup_pre_c_cl_version, use_h_c_cl_version
       use hartree_potential_storage, only: use_rho_multipole_shmem
       implicit none
 
@@ -181,7 +181,7 @@
      write(use_unit,*) "-------------------------------------------------------------------------------"
      endif
 
-     if (use_opencl) then
+     if (use_rho_c_cl_version .or. use_sumup_c_cl_version .or. use_sumup_pre_c_cl_version .or. use_h_c_cl_version) then
         call opencl_init()
      endif
 

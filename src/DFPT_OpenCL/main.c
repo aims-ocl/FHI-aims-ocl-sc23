@@ -159,6 +159,10 @@ int MV(opencl_util, max_n_batch_centers);
 // use: 1, not use: 0
 int MV(opencl_util, use_opencl_version) = 1;
 int MV(opencl_util, use_sumup_pre_c_cl_version) = 0;
+int MV(opencl_util, debug_io) = 1;
+
+int MV(mpi_tasks, mpi_task_per_gpu) = 1;
+int MV(mpi_tasks, mpi_per_node) = 1;
 
 extern long dgemm_time;
 extern long dgemm_flop;
@@ -193,7 +197,7 @@ int main(int argc,char *argv[]) {
   // char *file_com_name = "/work1/aicao/wzk/Benchmarks/bigAtoms-cp2/strong_weak_test_all2all/11w_atoms_mini_local_index_energy/sbatch_node256_ntask8192_gpu1024/mdata_outer_rank0_1.bin";
   // char *file_com_name = "/work1/aicao/wzk/Benchmarks/bigAtoms-cp2/strong_weak_test_all2all/11w_atoms_mini_local_index_energy/sbatch_node512_ntask16384_gpu2048/mdata_outer_rank3_0.bin";
 
-  char *file_com_name = "/work1/aicao/wzk/Benchmarks/bigAtoms-cp2/strong_weak_test_all2all/1.5w/sbatch_node4_ntask128_gpu16/mdata_outer_rank0_1.bin";
+  // char *file_com_name = "/work1/aicao/wzk/Benchmarks/bigAtoms-cp2/strong_weak_test_all2all/1.5w/sbatch_node4_ntask128_gpu16/mdata_outer_rank0_1.bin";
   // char *file_com_name = "/work1/aicao/wzk/Benchmarks/bigAtoms-cp2/strong_weak_test_all2all/1.5w/sbatch_node8_ntask256_gpu32/mdata_outer_rank3_1.bin";
   // char *file_com_name = "/work1/aicao/wzk/Benchmarks/bigAtoms-cp2/strong_weak_test_all2all/1.5w/sbatch_node16_ntask512_gpu64/mdata_outer_rank3_1.bin";
   // char *file_com_name = "/work1/aicao/wzk/Benchmarks/bigAtoms-cp2/strong_weak_test_all2all/1.5w/sbatch_node32_ntask1024_gpu128/mdata_outer_rank3_1.bin";
@@ -214,6 +218,8 @@ int main(int argc,char *argv[]) {
   // char *file_com_name = "/work1/aicao/wzk/Benchmarks/bigAtoms-cp2/strong_weak_test_all2all/11w_atoms_mini_local_index_energy/sbatch_node2048_ntask65536_gpu8192/mdata_outer_rank3_1.bin";
   // char *file_com_name = "/work1/aicao/wzk/Benchmarks/bigAtoms-cp2/strong_weak_test_all2all/20w_atoms_mini_local_index/sbatch_node512_ntask16384_gpu2048/mdata_outer_rank3_1.bin";
   // char *file_com_name = "/work1/aicao/wzk/Benchmarks/bigAtoms-cp2/strong_weak_test_all2all/20w_atoms_mini_local_index/sbatch_node1024_ntask32768_gpu4096/mdata_outer_rank3_1.bin";
+
+  char *file_com_name = "/home/export/online1/mdt00/shisuan/swyjs/wzk/Benchmarks/c2h4-3h-test-container/mdata_outer_rank0_0.bin";
 
   // char *file_com_name = "/mdata_outer_rank3_1.bin";
 

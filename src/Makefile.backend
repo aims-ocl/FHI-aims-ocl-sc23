@@ -399,6 +399,11 @@ EXTERNAL_U = \
 
 EXTERNAL:=$(addprefix $(OBJDIR)/,$(EXTERNAL_U))
 
+SLAVE_U:= \
+        DFPT_OpenCL/swcl/slave.c
+
+SLAVE_OBJS:=$(patsubst %.c, %.slave.o, $(SLAVE_U))
+
 #  subroutines include ... well, all subroutines of my own.
 #  in order of appearance in the code
 
@@ -1443,7 +1448,6 @@ MODULES_U = \
           mpe_constants.o \
           mpe_types.o \
           runtime_choices.o \
-          DFPT_OpenCL/opencl_util.o \
           synchronize_mpi_basic.o \
           aims_memory_tracking.o \
           numerical_utilities.o \
@@ -1584,6 +1588,7 @@ MODULES_U = \
           analytical_stress.o \
           external_pressure_on_system.o \
           hartree_potential_storage.o \
+          DFPT_OpenCL/opencl_util.o \
           tddft_real_time_propagation.o \
           calculate_fock_matrix_p0.o \
           SCGW/scgw_grid.o \
@@ -1745,7 +1750,9 @@ C_FILES += DFPT_OpenCL/opencl_util_c.o \
            DFPT_OpenCL/opencl_util_mpi_m.o \
            DFPT_OpenCL/save_load_var.o \
            DFPT_OpenCL/integrate_first_order_rho.o \
+           DFPT_OpenCL/swcl/slave.info.o \
            DFPT_OpenCL/sum_up_whole_potential_shanghui.o
+
 
 #C Files for ELPA SSE and AVX kernels, if _not_ pre-installed ELPA library is used
 MODULES += $(OBJDIR)/elpa/elpa1_auxiliary_stub.o
@@ -2871,6 +2878,11 @@ endif
 # General rules
 #
 #************************************************************************
+
+# rule for slave files
+$(OBJDIR)/%.slave.o:%.c
+	@mkdir -p $(dir $@) ;
+	$(CC) $(CFLAGS) -mslave -msimd -o $@ -c $<
 
 # rules for f files
 $(OBJDIR)/%.o:%.f

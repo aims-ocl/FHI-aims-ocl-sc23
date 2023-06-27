@@ -14,9 +14,11 @@
 // #define kernel
 // #define global
 // #define local
-#define mconstant global const
+// #define mconstant global const
 #define atomic_cmpxchg atom_cmpxchg
-#define NULL 0
+// #define NULL 0
+
+#define ALIGN_128(num) ((((num) + 127) / 128) * 128)
 
 #define H_IC_TILE 16
 #define H_JC_TILE 16
@@ -32,6 +34,9 @@ typedef double m_float_type;
 #define WORK_N 8
 #define TILE_M (LOCAL_SIZE / TILE_N)
 
+void sw_slave_dgemm(double *A, double *B, int M, int N, int K, double *C);
+void init_allocate_first();
+
 void SHEvalderiv_c_(int lmax, double sintheta, double costheta, double sinphi, double cosphi, global double *pSH,
                     global double *pdSHdtheta, global double *pdSHdphi_sintheta);
 
@@ -41,7 +46,7 @@ void prune_radial_basis_p2_c_(int *dim_atoms_, int *dim_fns_, global double *dis
                               global int *i_basis_fns, global int *i_basis_fns_inv, // (n_basis_fns,n_centers)
                               global int *i_atom_fns, global int *spline_array_start, global int *spline_array_end, int *n_atom_list_,
                               global int *atom_list, int *n_compute_, mconstant int *i_basis, global int *n_batch_centers_, global int *batch_center,
-                              private double *one_over_dist_tab, private int *rad_index, global int *wave_index, global int *l_index, global int *l_count,
+                              global double *one_over_dist_tab, global int *rad_index, global int *wave_index, global int *l_index, global int *l_count,
                               global int *fn_atom, int *n_zero_compute_, global int *zero_index_point,
                               // outer
                               int n_basis_fns, // const
@@ -50,10 +55,10 @@ void prune_radial_basis_p2_c_(int *dim_atoms_, int *dim_fns_, global double *dis
                               mconstant double *atom_radius_sq, mconstant int *basis_fn_start_spl, mconstant int *basis_fn_atom,
                               global double* pbc_lists_coords_center, 
                               double coords_center0, double coords_center1, double coords_center2) {
-// #define dir_tab(i, j) dir_tab[(i)-1 + 3 * ((j)-1)]
-#define dir_tab(i, j) dir_tab[lid + lsize * ((i)-1 + 3 * ((j)-1))]
-// #define i_basis_fns_inv(i, j) i_basis_fns_inv[(i)-1 + n_basis_fns * ((j)-1)]
-#define i_basis_fns_inv(i, j) i_basis_fns_inv[((i)-1 + n_basis_fns * ((j)-1)) * gsize + gid]
+#define dir_tab(i, j) dir_tab[(i)-1 + 3 * ((j)-1)]
+// #define dir_tab(i, j) dir_tab[lid + lsize * ((i)-1 + 3 * ((j)-1))]
+#define i_basis_fns_inv(i, j) i_basis_fns_inv[(i)-1 + n_basis_fns * ((j)-1)]
+// #define i_basis_fns_inv(i, j) i_basis_fns_inv[((i)-1 + n_basis_fns * ((j)-1)) * gsize + gid]
 // outer
 #define center_to_atom(i) center_to_atom[(i)-1]
 #define species_center(i) species_center[(i)-1]
@@ -67,7 +72,7 @@ void prune_radial_basis_p2_c_(int *dim_atoms_, int *dim_fns_, global double *dis
 #define basis_fn_start_spl(i) basis_fn_start_spl[(i)-1]
 #define basis_fn_atom(i, j) basis_fn_atom[(i)-1 + ((j)-1) * n_basis_fns]
 #define pbc_lists_coords_center(i, j) pbc_lists_coords_center[((j)-1) * 3 + (i)-1]
-#define atom_index_inv(i) atom_index_inv[((i)-1) * lsize + lid]
+// #define atom_index_inv(i) atom_index_inv[((i)-1) * lsize + lid]
   int gid = get_global_id(0);
   int gsize = get_global_size(0);
   int lid = get_local_id(0);
@@ -221,7 +226,7 @@ void prune_radial_basis_p2_c_(int *dim_atoms_, int *dim_fns_, global double *dis
 #undef basis_fn_start_spl
 #undef basis_fn_atom
 #undef pbc_lists_coords_center
-#undef atom_index_inv
+// #undef atom_index_inv
 
 #undef dir_tab
 #undef i_basis_fns_inv
@@ -294,8 +299,8 @@ void tab_gradient_ylm_p0_c_(global double *trigonom_tab, // ( 4, n_compute_atoms
                             global double *dir_tab,
                             mconstant int *species_center) {
 #define species_center(i) species_center[(i)-1]
-// #define dir_tab(i, j) dir_tab[(i)-1 + ((j)-1) * 3]
-#define dir_tab(i, j) dir_tab[lid + lsize * ((i)-1 + ((j)-1) * 3)]
+#define dir_tab(i, j) dir_tab[(i)-1 + ((j)-1) * 3]
+// #define dir_tab(i, j) dir_tab[lid + lsize * ((i)-1 + ((j)-1) * 3)]
   int n_compute_atoms = *n_compute_atoms_;
   int l_ylm_max = *l_ylm_max_;
   int l_ylm_max_1pow2 = (l_ylm_max + 1) * (l_ylm_max + 1);
@@ -502,8 +507,8 @@ void tab_gradient_ylm_p0_c_2(global double *trigonom_tab, // ( 4, n_compute_atom
                             global double *dir_tab,
                             mconstant int *species_center) {
 #define species_center(i) species_center[(i)-1]
-// #define dir_tab(i, j) dir_tab[(i)-1 + ((j)-1) * 3]
-#define dir_tab(i, j) dir_tab[lid + lsize * ((i)-1 + ((j)-1) * 3)]
+#define dir_tab(i, j) dir_tab[(i)-1 + ((j)-1) * 3]
+// #define dir_tab(i, j) dir_tab[lid + lsize * ((i)-1 + ((j)-1) * 3)]
   int n_compute_atoms = *n_compute_atoms_;
   int l_ylm_max = *l_ylm_max_;
   int l_ylm_max_1pow2 = (l_ylm_max + 1) * (l_ylm_max + 1);
@@ -748,8 +753,8 @@ void evaluate_radial_functions_p0_c_(global int *spline_array_start, global int 
 #define n_grid(i) n_grid[(i)-1]
 #define perm_basis_fns_spl(i) perm_basis_fns_spl[(i)-1]
 
-// #define i_basis_fns_inv(i, j) i_basis_fns_inv[(i)-1 + n_basis_fns * ((j)-1)]
-#define i_basis_fns_inv(i, j) i_basis_fns_inv[((i)-1 + n_basis_fns * ((j)-1)) * gsize + gid]
+#define i_basis_fns_inv(i, j) i_basis_fns_inv[(i)-1 + n_basis_fns * ((j)-1)]
+// #define i_basis_fns_inv(i, j) i_basis_fns_inv[((i)-1 + n_basis_fns * ((j)-1)) * gsize + gid]
   int gid = get_global_id(0);
   int gsize = get_global_size(0);
 
@@ -818,7 +823,7 @@ inline void mul_vec_c_2(global double *wave, int n_mul, global double *ylm, doub
 
 void evaluate_waves_p2_c_(int *n_compute_, int *n_compute_atoms_, int *n_compute_fns_, int *l_ylm_max_,
                           global double *ylm_tab, // ((l_ylm_max+1)**2, n_compute_atoms )
-                          private double *one_over_dist_tab, global double *radial_wave, global double *wave, private int *rad_index, global int *wave_index,
+                          global double *one_over_dist_tab, global double *radial_wave, global double *wave, global int *rad_index, global int *wave_index,
                           global int *l_index, global int *l_count, global int *fn_atom, int *n_zero_compute_, global int *zero_index_point
                           // tmp
                           , global double *aux_radial
@@ -849,44 +854,6 @@ void evaluate_waves_p2_c_(int *n_compute_, int *n_compute_atoms_, int *n_compute
   for (int i_compute_point = 1; i_compute_point <= n_zero_compute; i_compute_point++) {
     int i_compute = zero_index_point[i_compute_point - 1];
     wave[i_compute - 1] = 0.0;
-  }
-}
-void evaluate_waves_p2_c_2(int *n_compute_, int *n_compute_atoms_, int *n_compute_fns_, int *l_ylm_max_,
-                          global double *ylm_tab, // ((l_ylm_max+1)**2, n_compute_atoms )
-                          private double *one_over_dist_tab, global double *radial_wave, global double *wave, private int *rad_index, global int *wave_index,
-                          global int *l_index, global int *l_count, global int *fn_atom, int *n_zero_compute_, global int *zero_index_point
-                          // tmp
-                          , global double *aux_radial, int array_factor
-                          ) {
-  int gid = get_global_id(0);
-  int gsize = get_global_size(0);
-
-  int n_compute = *n_compute_;
-  int n_compute_atoms = *n_compute_atoms_;
-  int n_compute_fns = *n_compute_fns_;
-  int l_ylm_max = *l_ylm_max_;
-  int n_zero_compute = *n_zero_compute_;
-  // double aux_radial[n_compute_fns];
-  int index_start = 1;
-  int index_end;
-  int ylm_tab_dim1 = (l_ylm_max + 1) * (l_ylm_max + 1);
-  for (int i_compute_atom = 1; i_compute_atom <= n_compute_atoms; i_compute_atom++) {
-    index_end = rad_index[i_compute_atom - 1];
-    for (int i = index_start; i <= index_end; i++)
-      aux_radial[i - 1] = radial_wave[i - 1] * one_over_dist_tab[i_compute_atom - 1];
-    index_start = index_end + 1;
-  }
-  for (int i_compute_fn = 1; i_compute_fn <= n_compute_fns; i_compute_fn++) {
-    int l_aux = l_count[i_compute_fn - 1];
-    int l_index_val = l_aux * l_aux + 1;
-    int l_count_val = 2 * l_aux;
-    mul_vec_c_2(&wave[(wave_index[i_compute_fn - 1] - 1) * array_factor], l_count_val + 1,
-               &ylm_tab[(l_index_val - 1 + (fn_atom[i_compute_fn - 1] - 1) * ylm_tab_dim1) * gsize + gid],
-               aux_radial[i_compute_fn - 1], array_factor, gsize);
-  }
-  for (int i_compute_point = 1; i_compute_point <= n_zero_compute; i_compute_point++) {
-    int i_compute = zero_index_point[i_compute_point - 1];
-    wave[(i_compute - 1) * array_factor] = 0.0;
   }
 }
 
@@ -1028,8 +995,9 @@ void prune_density_matrix_sparse_polar_reduce_memory_local_index(global double *
         break;
       } else {
         double tmp = density_matrix_sparse[ins_idx[j] + i_off - 1];
-        density_matrix_con[j + i*n_compute_c] = i == j ? tmp : tmp * 2;
-        // density_matrix_con[i + j*n_compute_c] = density_matrix_sparse[ins_idx[j] + i_off - 1];
+        // density_matrix_con[j + i*n_compute_c] = i == j ? tmp : tmp * 2;
+        density_matrix_con[j + i*n_compute_c] = tmp;
+        density_matrix_con[i + j*n_compute_c] = tmp;
       }
     }
   }
@@ -1064,8 +1032,9 @@ void prune_density_matrix_sparse_polar_reduce_memory(global double *density_matr
         for(int i_place = i_start; i_place <= i_end; i_place++){
           if(column_index_hamiltonian[i_place-1] == j_basis){
             double tmp = density_matrix_sparse[i_place-1];
-            density_matrix_con[(j_compute-1) + (i_compute-1) * n_compute_c] = i_compute == j_compute ? tmp : tmp * 2;
-            // density_matrix_con[(i_compute-1) + (j_compute-1) * n_compute_c] = density_matrix_sparse[i_place-1];
+            // density_matrix_con[(j_compute-1) + (i_compute-1) * n_compute_c] = i_compute == j_compute ? tmp : tmp * 2;
+            density_matrix_con[(j_compute-1) + (i_compute-1) * n_compute_c] = tmp;
+            density_matrix_con[(i_compute-1) + (j_compute-1) * n_compute_c] = tmp;
             i_index_real = i_place;
             break;
           } else if(column_index_hamiltonian[i_place-1] > j_basis){
@@ -1111,8 +1080,8 @@ void prune_density_matrix_sparse_polar_reduce_memory_reverse(global double *dens
   // for(int i=lid; i<n_compute_c*n_compute_c; i+=lsize){
   //   density_matrix_con[i] = 0.0;
   // }
-  barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
-  for(int i_compute = 1+lid; i_compute <= n_compute_c; i_compute+=lsize){
+  // barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+  for(int i_compute = 1; i_compute <= n_compute_c; i_compute+=1){
     int i_basis = i_basis_index[i_compute-1];
     int i_start = index_hamiltonian(1, 1, i_basis);
     int i_end = index_hamiltonian(2, 1, i_basis);
@@ -1127,9 +1096,9 @@ void prune_density_matrix_sparse_polar_reduce_memory_reverse(global double *dens
             // density_matrix_con[(j_compute-1) + (i_compute-1) * n_compute_c] = i_compute == j_compute ? tmp : tmp * 2;
             // density_matrix_con[(i_compute-1) + (j_compute-1) * n_compute_c] = density_matrix_sparse[i_place-1];
             if(j_compute<=i_compute){
-              atomicAdd_g_f(&density_matrix_sparse[i_place-1], density_matrix_con[(j_compute-1) + (i_compute-1) * n_compute_c]);
+              density_matrix_sparse[i_place-1] += density_matrix_con[(j_compute-1) + (i_compute-1) * n_compute_c];
             } else {
-              atomicAdd_g_f(&density_matrix_sparse[i_place-1], density_matrix_con[(i_compute-1) + (j_compute-1) * n_compute_c]);
+              density_matrix_sparse[i_place-1] += density_matrix_con[(i_compute-1) + (j_compute-1) * n_compute_c];
             }
             i_index_real = i_place;
             break;
@@ -1143,7 +1112,7 @@ void prune_density_matrix_sparse_polar_reduce_memory_reverse(global double *dens
     }
   }
 
-  barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+  // barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 #undef index_hamiltonian
 }
 
@@ -1155,7 +1124,7 @@ void evaluate_first_order_h_polar_reduce_memory_c_(
   global double* H_times_psi,    // (n_max_compute_ham,n_points,n_spin)
   int* n_compute_c_, 
   mconstant int* i_basis_index,         // (n_compute_c)
-  global const double* wave,           // (n_max_compute_ham, n_points)
+  global double* wave,           // (n_max_compute_ham, n_points)
   global double* gradient_basis_wave,  // (n_max_compute_ham, 3, n_points)
   global double* first_order_rho,      // (n_spin, n_points)
   global double* v_hartree_gradient,   // (n_points)
@@ -1175,11 +1144,11 @@ void evaluate_first_order_h_polar_reduce_memory_c_(
   // tmp
   global double *contract,
   global double *wave_t,
-  global double *first_order_H_dense,
+  global double *first_order_H_dense, int i_my_batch
   // local double local_contract[H_PT_TILE][H_JC_TILE * H_JC_WORK],
   // local double local_wave[H_PT_TILE][H_IC_TILE * H_IC_WORK]
-  local double A_local[TILE_M * WORK_M][TILE_K],
-  local double B_local[TILE_K][TILE_N * WORK_N]
+  // local double A_local[TILE_M * WORK_M][TILE_K],
+  // local double B_local[TILE_K][TILE_N * WORK_N]
   ){
   int n_compute_c = *n_compute_c_;
   int n_points = *n_points_;
@@ -1196,8 +1165,9 @@ void evaluate_first_order_h_polar_reduce_memory_c_(
   // local double local_contract[H_PT_TILE][H_JC_TILE * H_JC_WORK];
   // local double local_wave[H_PT_TILE][H_IC_TILE * H_IC_WORK];
 
+#define wave(i,j) wave[(i) - 1 + n_compute_c * ((j) - 1)]
 // #define wave(i,j) wave[(i) - 1 + n_max_compute_ham * ((j) - 1)]
-#define wave(i,j) wave[((i) - 1) * n_points + ((j) - 1)]
+// #define wave(i,j) wave[((i) - 1) * n_points + ((j) - 1)]
 
 #define dVxc_drho(i,j) dVxc_drho[(i) - 1 + 3 * ((j) - 1)]
 #define first_order_rho(i,j) first_order_rho[(i) - 1 + n_spin * ((j) - 1)]
@@ -1205,107 +1175,73 @@ void evaluate_first_order_h_polar_reduce_memory_c_(
 #define contract(i,j) contract[(i) - 1 + n_points * ((j) - 1)]
 #define wave_t(i,j) wave_t[(i) - 1 + n_points * ((j) - 1)]
 #define first_order_H_dense(i,j,k) first_order_H_dense[(i) - 1 + n_compute_c * ((j) - 1 + ((k) - 1) * n_compute_c)]
-  barrier(CLK_GLOBAL_MEM_FENCE);
+  // barrier(CLK_GLOBAL_MEM_FENCE);
   // not use_gga
 
   if(n_spin == 1){
     int i_spin = 1;
-    // for(int i=lid; i<n_compute_c * n_compute_c * n_spin; i+=lsize)
-    //   first_order_H_dense[i] = 0;
-    for(int i_point=lid+1; i_point<=n_points; i_point+=lsize){
-      grid_coord[i_point-1] = partition_tab[i_point-1] * (-grid_coord[i_point-1]+v_hartree_gradient[i_point-1]
-           +dVxc_drho(i_spin,i_point)*first_order_rho(i_spin,i_point));
+    if(lid == 0){
+      for(int i=0; i<n_compute_c * (n_compute_c+1) * n_spin; i+=1)
+        first_order_H_dense[i] = 0;
+      for(int i_point=0+1; i_point<=n_points; i_point+=1){
+        grid_coord[i_point-1] = partition_tab[i_point-1] * (-grid_coord[i_point-1]+v_hartree_gradient[i_point-1]
+             +dVxc_drho(i_spin,i_point)*first_order_rho(i_spin,i_point));
+      }
+      for(int i_out = 0; i_out < n_points; i_out+=8){
+        for(int j_out = 0; j_out < n_compute_c; j_out+=8){
+          int i_max = n_points < (i_out+8) ? n_points : (i_out+8);
+          int j_max = n_compute_c < (j_out+8) ? n_compute_c : (j_out+8);
+            for(int i=i_out; i<i_max; i++){
+              for(int j=j_out; j<j_max; j++){
+                contract(i+1,j+1) = grid_coord[i] * wave(j+1, i+1);
+                // contract(i+1,j+1) = 1;
+              }
+            }
+        }
+      }
+      // for(int j=0; j<n_compute_c; j++){
+      //   for(int i=n_points; i<n_points_align; i++){
+      //     contract(i+1,j+1) = 1;
+      //   }
+      // }
+      // for(int i=0; i<n_points; i++){
+      //   for(int j=0; j<n_compute_c; j++){
+      //     contract(i+1,j+1) = grid_coord[i] * wave(j+1, i+1);
+      //   }
+      // }
     }
-    barrier(CLK_GLOBAL_MEM_FENCE);
-    // double one = 1.0;
-    // double zero = 0.0;
-    // dgemm("T", "N", &n_compute_c, &n_compute_c, &n_points, &one, contract, &n_points,
-    //   wave_t, &n_points, &zero, first_order_H_dense, &n_compute_c);
-{
-  const int M = n_compute_c;
-  const int N = n_compute_c;
-  const int K = n_points;
-  int lid = get_local_id(0);
-  int lsize = get_local_size(0);
-
-  // local m_float_type A_local[TILE_M * WORK_M][TILE_K];
-  // local m_float_type B_local[TILE_K][TILE_N * WORK_N];
-
-  for (int m_out = 0; m_out < M; m_out += TILE_M * WORK_M) {
-    for (int n_out = 0; n_out < N; n_out += TILE_N * WORK_N) {
-      int m_in = lid / TILE_N;
-      int n_in = lid % TILE_N;
-      m_float_type sum[WORK_M][WORK_N];
-      for (int i = 0; i < WORK_M; i++) {
-        for (int j = 0; j < WORK_N; j++) {
-          sum[i][j] = 0;
-        }
-      }
-      m_float_type B_regs[WORK_N];
-      for (int k_out = 0; k_out < K; k_out += TILE_K) {
-        {
-          {
-            int m_in = lid / TILE_K;
-            int k_in = lid % TILE_K;
-#pragma unroll WORK_M
-            for (int i = 0; i < WORK_M; i++) {
-              m_float_type val = wave((m_out + m_in + TILE_M * i) + 1, (k_out + k_in) + 1);
-              long cond = (m_out + m_in + TILE_M * i) >= M || (k_out + k_in) >= K;
-              val = select(val, 0.0, cond);
-              A_local[m_in + TILE_M * i][k_in] = val;
-            }
+    // barrier(CLK_GLOBAL_MEM_FENCE);
+    // first_order_H_dense[n_compute_c * n_compute_c * n_spin - 1] = 3;
+    if(lid == 0){
+      sw_slave_dgemm(contract, wave, n_compute_c+8, n_compute_c, n_points, first_order_H_dense);
+      for(int m=0; m<n_compute_c; m+=1){
+        for(int n=0; n<n_compute_c; n++){
+          double sum = 0.0;
+          for(int k=0; k<n_points; k++){
+            sum += contract(k+1,m+1) * wave(n+1, k+1);
           }
-          {
-            int k_in = lid / TILE_K;
-            int n_in = lid % TILE_K;
-#pragma unroll WORK_N
-            for (int i = 0; i < WORK_N; i++) {
-              m_float_type val = grid_coord[(k_out + k_in)] * wave((n_out + n_in + TILE_N * i) + 1, (k_out + k_in) + 1);
-              long cond = (n_out + n_in + TILE_N * i) >= N || (k_out + k_in) >= K;
-              val = select(val, 0.0, cond);
-              B_local[k_in][n_in + TILE_N * i] = val;
-            }
-          }
-        }
-
-        barrier(CLK_LOCAL_MEM_FENCE);
-
-        for (int k = 0; k < TILE_K; k++) {
-          for (int j = 0; j < WORK_N; j++) {
-            B_regs[j] = B_local[k][n_in + TILE_N * j];
-          }
-          for (int i = 0; i < WORK_M; i++) {
-            m_float_type A_reg = A_local[m_in + TILE_M * i][k];
-            for (int j = 0; j < WORK_N; j++) {
-              sum[i][j] += A_reg * B_regs[j];
-            }
-          }
-        }
-
-        barrier(CLK_LOCAL_MEM_FENCE);
-      }
-
-      for (int i = 0; i < WORK_M; i++) {
-        for (int j = 0; j < WORK_N; j++) {
-          if ((m_out + m_in + TILE_M * i) < M && (n_out + n_in + TILE_N * j) < N)
-            // C_group[(m_out + m_in + TILE_M * i) * N + (n_out + n_in + TILE_N * j)] = sum[i][j];
-            first_order_H_dense((n_out + n_in + TILE_N * j) + 1, (m_out + m_in + TILE_M * i) + 1, i_spin) = sum[i][j];
+          first_order_H_dense(m+1, n+1, i_spin) = sum;
         }
       }
     }
-  }
-}
-    barrier(CLK_GLOBAL_MEM_FENCE);
-    if(*n_basis_local_ > 0){
+
+    // barrier(CLK_GLOBAL_MEM_FENCE);
+
+    if(*n_basis_local_ > 0 && lid == 0){
       for(int i=0; i<n_compute_c; i++){
         int i_off = (ins_idx[i] * (ins_idx[i] -1)) / 2;
-        for(int j=lid; j<=i; j+=lsize){
-          atomicAdd_g_f(&first_order_H[ins_idx[j] + i_off - 1], first_order_H_dense(j+1, i+1, i_spin));
+        for(int j=0; j<=i; j+=1){
+          first_order_H[ins_idx[j] + i_off - 1] += first_order_H_dense(j+1, i+1, i_spin);
+          // if(ins_idx[j] + i_off - 1 == 2){
+          //   printf("batch=%d, %.13lf\n", i_my_batch, first_order_H_dense(j+1, i+1, i_spin));
+          // }
+          // atomicAdd_g_f(&first_order_H[ins_idx[j] + i_off - 1], first_order_H_dense(j+1, i+1, i_spin));
+          // printf("", &first_order_H[ins_idx[j] + i_off - 1], first_order_H_dense(j+1, i+1, i_spin));
         }
       }
     }
   }
-  barrier(CLK_GLOBAL_MEM_FENCE);
+  // barrier(CLK_GLOBAL_MEM_FENCE);
 
 
 #undef wave
@@ -1420,13 +1356,15 @@ kernel void integrate_first_order_rho_sub_tmp2_(
     global int *zero_index_point__, global double *wave__, global double *first_order_density_matrix_con__, global double *i_r__,
     global double *trigonom_tab__, global double *radial_wave__,
     global double *spline_array_aux__, global double *aux_radial__,
-    global double *ylm_tab__, global double* dylm_dtheta_tab__, global double* scaled_dylm_dphi_tab__, int max_n_batch_centers
+    global double *ylm_tab__, global double* dylm_dtheta_tab__, global double* scaled_dylm_dphi_tab__, int max_n_batch_centers,
+    global double *tmp_rho__
     // int *i_full_points__,                       // test
     // int *i_my_batch_,                         // test
     // int *n_points,                            // test
     // double *first_order_density_matrix_con__, // test
     // int *i_full_points_DM_rho_                // test
 ) {
+  init_allocate_first();
   int gid = get_global_id(0);
   int lid = get_local_id(0);
   int gsize = get_global_size(0);
@@ -1439,16 +1377,16 @@ kernel void integrate_first_order_rho_sub_tmp2_(
 #define IC_WORK 3
 #define PT_WORK 3
 
-  local double local_density[IC_TILE * IC_WORK][JC_TILE];
-  local double local_wave[JC_TILE][PT_TILE*PT_WORK];
-  local double local_tmp_rho[IC_TILE][PT_TILE*PT_WORK];
+  // local double local_density[IC_TILE * IC_WORK][JC_TILE];
+  // local double local_wave[JC_TILE][PT_TILE*PT_WORK];
+  // local double local_tmp_rho[IC_TILE][PT_TILE*PT_WORK];
 
   // double dist_tab_sq[n_centers_integrals];
   // double dist_tab[n_centers_integrals];
   // double dir_tab[3 * n_centers_integrals];
 #define dist_tab_sq(i) dist_tab_sq[(i)-1]
 #define dist_tab(i) dist_tab[(i)-1]
-// #define dir_tab(i, j) dir_tab[(i)-1 + 3 * ((j)-1)]
+#define dir_tab(i, j) dir_tab[(i)-1 + 3 * ((j)-1)]
 #define wave(i, j) wave[(i)-1 + n_max_compute_ham * ((j)-1)]
 #define batch_center_all_batches(i, j) batch_center_all_batches[(i)-1 + max_n_batch_centers * ((j)-1)]
 #define batch_point_to_i_full_point(i, j) batch_point_to_i_full_point[(i)-1 + n_max_batch_size * ((j)-1)]
@@ -1472,23 +1410,23 @@ kernel void integrate_first_order_rho_sub_tmp2_(
   // double first_order_density_matrix_con[n_max_compute_dens * n_max_compute_dens];
   global double *dist_tab_sq = dist_tab_sq__ + gid * n_max_compute_atoms;
   global double *dist_tab = dist_tab__ + gid * n_max_compute_atoms;
-  // global double *dir_tab = dir_tab__ + gid * 3 * n_centers_integrals;
-  global double *dir_tab = dir_tab__ + get_group_id(0) * lsize * 3 * n_max_compute_atoms;
-  global int *atom_index = atom_index__ + gid * n_max_compute_atoms;                   // use private instead
+  global double *dir_tab = dir_tab__ + gid * 3 * n_max_compute_atoms;
+  // global double *dir_tab = dir_tab__ + get_group_id(0) * lsize * 3 * n_max_compute_atoms;
+  global int *atom_index = atom_index__ + gid * n_max_compute_atoms;
   // global int *atom_index_inv = atom_index_inv__ + gid * n_centers;
   // global int *atom_index_inv = atom_index_inv__ + get_group_id(0) * get_local_size(0) * n_centers;
   // global int *i_basis_fns = i_basis_fns__ + gid * n_basis_fns * n_centers_integrals;   // NULL removed
-  // global int *i_basis_fns_inv = i_basis_fns_inv__ + gid * n_basis_fns * n_centers;
+  global int *i_basis_fns_inv = i_basis_fns_inv__ + gid * n_basis_fns * (n_max_compute_atoms+1);
   // global int *i_atom_fns = i_atom_fns__ + gid * n_basis_fns * n_centers_integrals;     // NULL removed
-  global int *spline_array_start = spline_array_start__ + gid * n_max_compute_atoms;   // use private instead
-  global int *spline_array_end = spline_array_end__ + gid * n_max_compute_atoms;       // use private instead
-  // global double *one_over_dist_tab = one_over_dist_tab__ + gid * n_max_compute_atoms;  // use private instead
-  // global int *rad_index = rad_index__ + gid * n_max_compute_atoms;
+  global int *spline_array_start = spline_array_start__ + gid * n_max_compute_atoms;
+  global int *spline_array_end = spline_array_end__ + gid * n_max_compute_atoms;
+  global double *one_over_dist_tab = one_over_dist_tab__ + gid * n_max_compute_atoms;
+  global int *rad_index = rad_index__ + gid * n_max_compute_atoms;
   // private int atom_index[MACRO_n_centers_integrals];
   // private int spline_array_start[MACRO_n_centers_integrals];
   // private int spline_array_end[MACRO_n_centers_integrals];
-  private double one_over_dist_tab[MACRO_n_max_compute_atoms];
-  private int rad_index[MACRO_n_max_compute_atoms];
+  // private double one_over_dist_tab[MACRO_n_max_compute_atoms];
+  // private int rad_index[MACRO_n_max_compute_atoms];
 
   global int *wave_index = wave_index__ + gid * n_max_compute_fns_ham;
   // global int *l_index = l_index__ + gid * n_max_compute_fns_ham;  // val[i] = l_aux * l_aux + 1, store in l_count[i]=val  // NULL removed
@@ -1509,6 +1447,7 @@ kernel void integrate_first_order_rho_sub_tmp2_(
   // 暂时这两个没用的用一样的空间
   global double *scaled_dylm_dphi_tab = dylm_dtheta_tab__ + gid * ((l_ylm_max + 1) * (l_ylm_max + 1) * n_max_compute_atoms);
 
+  global double *tmp_rho = tmp_rho__ + get_group_id(0) * ((n_max_batch_size+8+127)/128*128) * ((n_max_compute_ham+127)/128*128) + 128;
 // #define i_basis_fns_inv(i, j) i_basis_fns_inv[(i)-1 + n_basis_fns * ((j)-1)]
 
   // int i_my_batch = *i_my_batch_;
@@ -1537,6 +1476,7 @@ kernel void integrate_first_order_rho_sub_tmp2_(
     // if(lid == 0 && i_my_batch <= 2){
     //   printf("%d: %d, %d\n", i_my_batch, n_points_all_batches[i_my_batch - 1], batch_point_to_i_full_point(n_points_all_batches[i_my_batch - 1], i_my_batch));
     // }
+    // return;
     if (n_compute_c > 0) {
       // int i_point = 0;
       // for (int i_index = 1; i_index <= batches_size_rho(i_my_batch); i_index++) {
@@ -1551,7 +1491,7 @@ kernel void integrate_first_order_rho_sub_tmp2_(
         //   for (int j = 0; j < n_basis_fns; j++)
         //     i_basis_fns_inv(j+1, i+1) = 0;
         for(int i=0; i < n_basis_fns * (n_max_compute_atoms+1); i++)
-          i_basis_fns_inv__[i * gsize + gid] = 0.0;
+          i_basis_fns_inv[i] = 0.0;
         // for(int i=0; i < n_centers; i++){
         //   atom_index_inv[i * lsize + lid] = n_max_compute_atoms + 1;
         // }
@@ -1576,10 +1516,10 @@ kernel void integrate_first_order_rho_sub_tmp2_(
         int n_compute_fns = 0;
         int n_zero_compute;
         prune_radial_basis_p2_c_(&n_max_compute_atoms, &n_max_compute_fns_ham, &dist_tab_sq(1), &dist_tab(1),
-                                //  &dir_tab(1, 1), // (3, n_atom_list)
-                                 dir_tab, // (3, n_atom_list)
+                                 &dir_tab(1, 1), // (3, n_atom_list)
+                                //  dir_tab, // (3, n_atom_list)
                                  &n_compute_atoms, atom_index, NULL, &n_compute_fns, NULL,
-                                 i_basis_fns_inv__, // (n_basis_fns,n_centers)
+                                 i_basis_fns_inv, // (n_basis_fns,n_centers)
                                  NULL, spline_array_start, spline_array_end, &n_centers_integrals,
                                  centers_basis_integrals, &n_compute_c, &batches_batch_i_basis_rho(1, i_my_batch),
                                  &n_batch_centers_all_batches[i_my_batch - 1], &batch_center_all_batches(1, i_my_batch),
@@ -1606,121 +1546,68 @@ kernel void integrate_first_order_rho_sub_tmp2_(
         // double dylm_dtheta_tab[(l_ylm_max + 1) * (l_ylm_max + 1) * n_max_compute_atoms];      // 没用
         // double scaled_dylm_dphi_tab[(l_ylm_max + 1) * (l_ylm_max + 1) * n_max_compute_atoms]; // 没用
         tab_gradient_ylm_p0_c_(NULL, basis_l_max, &l_ylm_max, &n_compute_atoms, atom_index, ylm_tab,
-                               dylm_dtheta_tab, scaled_dylm_dphi_tab, dir_tab, &species_center(1));
-                              //  dylm_dtheta_tab, scaled_dylm_dphi_tab, &dir_tab(1, 1), &species_center(1));
+                              //  dylm_dtheta_tab, scaled_dylm_dphi_tab, dir_tab, &species_center(1));
+                               dylm_dtheta_tab, scaled_dylm_dphi_tab, &dir_tab(1, 1), &species_center(1));
         int mfalse = 0;
         // double radial_wave[n_max_compute_fns_ham];
         evaluate_radial_functions_p0_c_(
             spline_array_start, spline_array_end, &n_compute_atoms, &n_compute_fns, &dist_tab(1), i_r, atom_index,
-            i_basis_fns_inv__, basis_wave_ordered, radial_wave, &mfalse, &n_compute_c,
+            i_basis_fns_inv, basis_wave_ordered, radial_wave, &mfalse, &n_compute_c,
             &n_max_compute_fns_ham
             // outer
             ,
             n_basis_fns, n_max_grid, &species_center(1), &n_grid(1), &perm_basis_fns_spl(1),
             spline_array_aux);
         evaluate_waves_p2_c_(&n_compute_c, &n_compute_atoms, &n_compute_fns, &l_ylm_max, ylm_tab, one_over_dist_tab,
-                             radial_wave, wave_group + n_max_compute_ham * (i_point-1), rad_index, wave_index, NULL, l_count, fn_atom,
+                             radial_wave, wave_group + n_compute_c * (i_point-1), rad_index, wave_index, NULL, l_count, fn_atom,
                              &n_zero_compute, zero_index_point, aux_radial);
       } // if(i_point <= n_points_all_batches[i_my_batch - 1])
-        int point_valid = (i_point <= n_points_all_batches[i_my_batch - 1]);
-        int tmp_point = i_point - 1;
-        double i_point_rho = 0.0;
-        barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
-        // global double* wave_group = &wave__[get_group_id(0) * get_local_size(0) * n_max_compute_ham];
-        int x_point_off_max = min(lsize, n_points_all_batches[i_my_batch - 1] - i_point_div * lsize);
-        for(int i_compute_off = 0; i_compute_off < n_compute_c; i_compute_off+=(IC_TILE*IC_WORK)){  // 1,2 是对的，怀疑因为波阵列是 32
-          int i_compute_max = min(n_compute_c-i_compute_off, (IC_TILE*IC_WORK));
-          for(int x_point_off = 0; x_point_off < x_point_off_max; x_point_off+=(PT_TILE*PT_WORK)){
-            int x_point_max = min(x_point_off_max-x_point_off, (PT_TILE*PT_WORK));
-            double private_rho[IC_WORK][PT_WORK];
-            for(int i=0; i<IC_WORK; i++)
-              for(int j=0; j<PT_WORK; j++)
-                private_rho[i][j] = 0.0;
-            for(int x_point_work = 0; x_point_work < PT_WORK; x_point_work++){
-              local_tmp_rho[lid / JC_TILE][lid % JC_TILE + PT_TILE * x_point_work] = 0.0;
-            }
-            for(int j_compute_off = 0; j_compute_off < (i_compute_off+i_compute_max); j_compute_off+=JC_TILE){
-              int j_compute_max = min((i_compute_off+i_compute_max)-j_compute_off, JC_TILE);
-              // int j_compute_max = min((n_compute_c+i_compute_max)-j_compute_off, JC_TILE);
-              int id = lid;
-              int i_compute = id / JC_TILE;
-              int x_point = id % JC_TILE;
-              {
-                int i_compute = id / JC_TILE;
-                int x_point = id / JC_TILE;
-                int j_compute = id % JC_TILE;
-                for(int x_point_work = 0; x_point_work < PT_WORK; x_point_work++){
-                  // 有一点点越界风险
-                  local_wave[j_compute][x_point + PT_TILE * x_point_work] = j_compute < j_compute_max && (x_point + PT_TILE * x_point_work) < x_point_max
-                    ? wave_group[(x_point_off + x_point + PT_TILE * x_point_work) * n_max_compute_ham + (j_compute_off + j_compute)]
-                    : 0.0; 
-                }
-                for(int i_compute_work = 0; i_compute_work < IC_WORK; i_compute_work++){
-                  if(i_compute + IC_TILE*i_compute_work < i_compute_max){
-                    // double tmp;
-                    // if((j_compute_off + j_compute) < (i_compute_off + i_compute + IC_TILE*i_compute_work))
-                    //   tmp = first_order_density_matrix_con[(i_compute_off + i_compute + IC_TILE*i_compute_work) * n_compute_c + (j_compute_off + j_compute)];
-                    // else
-                    //   tmp = 0.0;
-                    // local_density[i_compute + IC_TILE*i_compute_work][j_compute] = tmp;
-                    local_density[i_compute + IC_TILE*i_compute_work][j_compute] = 
-                      first_order_density_matrix_con[(i_compute_off + i_compute + IC_TILE*i_compute_work) * n_compute_c + (j_compute_off + j_compute)];
-                  }
-                }
-              }
-              barrier(CLK_LOCAL_MEM_FENCE);
-              for(int i_compute_work = 0; i_compute_work < IC_WORK; i_compute_work++){
-                if((i_compute+IC_TILE * i_compute_work) < i_compute_max && x_point < x_point_max){
-                  for(int x_point_work = 0; x_point_work < PT_WORK; x_point_work++){
-                    if((x_point + PT_TILE * x_point_work) < x_point_max){
-                      for(int j_compute = 0; j_compute < JC_TILE; j_compute++){
-                        private_rho[i_compute_work][x_point_work] += local_wave[j_compute][x_point+PT_TILE*x_point_work]
-                                     * local_density[i_compute+IC_TILE*i_compute_work][j_compute];
-                      }
-                    }
-                  }
-                }
-              }
-              barrier(CLK_LOCAL_MEM_FENCE);
-            }
-            int id = lid;
-            int i_compute = id / JC_TILE;
-            int x_point = id % JC_TILE;
-            for(int i_compute_work = 0; i_compute_work < IC_WORK; i_compute_work++){
-              if((i_compute+IC_TILE * i_compute_work) < i_compute_max && x_point < x_point_max){
-                  for(int x_point_work = 0; x_point_work < PT_WORK; x_point_work++){
-                    if((x_point + PT_TILE * x_point_work) < x_point_max){
-                      private_rho[i_compute_work][x_point_work] *= wave_group[(x_point_off + x_point + PT_TILE * x_point_work) * n_max_compute_ham + i_compute_off + i_compute + IC_TILE * i_compute_work];
-                      local_tmp_rho[i_compute][x_point + PT_TILE * x_point_work] += private_rho[i_compute_work][x_point_work];
-                    }
-                  }
-              }
-            }
-            barrier(CLK_LOCAL_MEM_FENCE);
-            if(x_point_off <= lid && lid < (x_point_off + x_point_max)){
-              // i_point_rho += private_rho;
-              int x_point = lid % (PT_TILE*PT_WORK);
-              int maxi = min(IC_TILE, i_compute_max);
-              for(int i=0; i<maxi; i++){
-                i_point_rho += local_tmp_rho[i][x_point];
-              }
-            }
-            barrier(CLK_LOCAL_MEM_FENCE);
+      }
+      // int point_valid = (i_point <= n_points_all_batches[i_my_batch - 1]);
+      // int tmp_point = i_point - 1;
+      // double i_point_rho = 0.0;
+      barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+      // global double* wave_group = &wave__[get_group_id(0) * get_local_size(0) * n_max_compute_ham];
+
+      int n_points = n_points_all_batches[i_my_batch - 1];
+      if(lid == 0){
+        for(int m=0; m<n_max_batch_size; m+=1){
+          for(int n=0; n<n_max_compute_ham; n++){
+            tmp_rho[m * n_compute_c + n] = 0;
           }
         }
+        // printf("", wave_group, first_order_density_matrix_con, n_points, n_compute_c, n_compute_c, tmp_rho);
+        sw_slave_dgemm(wave_group, first_order_density_matrix_con, n_points+8, n_compute_c, n_compute_c, tmp_rho);
+        // for(int m=0; m<n_points; m+=1){
+        //   for(int n=0; n<n_compute_c; n++){
+        //     double tmp = 0;
+        //     for(int k=0; k<n_compute_c; k++){
+        //       tmp += wave_group[m * n_compute_c + k] * first_order_density_matrix_con[n * n_compute_c + k];
+        //     }
+        //     tmp_rho[m * n_compute_c + n] = tmp;
+        //   }
+        // }
+        for(int m=0; m<n_points; m+=1){
+          double i_point_rho = 0;
+          for(int n=0; n<n_compute_c; n++){
+            i_point_rho += tmp_rho[m * n_compute_c + n] * wave_group[m * n_compute_c + n];
+          }
+          first_order_rho[batch_point_to_i_full_point(m+1, i_my_batch) - 1] = i_point_rho;
+        }
+      }
+
 #undef IC_TILE
 #undef JC_TILE
 #undef PT_TILE
-        if(point_valid){
-          first_order_rho[batch_point_to_i_full_point(i_point, i_my_batch) - 1] = i_point_rho;
-          }
+        // if(point_valid){
+        //   first_order_rho[batch_point_to_i_full_point(i_point, i_my_batch) - 1] = i_point_rho;
+        // }
         // if(511 <= batch_point_to_i_full_point(i_point, i_my_batch) - 1 && batch_point_to_i_full_point(i_point, i_my_batch) - 1 <= 530){
         //   printf("gid=%d, lid=%d, i_point=%d, i_point_div=%d, ifullpoint=%d, npoint=%d, i_my_batch=%d\n", 
         //     gid, lid, i_point, i_point_div, batch_point_to_i_full_point(i_point, i_my_batch) - 1, n_points_all_batches[i_my_batch - 1], i_my_batch);
         // }
 #undef WAVEJ_TILE_SIZE
 #undef WAVEI_TILE_SIZE
-      }
       // evaluate_first_order_rho_dielectric_c_(n_points, &n_compute_c, &batches_batch_i_basis_s(1, i_my_batch), wave,
       //                                        first_order_density_matrix_con, local_first_order_rho);
       // i_point = 0;
@@ -1773,7 +1660,7 @@ kernel void integrate_first_order_h_sub_tmp2_(
   global int* ins_idx_all_batches,
   global int* batches_batch_i_basis_h_not_use__,
   global double* partition_all_batches,
-  global double* first_order_H,
+  global double* first_order_H_all,
   global double* local_potential_parts_all_points,
   global double* local_first_order_rho_all_batches,
   global double* local_first_order_potential_all_batches,
@@ -1814,11 +1701,12 @@ kernel void integrate_first_order_h_sub_tmp2_(
   global double *ylm_tab__, global double* dylm_dtheta_tab__, global double* scaled_dylm_dphi_tab__,
   // tmp more
   global double *kinetic_wave__, global double *grid_coord__, global double *H_times_psi__, global double *T_plus_V__,
-  global double *contract__, global double *wave_t__, global double *first_order_H_dense__, int max_n_batch_centers
+  global double *contract__, global double *wave_t__, global double *first_order_H_dense__, int max_n_batch_centers,
+  global double *first_order_H_all_unused
   // test
   // int *i_my_batch_                         // test
 ){
-
+  init_allocate_first();
   int gid = get_global_id(0);
   int lid = get_local_id(0);
   int gsize = get_global_size(0);
@@ -1826,20 +1714,21 @@ kernel void integrate_first_order_h_sub_tmp2_(
   // int block_id = gid / lsize;
   // local double local_contract[H_PT_TILE][H_JC_TILE * H_JC_WORK];
   // local double local_wave[H_PT_TILE][H_IC_TILE * H_IC_WORK];
-  local double A_local[TILE_M * WORK_M][TILE_K];
-  local double B_local[TILE_K][TILE_N * WORK_N];
+  // local double A_local[TILE_M * WORK_M][TILE_K];
+  // local double B_local[TILE_K][TILE_N * WORK_N];
 
 #define dist_tab_sq(i) dist_tab_sq[(i)-1]
 #define dist_tab(i) dist_tab[(i)-1]
-// #define dir_tab(i, j) dir_tab[(i)-1 + 3 * ((j)-1)]
+#define dir_tab(i, j) dir_tab[(i)-1 + 3 * ((j)-1)]
 // #define dir_tab(i, j) dir_tab[lid + lsize * ((i)-1 + 3 * ((j)-1))]
-#define wave(i, j) wave[(i)-1 + n_max_compute_ham * ((j)-1)]
+// #define wave(i, j) wave[(i)-1 + n_max_compute_ham * ((j)-1)]
 #define batch_center_all_batches(i, j) batch_center_all_batches[(i)-1 + max_n_batch_centers * ((j)-1)]
 #define batch_point_to_i_full_point(i, j) batch_point_to_i_full_point[(i)-1 + n_max_batch_size * ((j)-1)]
   // int l_ylm_max = l_ylm_max_;
 
   // global double *wave = wave__ + gid * n_max_compute_ham;
   global double *wave_group = wave__ + get_group_id(0) * n_max_batch_size * n_max_compute_ham;
+  // global double *wave_group = wave__ + get_group_id(0) * ((n_max_batch_size+127)/128*128) * ((n_max_compute_ham+127)/128*128);
   global double *i_r = i_r__ + gid * n_max_compute_atoms;
   global double *trigonom_tab = trigonom_tab__ + gid * 4 * n_max_compute_atoms;
   global double *radial_wave = radial_wave__ + gid * n_max_compute_fns_ham;
@@ -1847,7 +1736,7 @@ kernel void integrate_first_order_h_sub_tmp2_(
   // global double *spline_array_aux = spline_array_aux__ + gid * n_basis_fns;
   global double *aux_radial = aux_radial__ + gid * n_max_compute_atoms * n_basis_fns; // 有风险, n_max_compute_atoms 是猜的
 
-  // global double *ylm_tab = ylm_tab__ + gid * ((l_ylm_max + 1) * (l_ylm_max + 1) * n_max_compute_atoms);
+  global double *ylm_tab = ylm_tab__ + gid * ((l_ylm_max + 1) * (l_ylm_max + 1) * n_max_compute_atoms);
   global double *dylm_dtheta_tab = dylm_dtheta_tab__ + gid * ((l_ylm_max + 1) * (l_ylm_max + 1) * n_max_compute_atoms);
   // 暂时这两个没用的用一样的空间
   global double *scaled_dylm_dphi_tab = dylm_dtheta_tab__ + gid * ((l_ylm_max + 1) * (l_ylm_max + 1) * n_max_compute_atoms);
@@ -1857,14 +1746,17 @@ kernel void integrate_first_order_h_sub_tmp2_(
   // global double *H_times_psi_group = H_times_psi__ + get_group_id(0) * (n_max_compute_ham * lsize * n_spin);   // 共用性类似 wave
   // global double *T_plus_V = T_plus_V__ + gid * n_max_compute_atoms * n_basis_fns; // 有风险, n_max_compute_atoms 是猜的
 
-  // global double *contract_group = contract__ + get_group_id(0) * n_max_batch_size * n_max_compute_ham;
+  global double *contract_group = contract__ + get_group_id(0) * ((n_max_batch_size+127)/128*128) * n_max_compute_ham;
+  // global double *contract_group = contract__ + get_group_id(0) * ((n_max_batch_size+127)/128*128) * ((n_max_compute_ham+127)/128*128);
   // global double *wave_t_group = wave_t__ + get_group_id(0) * n_max_batch_size * n_max_compute_ham;
-  global double *first_order_H_dense_group = first_order_H_dense__ + get_group_id(0) * n_max_compute_ham * n_max_compute_ham * n_spin;
+  // global double *first_order_H_dense_group = first_order_H_dense__ + get_group_id(0) * n_max_compute_ham * n_max_compute_ham * n_spin;
+  global double *first_order_H_dense_group = first_order_H_dense__ + get_group_id(0) * (n_max_compute_ham+8) * n_max_compute_ham * n_spin + 256;
 
 // #define i_basis_fns_inv(i, j) i_basis_fns_inv[(i)-1 + n_basis_fns * ((j)-1))]
   // return;
   // int i_my_batch = *i_my_batch_;
   // for (int i_my_batch = 1; i_my_batch <= n_my_batches_work_h; i_my_batch++) {
+  // for (int i_my_batch = get_group_id(0)+6; i_my_batch <= 6; i_my_batch+=(get_global_size(0) / get_local_size(0))) {
   for (int i_my_batch = get_group_id(0)+1; i_my_batch <= n_my_batches_work_h; i_my_batch+=(get_global_size(0) / get_local_size(0))) {
     int n_compute_c = batches_batch_n_compute_h(i_my_batch);
     if (n_compute_c > 0) {
@@ -1874,17 +1766,18 @@ kernel void integrate_first_order_h_sub_tmp2_(
 
         global double *dist_tab_sq = dist_tab_sq__ + gid * n_max_compute_atoms;
         global double *dist_tab = dist_tab__ + gid * n_max_compute_atoms;
-        global double *dir_tab = dir_tab__ + get_group_id(0) * lsize * 3 * n_max_compute_atoms;
+        // global double *dir_tab = dir_tab__ + get_group_id(0) * lsize * 3 * n_max_compute_atoms;
+        global double *dir_tab = dir_tab__ + gid * 3 * n_max_compute_atoms;
         global int *atom_index = atom_index__ + gid * n_max_compute_atoms;                   // use private instead
         // global int *atom_index_inv = atom_index_inv__ + gid * n_centers;
         // global int *atom_index_inv = atom_index_inv__ + get_group_id(0) * get_local_size(0) * n_centers;
         // global int *i_basis_fns = i_basis_fns__ + gid * n_basis_fns * n_centers_integrals;   // NULL removed
-        // global int *i_basis_fns_inv = i_basis_fns_inv__ + gid * n_basis_fns * n_centers;
+        global int *i_basis_fns_inv = i_basis_fns_inv__ + gid * n_basis_fns * (n_max_compute_atoms+1);
         // global int *i_atom_fns = i_atom_fns__ + gid * n_basis_fns * n_centers_integrals;     // NULL removed
-        global int *spline_array_start = spline_array_start__ + gid * n_max_compute_atoms;   // use private instead
-        global int *spline_array_end = spline_array_end__ + gid * n_max_compute_atoms;       // use private instead
-        // global double *one_over_dist_tab = one_over_dist_tab__ + gid * n_max_compute_atoms;  // use private instead
-        // global int *rad_index = rad_index__ + gid * n_max_compute_atoms;                     // use private instead
+        global int *spline_array_start = spline_array_start__ + gid * n_max_compute_atoms;
+        global int *spline_array_end = spline_array_end__ + gid * n_max_compute_atoms;
+        global double *one_over_dist_tab = one_over_dist_tab__ + gid * n_max_compute_atoms;
+        global int *rad_index = rad_index__ + gid * n_max_compute_atoms;
         global int *wave_index = wave_index__ + gid * n_max_compute_fns_ham;
         // global int *l_index = l_index__ + gid * n_max_compute_fns_ham;  // val[i] = l_aux * l_aux + 1, store in l_count[i]=val  // NULL removed
         global int *l_count = l_count__ + gid * n_max_compute_fns_ham;  // val[i] = 2 * l_aux, store in l_count[i]=val
@@ -1894,11 +1787,11 @@ kernel void integrate_first_order_h_sub_tmp2_(
         // private int atom_index[MACRO_n_centers_integrals];
         // private int spline_array_start[MACRO_n_centers_integrals];
         // private int spline_array_end[MACRO_n_centers_integrals];
-        private int rad_index[MACRO_n_max_compute_atoms];
-        private double one_over_dist_tab[MACRO_n_max_compute_atoms];
+        // private int rad_index[MACRO_n_max_compute_atoms];
+        // private double one_over_dist_tab[MACRO_n_max_compute_atoms];
 
         for(int i=0; i < n_basis_fns * (n_max_compute_atoms+1); i++)
-          i_basis_fns_inv__[i * gsize + gid] = 0.0;
+          i_basis_fns_inv[i] = 0.0;
 
         // for(int i=0; i < n_centers; i++){
         //   atom_index_inv[i * lsize + lid] = n_max_compute_atoms + 1;
@@ -1929,10 +1822,11 @@ kernel void integrate_first_order_h_sub_tmp2_(
         grid_coord_group[i_point - 1] = batches_points_coords_h(j_coord, i_point, i_my_batch);
 
         prune_radial_basis_p2_c_(&n_max_compute_atoms, &n_max_compute_fns_ham, &dist_tab_sq(1), &dist_tab(1),
-                                 dir_tab, // (3, n_atom_list)
+                                 &dir_tab(1, 1), // (3, n_atom_list)
+                                 //  dir_tab, // (3, n_atom_list)
                                  &n_compute_atoms, atom_index, NULL, &n_compute_fns, NULL,
-                                //  &n_compute_atoms, atom_index, atom_index_inv, &n_compute_fns, NULL,
-                                 i_basis_fns_inv__, // (n_basis_fns,n_centers)
+                                 //  &n_compute_atoms, atom_index, atom_index_inv, &n_compute_fns, NULL,
+                                 i_basis_fns_inv, // (n_basis_fns,n_centers)
                                  NULL, spline_array_start, spline_array_end, &n_centers_integrals,
                                  centers_basis_integrals, &n_compute_c, &batches_batch_i_basis_h(1, i_my_batch),
                                  &n_batch_centers_all_batches[i_my_batch - 1], &batch_center_all_batches(1, i_my_batch),
@@ -1958,22 +1852,22 @@ kernel void integrate_first_order_h_sub_tmp2_(
         // double ylm_tab[(l_ylm_max + 1) * (l_ylm_max + 1) * n_max_compute_atoms];              //
         // double dylm_dtheta_tab[(l_ylm_max + 1) * (l_ylm_max + 1) * n_max_compute_atoms];      // 没用
         // double scaled_dylm_dphi_tab[(l_ylm_max + 1) * (l_ylm_max + 1) * n_max_compute_atoms]; // 没用
-        tab_gradient_ylm_p0_c_2(NULL, basis_l_max, &l_ylm_max, &n_compute_atoms, atom_index, ylm_tab__,
+        tab_gradient_ylm_p0_c_(NULL, basis_l_max, &l_ylm_max, &n_compute_atoms, atom_index, ylm_tab,
                                dylm_dtheta_tab, scaled_dylm_dphi_tab, dir_tab, &species_center(1));
         int mfalse = 0;
         // double radial_wave[n_max_compute_fns_ham];
         evaluate_radial_functions_p0_c_(
             spline_array_start, spline_array_end, &n_compute_atoms, &n_compute_fns, &dist_tab(1), i_r, atom_index,
-            i_basis_fns_inv__, basis_wave_ordered, radial_wave, &mfalse, &n_compute_c,
+            i_basis_fns_inv, basis_wave_ordered, radial_wave, &mfalse, &n_compute_c,
             &n_max_compute_fns_ham
             // outer
             ,
             n_basis_fns, n_max_grid, &species_center(1), &n_grid(1), &perm_basis_fns_spl(1),
             NULL);
 
-        evaluate_waves_p2_c_2(&n_compute_c, &n_compute_atoms, &n_compute_fns, &l_ylm_max, ylm_tab__, one_over_dist_tab,
-                             radial_wave, &wave_group[(i_point-1)], rad_index, wave_index, NULL, l_count, fn_atom,
-                             &n_zero_compute, zero_index_point, aux_radial, n_points_all_batches[i_my_batch - 1]);
+        evaluate_waves_p2_c_(&n_compute_c, &n_compute_atoms, &n_compute_fns, &l_ylm_max, ylm_tab, one_over_dist_tab,
+                             radial_wave, &wave_group[n_compute_c * (i_point-1)], rad_index, wave_index, NULL, l_count, fn_atom,
+                             &n_zero_compute, zero_index_point, aux_radial);
         // printf("gid=%6d lid=%3d i_my_batch=%4d i_point_div=%3d i_point=%3d n_point=%4d\n", 
         //   gid, lid, i_my_batch, i_point_div, i_point, n_points_all_batches[i_my_batch - 1]);
         // evaluate_radial_functions_p0_c_(
@@ -1995,6 +1889,10 @@ kernel void integrate_first_order_h_sub_tmp2_(
       } // if(i_point <= n_points_all_batches[i_my_batch - 1])
       }
       global double* H_times_psi_group = NULL;
+      global double* first_order_H = &first_order_H_all[(n_matrix_size * n_spin) * get_group_id(0)];
+      // global double* first_order_H = &first_order_H_all[ALIGN_128(n_matrix_size * n_spin) * get_group_id(0)];
+
+      barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
       evaluate_first_order_h_polar_reduce_memory_c_(first_order_H, &n_points_all_batches[i_my_batch-1],
               &partition_all_batches[(i_my_batch-1) * n_max_batch_size], grid_coord_group,
               H_times_psi_group, &n_compute_c, &batches_batch_i_basis_h(1, i_my_batch), 
@@ -2006,14 +1904,14 @@ kernel void integrate_first_order_h_sub_tmp2_(
               local_rho_gradient,
               first_order_gradient_rho, &n_matrix_size,
               &ins_idx_all_batches[n_basis_local * (i_my_batch-1)], &n_basis_local, &n_spin, &n_max_compute_ham,
-              NULL, NULL, first_order_H_dense_group, A_local, B_local);
-      // if(n_basis_local <= 0){
-      //   prune_density_matrix_sparse_polar_reduce_memory_reverse(first_order_H, first_order_H_dense_group,
-      //                                            &n_compute_c, &batches_batch_i_basis_h(1, i_my_batch),
-      //                                            // outer
-      //                                            index_hamiltonian_dim2, index_hamiltonian,
-      //                                            column_index_hamiltonian);
-      // }
+              contract_group, NULL, first_order_H_dense_group, i_my_batch);
+      if(n_basis_local <= 0){
+        prune_density_matrix_sparse_polar_reduce_memory_reverse(first_order_H, first_order_H_dense_group,
+                                                 &n_compute_c, &batches_batch_i_basis_h(1, i_my_batch),
+                                                 // outer
+                                                 index_hamiltonian_dim2, index_hamiltonian,
+                                                 column_index_hamiltonian);
+      }
     }
   }
 #undef i_basis_fns_inv
@@ -2032,3 +1930,25 @@ kernel void integrate_first_order_h_sub_tmp2_(
 #undef H_PT_TILE
 #undef H_IC_WORK
 #undef H_PT_WORK
+
+kernel void parallel_reduce_add_double_arrays(const global double* batch_arrays, global double* result_array,
+  const int size, const int stride, const int batch_num){
+
+#define MIN(a, b) ((a)>(b) ? (b) : (a))
+
+  int gid = get_global_id(0);
+
+  int len = ALIGN_128(size / (int)(get_global_size(0)));
+  int start = len * gid;
+  int end = MIN(size, len * (gid + 1));
+
+  for(int batch = 0; batch < batch_num; batch++){
+    for(int i = start; i<end; i++){
+      result_array[i] += batch_arrays[batch * stride + i];
+    }
+  }
+
+#undef MIN
+}
+
+

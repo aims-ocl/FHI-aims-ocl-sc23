@@ -6590,99 +6590,85 @@ void far_distance_hartree_fp_cluster_single_atom_p2_c_(double *dist_tab_, int *l
   }
 }
 
-void far_distance_real_gradient_hartree_potential_single_atom_p2_c_(
-  int* current_atom_,
-  double* dir_tab,
-  double* gradient,
-  int* l_max_){
+// void far_distance_real_hartree_potential_single_atom_p2_c_(int *i_center_, double *potential_, int *l_max_,
+//                                                            double coord_current[3]) {
+//   int i_center = *i_center_;
+//   int l_max = *l_max_;
 
-  int current_atom = *current_atom_;
-  int l_max = *l_max_;
+//   double dpot = 0.0;
+//   double coord_c[3][(l_pot_max + 1)];
+//   double dir[3];
 
-#define multipole_c(i, j) MV(hartree_potential_real_p0, multipole_c)[((j)-1) * n_cc_lm_ijk(l_pot_max) + (i)-1]
-  extern double *MV(hartree_potential_real_p0, multipole_c);
-  extern double *MV(hartree_potential_real_p0, fp);
-  double* Fp = MV(hartree_potential_real_p0, fp);
+//   coord_c[0][0] = 1.0;
+//   coord_c[1][0] = 1.0;
+//   coord_c[2][0] = 1.0;
 
-  double sum = 0;
-  double coord_c[3][l_pot_max + 1];
-  double coord_mat[l_pot_max + 1][l_pot_max + 1];
-  double rest_mat[l_pot_max + 1][l_pot_max + 1];
-  double vector[n_cc_lm_ijk(l_pot_max)];
-  coord_c[0][0] = 1.0;
-  coord_c[1][0] = 1.0;
-  coord_c[2][0] = 1.0;
+//   dir[0] = coord_current[0] - coords_center(1, i_center);
+//   dir[1] = coord_current[1] - coords_center(2, i_center);
+//   dir[2] = coord_current[2] - coords_center(3, i_center);
 
-  for (int i_coord = 0; i_coord < 3; i_coord++)
-    for (int i_l = 1; i_l <= index_ijk_max_cc(i_coord + 1, l_max + 1); i_l++)
-      coord_c[i_coord][i_l] = dir_tab[i_coord] * coord_c[i_coord][i_l - 1];
-  for (int i_l = 0; i_l <= index_ijk_max_cc(1, l_max + 1); i_l++)
-    for (int i_l2 = 0; i_l2 <= index_ijk_max_cc(2, l_max); i_l2++)
-      coord_mat[i_l2][i_l] = coord_c[0][i_l] * coord_c[1][i_l2];
-  for (int i_l = 0; i_l <= index_ijk_max_cc(3, l_max + 1); i_l++)
-    for (int i_l2 = 0; i_l2 <= l_max; i_l2++)
-      rest_mat[i_l2][i_l] = coord_c[2][i_l] * Fp(i_l2, 1);
+//   int maxval = -1;
+//   for (int i = 1; i <= 3; i++)
+//     maxval = maxval > index_ijk_max_cc(i, l_max) ? maxval : index_ijk_max_cc(i, l_max);
+//   for (int i_l = 1; i_l <= maxval; i_l++) {
+//     coord_c[0][i_l] = dir[0] * coord_c[0][i_l - 1];
+//     coord_c[1][i_l] = dir[1] * coord_c[1][i_l - 1];
+//     coord_c[2][i_l] = dir[2] * coord_c[2][i_l - 1];
+//   }
+//   int index_cc_i_dim = n_cc_lm_ijk(l_max_analytic_multipole);
+//   for (int n = 1; n <= n_cc_lm_ijk(l_max); n++) {
+//     int ii = index_cc(n, 3, index_cc_i_dim);
+//     int jj = index_cc(n, 4, index_cc_i_dim);
+//     int kk = index_cc(n, 5, index_cc_i_dim);
+//     int nn = index_cc(n, 6, index_cc_i_dim);
+//     dpot =
+//         dpot + coord_c[0][ii] * coord_c[1][jj] * coord_c[2][kk] * Fp(nn, 1) * multipole_c(n,
+//         center_to_atom(i_center));
+//   }
+//   *potential_ += dpot;
+// }
 
-  int index_cc_i_dim = n_cc_lm_ijk(l_max_analytic_multipole);
-
-  // X direction:
-  for (int n = 1; n <= n_cc_lm_ijk(l_max); n++) {
-    int ii = index_cc(n, 3, index_cc_i_dim) - 1;
-    int jj = index_cc(n, 4, index_cc_i_dim);
-    int kk = index_cc(n, 5, index_cc_i_dim);
-    int nn = index_cc(n, 6, index_cc_i_dim);
-
-    if(ii >= 0)
-      vector[n - 1] = (ii+1) * coord_mat[jj][ii] * rest_mat[nn][kk];
-    else
-      vector[n - 1] = 0;
-    ii = index_cc(n, 3, index_cc_i_dim) + 1;
-    vector[n - 1] += coord_mat[jj][ii] * rest_mat[nn+1][kk];
-  }
-  sum = 0;
-  for (int n = 0; n < n_cc_lm_ijk(l_max); n++)
-    sum += vector[n] * multipole_c(n + 1, current_atom);
-  gradient[0] += sum;
-
-  // Y direction:
-  for (int n = 1; n <= n_cc_lm_ijk(l_max); n++) {
-    int ii = index_cc(n, 3, index_cc_i_dim);
-    int jj = index_cc(n, 4, index_cc_i_dim) - 1;
-    int kk = index_cc(n, 5, index_cc_i_dim);
-    int nn = index_cc(n, 6, index_cc_i_dim);
-
-    if(jj >= 0)
-      vector[n - 1] = (jj+1) * coord_mat[jj][ii] * rest_mat[nn][kk];
-    else
-      vector[n - 1] = 0;
-    jj = index_cc(n, 4, index_cc_i_dim) + 1;
-    vector[n - 1] += coord_mat[jj][ii] * rest_mat[nn+1][kk];
-  }
-  sum = 0;
-  for (int n = 0; n < n_cc_lm_ijk(l_max); n++)
-    sum += vector[n] * multipole_c(n + 1, current_atom);
-  gradient[1] += sum;
-
-  // Z direction:
-  for (int n = 1; n <= n_cc_lm_ijk(l_max); n++) {
-    int ii = index_cc(n, 3, index_cc_i_dim);
-    int jj = index_cc(n, 4, index_cc_i_dim);
-    int kk = index_cc(n, 5, index_cc_i_dim) - 1;
-    int nn = index_cc(n, 6, index_cc_i_dim);
-
-    if(kk >= 0)
-      vector[n - 1] = (kk+1) * coord_mat[jj][ii] * rest_mat[nn][kk];
-    else
-      vector[n - 1] = 0;
-    kk = index_cc(n, 5, index_cc_i_dim) + 1;
-    vector[n - 1] += coord_mat[jj][ii] * rest_mat[nn+1][kk];
-  }
-  sum = 0;
-  for (int n = 0; n < n_cc_lm_ijk(l_max); n++)
-    sum += vector[n] * multipole_c(n + 1, current_atom);
-  gradient[2] += sum;
-#undef multipole_c
-}
+// void far_distance_real_hartree_potential_single_atom_c_(int *current_center_, int *i_center_, double *potential,
+//                                                         int *l_hartree_max_far_distance, double coord_current[3]) {
+//   int current_center = *current_center_;
+//   int i_center = *i_center_;
+//   double c_pot = 0.0;
+//   double dpot = 0.0;
+//   int l_max = l_hartree_max_far_distance[center_to_atom(current_center) - 1];
+//   double coord_c[3][l_pot_max + 1];
+//   double coord_mat[l_pot_max + 1][l_pot_max + 1];
+//   double rest_mat[l_pot_max + 1][l_pot_max + 1];
+//   double vector[n_cc_lm_ijk(l_pot_max)];
+//   double dir[3];
+//   coord_c[0][0] = 1.0;
+//   coord_c[1][0] = 1.0;
+//   coord_c[2][0] = 1.0;
+//   dir[0] = coord_current[0] - coords_center(1, current_center);
+//   dir[1] = coord_current[1] - coords_center(2, current_center);
+//   dir[2] = coord_current[2] - coords_center(3, current_center);
+//   for (int i_coord = 0; i_coord < 3; i_coord++)
+//     for (int i_l = 1; i_l <= index_ijk_max_cc(i_coord + 1, l_max); i_l++)
+//       coord_c[i_coord][i_l] = dir[i_coord] * coord_c[i_coord][i_l - 1];
+//   for (int i_l = 0; i_l <= index_ijk_max_cc(1, l_max); i_l++)
+//     for (int i_l2 = 0; i_l2 <= index_ijk_max_cc(2, l_max); i_l2++)
+//       coord_mat[i_l2][i_l] = coord_c[0][i_l] * coord_c[1][i_l2];
+//   for (int i_l = 0; i_l <= index_ijk_max_cc(3, l_max); i_l++)
+//     for (int i_l2 = 0; i_l2 <= l_max; i_l2++)
+//       rest_mat[i_l2][i_l] = coord_c[2][i_l] * Fp(i_l2, i_center);
+//   int index_cc_i_dim = n_cc_lm_ijk(l_max_analytic_multipole);
+//   for (int n = 1; n <= n_cc_lm_ijk(l_max); n++) {
+//     int ii = index_cc(n, 3, index_cc_i_dim);
+//     int jj = index_cc(n, 4, index_cc_i_dim);
+//     int kk = index_cc(n, 5, index_cc_i_dim);
+//     int nn = index_cc(n, 6, index_cc_i_dim);
+//     vector[n - 1] = coord_mat[jj][ii] * rest_mat[nn][kk];
+//   }
+//   for (int n = 0; n < n_cc_lm_ijk(l_max); n++)
+//     dpot += vector[n] * multipole_c(n + 1, center_to_atom(current_center));
+//   if (fabs(dpot) > 1e-30)
+//     c_pot += dpot;
+//   *potential += c_pot;
+// }
 
 void far_distance_real_gradient_hartree_potential_single_atom_p2_c1_(
   int* current_atom_,
@@ -6744,45 +6730,3 @@ void far_distance_real_gradient_hartree_potential_single_atom_p2_c1_(
 
 #undef multipole_c
 }
-
-// void far_distance_real_hartree_potential_single_atom_c_(int *current_center_, int *i_center_, double *potential,
-//                                                         int *l_hartree_max_far_distance, double coord_current[3]) {
-//   int current_center = *current_center_;
-//   int i_center = *i_center_;
-//   double c_pot = 0.0;
-//   double dpot = 0.0;
-//   int l_max = l_hartree_max_far_distance[center_to_atom(current_center) - 1];
-//   double coord_c[3][l_pot_max + 1];
-//   double coord_mat[l_pot_max + 1][l_pot_max + 1];
-//   double rest_mat[l_pot_max + 1][l_pot_max + 1];
-//   double vector[n_cc_lm_ijk(l_pot_max)];
-//   double dir[3];
-//   coord_c[0][0] = 1.0;
-//   coord_c[1][0] = 1.0;
-//   coord_c[2][0] = 1.0;
-//   dir[0] = coord_current[0] - coords_center(1, current_center);
-//   dir[1] = coord_current[1] - coords_center(2, current_center);
-//   dir[2] = coord_current[2] - coords_center(3, current_center);
-//   for (int i_coord = 0; i_coord < 3; i_coord++)
-//     for (int i_l = 1; i_l <= index_ijk_max_cc(i_coord + 1, l_max); i_l++)
-//       coord_c[i_coord][i_l] = dir[i_coord] * coord_c[i_coord][i_l - 1];
-//   for (int i_l = 0; i_l <= index_ijk_max_cc(1, l_max); i_l++)
-//     for (int i_l2 = 0; i_l2 <= index_ijk_max_cc(2, l_max); i_l2++)
-//       coord_mat[i_l2][i_l] = coord_c[0][i_l] * coord_c[1][i_l2];
-//   for (int i_l = 0; i_l <= index_ijk_max_cc(3, l_max); i_l++)
-//     for (int i_l2 = 0; i_l2 <= l_max; i_l2++)
-//       rest_mat[i_l2][i_l] = coord_c[2][i_l] * Fp(i_l2, i_center);
-//   int index_cc_i_dim = n_cc_lm_ijk(l_max_analytic_multipole);
-//   for (int n = 1; n <= n_cc_lm_ijk(l_max); n++) {
-//     int ii = index_cc(n, 3, index_cc_i_dim);
-//     int jj = index_cc(n, 4, index_cc_i_dim);
-//     int kk = index_cc(n, 5, index_cc_i_dim);
-//     int nn = index_cc(n, 6, index_cc_i_dim);
-//     vector[n - 1] = coord_mat[jj][ii] * rest_mat[nn][kk];
-//   }
-//   for (int n = 0; n < n_cc_lm_ijk(l_max); n++)
-//     dpot += vector[n] * multipole_c(n + 1, center_to_atom(current_center));
-//   if (fabs(dpot) > 1e-30)
-//     c_pot += dpot;
-//   *potential += c_pot;
-// }

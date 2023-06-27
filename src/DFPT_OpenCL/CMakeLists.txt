@@ -31,14 +31,13 @@ if (USE_OPENCL)
 
   endforeach()
 
-  configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake_help.h.in ${CMAKE_CURRENT_LIST_DIR}/cmake_help.h)
-
   target_sources(aims-ocl PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/integrate_first_order_rho.c
     ${CMAKE_CURRENT_LIST_DIR}/opencl_util_c.c
     ${CMAKE_CURRENT_LIST_DIR}/opencl_util_mpi.c
     ${CMAKE_CURRENT_LIST_DIR}/opencl_util_mpi_m.c
     ${CMAKE_CURRENT_LIST_DIR}/save_load_var.c
+    ${CMAKE_CURRENT_LIST_DIR}/swcl/slave.info.c
     ${CMAKE_CURRENT_LIST_DIR}/sum_up_whole_potential_shanghui.c)
 
   # target_link_libraries(aims-ocl PRIVATE fmt::fmt-header-only)
@@ -53,7 +52,8 @@ if (USE_OPENCL)
   # -DOpenCL_FOUND=True -DOpenCL_LIBRARY= -DOpenCL_INCLUDE_DIR=
   
   target_include_directories(aims-ocl PRIVATE ${OpenCL_INCLUDE_DIRS})
-  target_link_libraries(aims-ocl PRIVATE ${OpenCL_LIBRARIES}/libOpenCL.so)
+  # target_link_libraries(aims-ocl PRIVATE ${OpenCL_LIBRARIES}/libOpenCL.so)
+  # target_link_libraries(aims-ocl PRIVATE ${OpenCL_LIBRARIES}/libswclapi.a)
 
   # find_package(multiarray REQUIRED)
   # target_link_libraries(aims-ocl PRIVATE multiarray::multiarray)
@@ -62,6 +62,22 @@ if (USE_OPENCL)
   target_compile_options(aims-ocl PRIVATE -Wall -Wno-unused-variable)
   target_include_directories(aims-ocl PRIVATE ${CMAKE_CURRENT_LIST_DIR})
   target_link_libraries(aims PRIVATE aims-ocl)
+
+  # To resolve undefined reference since swclapi needs
+  #  check_build_options, build_options, num_slave_functions and slave_functions
+  target_link_libraries(aims PRIVATE ${OpenCL_LIBRARIES}/libswclapi.a aims-ocl)
+
+  add_library_normal(aims-ocl-swslave)
+  # target_include_directories(aims-ocl-swslave PRIVATE ${OpenCL_INCLUDE_DIRS}))
+  target_sources(aims-ocl-swslave PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/slave_util.c
+    ${CMAKE_CURRENT_LIST_DIR}/swcl/slave.c)
+  target_compile_options(aims-ocl-swslave PRIVATE -mslave -msimd)
+  target_link_libraries(aims PRIVATE aims-ocl-swslave)
+  target_link_libraries(aims PRIVATE -lm_slave)
+  target_link_libraries(aims PRIVATE ${CMAKE_SOURCE_DIR}/external/sw_slave_dgemm.o)
+  target_link_options(aims PRIVATE -mhybrid)
+
 else()
   # target_sources(aims5 PRIVATE ${CMAKE_CURRENT_LIST_DIR}/gpu_stub.f90)
 endif()

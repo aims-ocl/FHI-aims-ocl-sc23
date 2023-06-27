@@ -237,5 +237,9 @@ if (_is_pgi)
   pgi_libs_full_fix()
 endif()
 
+# check which cc is used
+execute_process(COMMAND ${CMAKE_C_COMPILER} -show)
+execute_process(COMMAND ${CMAKE_C_COMPILER} -v)
+
 # SOURCE
 add_subdirectory(src)

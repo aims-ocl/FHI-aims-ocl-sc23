@@ -120,43 +120,23 @@
 #       included in FFLAGS and F90FLAGS, respectively.
 #
 #
-#  FC = mpiifort
  FC = mpif90
 #FC = swafort
 # FFLAGS = -O3 -ffree-line-length-none -mieee
 # FFLAGS = -O3 -g -ffree-line-length-none -mieee -fcheck=all -fbacktrace
-#  FFLAGS = -O2 -g -ffree-line-length-none -fp-model precise
- FFLAGS = -O3 -g -ffree-line-length-none
+ FFLAGS = -O3 -g -ffree-line-length-none -mieee 
  F90FLAGS = $(FFLAGS)
  ARCH = arch_generic.f90
  MPIFC = $(FC)
  USE_MPI      = yes
 #------------begin xMath_20201223-----------------------------------
-my_mkl = /public/software/compiler/intel/oneapi/mkl/2021.3.0
-LAPACKBLAS = -I$(my_mkl)/include/intel64/lp64 -L$(my_mkl)/lib/intel64 \
-               -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread
-# SCALAPACK = -L/public/home/aicao/wzk/fhi-aims_MPE_O3_local_index_final/hipscalapack -lhipscalapack -L/public/home/aicao/wzk/local/lib -lscalapack -lm
-# SCALAPACK = -L/public/home/aicao/wzk/local/lib -lscalapack -lm
+my_mkl = /home/export/base/shisuan/swyjs/lxh/lib/xMath_20201223_g
+LAPACKBLAS = -mhybrid -static  -L$(my_mkl) -lswlapack    -L$(my_mkl) -lswblas
+SCALAPACK = -L$(my_mkl) -lswscalapack
+#------------end xMath 20201223-----------------------------------
 
+SWCL_LIB = -L/home/export/base/shisuan/swyjs/cq/swcl/install/lib/swcl -lswclapi
 
-
-# my_mkl = /public/software/compiler/intel/intel-compiler-2017.5.239/mkl
-# LAPACKBLAS = -L/public/home/aicao/wzk/local/lib -lblis -lm
-
-# my_mkl = /public/software/compiler/intel/intel-compiler-2017.5.239/mkl
-# LAPACKBLAS = -I$(my_mkl)/include/intel64/lp64 -L$(my_mkl)/lib/intel64_lin \
-# -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread
-SCALAPACK = -I$(my_mkl)/include/intel64/lp64 -L$(my_mkl)/lib/intel64_lin \
--lmkl_blacs_intelmpi_lp64 -lmkl_scalapack_lp64 -lm
-
-# SCALAPACK = -L/public/home/aicao/wzk/fhi-aims_MPE_O3_local_index_final/hipscalapack -lhipscalapack
-
-# my_mkl = /public/software/compiler/intel/oneapi/mkl/2021.3.0
-# LAPACKBLAS = -I$(my_mkl)/include/intel64/lp64 -L$(my_mkl)/lib/intel64 \
-# -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread
-# SCALAPACK = -I$(my_mkl)/include/intel64/lp64 -L$(my_mkl)/lib/intel64 \
-# -lmkl_blacs_openmpi_lp64 -lmkl_scalapack_lp64 -lm
-# -lmkl_blacs_intelmpi_lp64 -lmkl_scalapack_lp64 -lm
 #------------begin no_opt-----------------------------------
 #my_mkl = /home/export/online1/mdt00/shisuan/swict/2020_wuxi/2020_1008_mathlib/01_no_opt/mathlib/lapack-3.8.0
 #LAPACKBLAS = -mhybrid -static  -L$(my_mkl) -llapack   -L$(my_mkl) -lrefblas
@@ -167,15 +147,10 @@ SCALAPACK = -I$(my_mkl)/include/intel64/lp64 -L$(my_mkl)/lib/intel64_lin \
 
 #ARCHITECTURE = Generic
  CC           = mpicc
- CFLAGS       = -c -O3 -g -mavx -mavx2 -mfma -g -I${MY_ROCM_PATH}/opencl/include
-#  CFLAGS       = -c -O3 -g -mavx -mavx2 -mfma -g -I/public/software/compiler/dtk/21.04/opencl/include -I/public/software/compiler/dtk/21.04/include  -D__HIP_PLATFORM_HCC__
-#  CFLAGS       = -c -std=gnu99 -O2 -g -mavx -mavx2 -mfma -g -I/public/software/apps/AI/compiler/rocm-4.0.1/opencl/include
+ CFLAGS       = -c -std=gnu99 -O3 -g -mieee -I /home/export/base/shisuan/swyjs/cq/swcl/install/lib/swcl/host/include
  SHM          = shm.o /usr/lib64/librt.a
- OCL_LINKER_FLAGS = -L${MY_ROCM_PATH}/opencl/lib -lOpenCL 
-#  OCL_LINKER_FLAGS = -L/public/software/compiler/dtk/21.04/opencl/lib -lOpenCL 
+ # OCL_LINKER_FLAGS = -lOpenCL 
 
-# CUDALIBS      = -L${MY_ROCM_PATH}/hipblas/lib/ -lhipblas
-# CUDALIBS      += -L${MY_ROCM_PATH}/lib/ -lamdhip64
 
 #
 # First example: ifort, mkl, serial mode
@@ -314,8 +289,6 @@ libaims: $(BINDIR)/libaims.a
 scalapack.libaims: $(BINDIR)/libaims.scalapack.a
 
 scalapack.mpi: $(BINDIR)/aims.$(AIMSVERSION).scalapack.mpi.x
-scalapack.mpi.2: $(BINDIR)/aims.$(AIMSVERSION).scalapack.mpi.x.2
-scalapack.mpi.3: $(BINDIR)/aims.$(AIMSVERSION).scalapack.mpi.x.3
 
 multi.scalapack.mpi: $(BINDIR)/aims.$(AIMSVERSION).multi.scalapack.mpi.x
 
@@ -365,7 +338,7 @@ $(BINDIR)/aims.$(AIMSVERSION).scalapack.mpi.x: $(OBJDIR)/write_version_stamp.o \
    $(MODULES) $(OBJDIR)/aims.o $(OBJDIR)/main.o $(SUBROUTINES) $(EXTERNAL) \
    $(ANACON) $(METIS_STUB) $(CUBA_STUBS) $(C_FILES_STUBS) $(ASM_FILES) \
    $(SHM_STUBS) $(PLUMED_STUB) $(PARSER_STUBS) $(IPI_STUBS) $(LIBXC_STUBS) \
-   $(HDF5_STUBS) $(SOC) $(CUDA_STUBS) $(IPC_FILES) $(PERF_STUBS)
+   $(HDF5_STUBS) $(SOC) $(CUDA_STUBS) $(IPC_FILES) $(PERF_STUBS) $(SLAVE_OBJS) /home/export/online1/mdt00/shisuan/swyjs/wzk/share/lib/sw_slave_dgemm.o
 	@mkdir -p $(dir $@)
 	$(MPIFC) $(FFLAGS) $(CBFLAGS) $(LDFLAGS) -o $@ \
               $(OBJDIR)/write_version_stamp.o $(OBJDIR)/aims.o \
@@ -373,40 +346,8 @@ $(BINDIR)/aims.$(AIMSVERSION).scalapack.mpi.x: $(OBJDIR)/write_version_stamp.o \
               $(METIS_STUB) $(CUDALIBS) $(ELSI_LIB) $(SCALAPACK) $(LAPACKBLAS) \
               $(CUBA_STUBS) $(SHM_STUBS) $(C_FILES_STUBS) $(ASM_FILES) \
               $(PLUMED_STUB) $(PARSER_STUBS) $(IPI_STUBS) $(LIBXC_STUBS) \
-              $(HDF5_STUBS) $(IPC_FILES) $(SOC) $(PERF_STUBS) \
-              $(LIBXC_LINKER_FLAGS) $(OCL_LINKER_FLAGS) -lrt
-	@echo "Built $@."
-
-$(BINDIR)/aims.$(AIMSVERSION).scalapack.mpi.x.2: $(OBJDIR)/write_version_stamp.o \
-   $(MODULES) $(OBJDIR)/aims.o $(OBJDIR)/main.o $(SUBROUTINES) $(EXTERNAL) \
-   $(ANACON) $(METIS_STUB) $(CUBA_STUBS) $(C_FILES_STUBS) $(ASM_FILES) \
-   $(SHM_STUBS) $(PLUMED_STUB) $(PARSER_STUBS) $(IPI_STUBS) $(LIBXC_STUBS) \
-   $(HDF5_STUBS) $(SOC) $(CUDA_STUBS) $(IPC_FILES) $(PERF_STUBS)
-	@mkdir -p $(dir $@)
-	$(MPIFC) $(FFLAGS) $(CBFLAGS) $(LDFLAGS) -o $@ \
-              $(OBJDIR)/write_version_stamp.o $(OBJDIR)/aims.o \
-              $(OBJDIR)/main.o $(SUBROUTINES) $(MODULES) $(ANACON) $(EXTERNAL) \
-              $(METIS_STUB) $(CUDALIBS) $(ELSI_LIB) $(SCALAPACK) $(LAPACKBLAS) \
-              $(CUBA_STUBS) $(SHM_STUBS) $(C_FILES_STUBS) $(ASM_FILES) \
-              $(PLUMED_STUB) $(PARSER_STUBS) $(IPI_STUBS) $(LIBXC_STUBS) \
-              $(HDF5_STUBS) $(IPC_FILES) $(SOC) $(PERF_STUBS) \
-              $(LIBXC_LINKER_FLAGS) $(OCL_LINKER_FLAGS) -lrt
-	@echo "Built $@."
-
-$(BINDIR)/aims.$(AIMSVERSION).scalapack.mpi.x.3: $(OBJDIR)/write_version_stamp.o \
-   $(MODULES) $(OBJDIR)/aims.o $(OBJDIR)/main.o $(SUBROUTINES) $(EXTERNAL) \
-   $(ANACON) $(METIS_STUB) $(CUBA_STUBS) $(C_FILES_STUBS) $(ASM_FILES) \
-   $(SHM_STUBS) $(PLUMED_STUB) $(PARSER_STUBS) $(IPI_STUBS) $(LIBXC_STUBS) \
-   $(HDF5_STUBS) $(SOC) $(CUDA_STUBS) $(IPC_FILES) $(PERF_STUBS)
-	@mkdir -p $(dir $@)
-	$(MPIFC) $(FFLAGS) $(CBFLAGS) $(LDFLAGS) -o $@ \
-              $(OBJDIR)/write_version_stamp.o $(OBJDIR)/aims.o \
-              $(OBJDIR)/main.o $(SUBROUTINES) $(MODULES) $(ANACON) $(EXTERNAL) \
-              $(METIS_STUB) $(CUDALIBS) $(ELSI_LIB) $(SCALAPACK) $(LAPACKBLAS) \
-              $(CUBA_STUBS) $(SHM_STUBS) $(C_FILES_STUBS) $(ASM_FILES) \
-              $(PLUMED_STUB) $(PARSER_STUBS) $(IPI_STUBS) $(LIBXC_STUBS) \
-              $(HDF5_STUBS) $(IPC_FILES) $(SOC) $(PERF_STUBS) \
-              $(LIBXC_LINKER_FLAGS) $(OCL_LINKER_FLAGS) -lrt
+              $(HDF5_STUBS) $(IPC_FILES) $(SOC) $(PERF_STUBS) $(SLAVE_OBJS) -lm_slave \
+              $(LIBXC_LINKER_FLAGS) $(OCL_LINKER_FLAGS) -lrt $(SWCL_LIB) /home/export/online1/mdt00/shisuan/swyjs/wzk/share/lib/sw_slave_dgemm.o
 	@echo "Built $@."
 
 $(BINDIR)/aims.$(AIMSVERSION).multi.scalapack.mpi.x: \

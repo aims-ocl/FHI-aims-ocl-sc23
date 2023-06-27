@@ -390,7 +390,7 @@ subroutine elsi_solve_elpa_real(ph,bh,ham,ovlp,eval,evec)
       call elsi_check_ovlp_elpa(ph,bh,ovlp,eval,evec)
    end if
 
-   write(msg,"(A)") "Starting ELPA eigensolver (elsi_solve_elpa_real elpa)"
+   write(msg,"(A)") "Starting ELPA eigensolver"
    call elsi_say(bh,msg)
 
    ! Transform to standard form
@@ -414,7 +414,7 @@ subroutine elsi_solve_elpa_real(ph,bh,ham,ovlp,eval,evec)
 
    call elsi_get_time(t1)
 
-   write(msg,"(A)") "Finished solving standard eigenproblem (elsi_solve_elpa_real elpa)"
+   write(msg,"(A)") "Finished solving standard eigenproblem"
    call elsi_say(bh,msg)
    write(msg,"(A,F10.3,A)") "| Time :",t1-t0," s"
    call elsi_say(bh,msg)
@@ -755,7 +755,7 @@ subroutine elsi_solve_elpa_cmplx(ph,bh,ham,ovlp,eval,evec)
       call elsi_check_ovlp_elpa(ph,bh,ovlp,eval,evec)
    end if
 
-   write(msg,"(A)") "Starting ELPA eigensolver (elsi_solve_elpa_cmplx elpa)"
+   write(msg,"(A)") "Starting ELPA eigensolver"
    call elsi_say(bh,msg)
 
    ! Transform to standard form
@@ -779,7 +779,7 @@ subroutine elsi_solve_elpa_cmplx(ph,bh,ham,ovlp,eval,evec)
 
    call elsi_get_time(t1)
 
-   write(msg,"(A)") "Finished solving standard eigenproblem (elsi_solve_elpa_cmplx elpa)"
+   write(msg,"(A)") "Finished solving standard eigenproblem"
    call elsi_say(bh,msg)
    write(msg,"(A,F10.3,A)") "| Time :",t1-t0," s"
    call elsi_say(bh,msg)
@@ -899,9 +899,6 @@ subroutine elsi_elpa_evec_real(ph,bh,mat,eval,evec,sing_check)
 
       copy = mat
 
-      write(msg,"(A)") "  call elpa_check_pd_real_double from elsi_elpa_evec_real"
-      call elsi_say(bh,msg)
-
       ! Use modified ELPA2, which computes eigenvectors only for singular matrix
       ok = elpa_check_pd_real_double(ph%n_basis,ph%n_basis,copy,bh%n_lrow,eval,&
          evec,bh%n_lrow,bh%blk,ph%elpa_comm_row,ph%elpa_comm_col,bh%comm,&
@@ -919,18 +916,10 @@ subroutine elsi_elpa_evec_real(ph,bh,mat,eval,evec,sing_check)
       ph%ovlp_ev_max = eval(ph%n_basis)
    else
       if(ph%elpa_solver == 2) then
-
-         write(msg,"(A)") "  call elpa_solve_evp_real_2stage_double from elsi_elpa_evec_real"
-         call elsi_say(bh,msg)
-
          ok = elpa_solve_evp_real_2stage_double(ph%n_good,ph%n_states_solve,&
             mat,bh%n_lrow,eval,evec,bh%n_lrow,bh%blk,ph%elpa_comm_row,&
             ph%elpa_comm_col,bh%comm)
       else
-
-         write(msg,"(A)") "  call elpa_solve_evp_real_1stage_double from elsi_elpa_evec_real"
-         call elsi_say(bh,msg)
-
          ok = elpa_solve_evp_real_1stage_double(ph%n_good,ph%n_states_solve,&
             mat,bh%n_lrow,eval,evec,bh%n_lrow,bh%blk,ph%elpa_comm_row,&
             ph%elpa_comm_col,bh%comm)

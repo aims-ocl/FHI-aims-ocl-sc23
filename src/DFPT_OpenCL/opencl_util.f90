@@ -77,7 +77,7 @@ contains
 
         call GET_ENVIRONMENT_VARIABLE('FHI_AIMS_OCL_RHO_MULTIPOLE_SHMEM', var_value)
         if (TRIM(var_value) == "ON") then
-            use_rho_multipole_shmem = 1
+            use_rho_multipole_shmem = .true.
             if(myid .eq. 0) write(*, *) 'Enable FHI_AIMS_OCL_RHO_MULTIPOLE_SHMEM.'
 
             call GET_ENVIRONMENT_VARIABLE('MPI_PER_NODE', var_value)
