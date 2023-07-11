@@ -2007,13 +2007,13 @@ kernel void integrate_first_order_h_sub_tmp2_(
               first_order_gradient_rho, &n_matrix_size,
               &ins_idx_all_batches[n_basis_local * (i_my_batch-1)], &n_basis_local, &n_spin, &n_max_compute_ham,
               NULL, NULL, first_order_H_dense_group, A_local, B_local);
-      // if(n_basis_local <= 0){
-      //   prune_density_matrix_sparse_polar_reduce_memory_reverse(first_order_H, first_order_H_dense_group,
-      //                                            &n_compute_c, &batches_batch_i_basis_h(1, i_my_batch),
-      //                                            // outer
-      //                                            index_hamiltonian_dim2, index_hamiltonian,
-      //                                            column_index_hamiltonian);
-      // }
+      if(n_basis_local <= 0){
+        prune_density_matrix_sparse_polar_reduce_memory_reverse(first_order_H, first_order_H_dense_group,
+                                                 &n_compute_c, &batches_batch_i_basis_h(1, i_my_batch),
+                                                 // outer
+                                                 index_hamiltonian_dim2, index_hamiltonian,
+                                                 column_index_hamiltonian);
+      }
     }
   }
 #undef i_basis_fns_inv
